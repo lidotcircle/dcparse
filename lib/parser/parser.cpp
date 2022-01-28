@@ -43,9 +43,12 @@ set<pair<charid_t,charid_t>> DCParser::startState() const {
 int DCParser::add_rule(charid_t lh, vector<charid_t> rh, reduce_callback_t cb,
                        int priority, RuleAssocitive associtive)
 {
+    /* FIXME
     auto option = make_unique<RuleOption>(cb, priority, associtive);
     this->m_rules.push_back(make_tuple(lh, rh, option));
     return this->m_rules.size();
+    */
+    return 0;
 }
 
 void DCParser::add_start_symbol(charid_t id) {

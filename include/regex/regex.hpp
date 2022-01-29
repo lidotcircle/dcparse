@@ -52,7 +52,7 @@ template<typename CharT>
 class AutomataMatcher {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
 
 public:
     virtual void feed(char_type c) = 0;
@@ -77,7 +77,7 @@ public:
 template<typename CharT>
 struct RegexDFA {
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     struct DFAEntry {
         char_type low, high;
         size_t state;
@@ -93,7 +93,7 @@ template<typename CharT>
 class DFAMatcher : public AutomataMatcher<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using entry_type= typename RegexDFA<char_type>::DFAEntry;
     std::shared_ptr<RegexDFA<char_type>> m_dfa;
     size_t m_current_state;
@@ -144,7 +144,7 @@ public:
 template<typename CharT>
 struct RegexNFA {
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     struct NFAEntry {
         char_type low, high;
         std::set<size_t> state;
@@ -166,7 +166,7 @@ template<typename CharT>
 class NFAMatcher : public AutomataMatcher<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NFAEntry = typename RegexNFA<char_type>::NFAEntry;
     std::shared_ptr<RegexNFA<char_type>> m_nfa;
     std::set<size_t> m_current_states;
@@ -248,7 +248,7 @@ template<typename CharT>
 class Regex2BasicConvertor {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     std::vector<size_t> m_lparen_pos;
     std::vector<char_type> __result;
     bool escaping;
@@ -496,7 +496,7 @@ public:
 template<typename CharT>
 struct NodeNFA {
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NodeNFAEntry = typename RegexNFA<char_type>::NFAEntry;
     using NodeNFATransitionTable = std::map<size_t,std::vector<NodeNFAEntry>>;
 
@@ -623,7 +623,7 @@ template<typename CharT>
 class ExprNodeEmpty : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
     using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
 
@@ -677,7 +677,7 @@ template<typename CharT>
 class ExprNodeCharRange : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
     using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     char_type _min, _max;
@@ -722,7 +722,7 @@ template<typename CharT>
 class ExprNodeConcatenation : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
     using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     std::vector<std::shared_ptr<ExprNode<CharT>>> children;
@@ -793,7 +793,7 @@ template<typename CharT>
 class ExprNodeUnion : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
     using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     std::vector<std::shared_ptr<ExprNode<CharT>>> children;
@@ -853,7 +853,7 @@ template<typename CharT>
 class ExprNodeKleeneStar : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
     using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     std::shared_ptr<ExprNode<CharT>> _next;
@@ -893,7 +893,7 @@ template<typename CharT>
 class RegexNodeTreeGenerator {
 private:
     using traits = character_traits<CharT>;
-    using char_type = typename traits::char_type;
+    using char_type = CharT;
     using node_type = std::shared_ptr<ExprNode<char_type>>;;
     struct StackValueState {
         std::shared_ptr<ExprNode<char_type>> node;

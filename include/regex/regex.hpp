@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <vector>
 #include <memory>
+#include <set>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <assert.h>
@@ -32,7 +34,8 @@ struct character_traits {
     constexpr static char_type PLUS      = '+';
     constexpr static char_type DOT       = '.';
 
-    constexpr static char_type MIN = std::numeric_limits<char_type>::min();
+    constexpr static char_type EMPTY_CHAR = std::numeric_limits<char_type>::min();
+    constexpr static char_type MIN = std::numeric_limits<char_type>::min() + 1;
     constexpr static char_type MAX = std::numeric_limits<char_type>::max();
 };
 
@@ -44,6 +47,202 @@ template<>
 std::string char_to_string<char>(char c) {
     return std::string(1, c);
 }
+
+template<typename CharT>
+class AutomataMatcher {
+private:
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+
+public:
+    virtual void feed(char_type c) = 0;
+    virtual bool match() const = 0;
+    virtual bool dead() const = 0;
+    virtual void reset() = 0;
+
+    template<typename Iterator>
+    bool test(Iterator begin, Iterator end) {
+        for (auto it = begin; it != end; ++it)
+            feed(*it);
+        return match();
+    }
+
+    bool test(const std::vector<char_type>& str) {
+        return test(str.begin(), str.end());
+    }
+
+    virtual ~AutomataMatcher() = default;
+};
+
+template<typename CharT>
+struct RegexDFA {
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    struct DFAEntry {
+        char_type low, high;
+        size_t state;
+    };
+
+    using DFATransitionTable = std::vector<std::vector<DFAEntry>>;
+    size_t m_start_state, m_dead_state;
+    std::set<size_t> m_final_states;
+    DFATransitionTable m_transitions;
+};
+
+template<typename CharT>
+class DFAMatcher : public AutomataMatcher<CharT> {
+private:
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    using entry_type= typename RegexDFA<char_type>::DFAEntry;
+    std::shared_ptr<RegexDFA<char_type>> m_dfa;
+    size_t m_current_state;
+
+public:
+    DFAMatcher() = delete;
+    DFAMatcher(std::shared_ptr<RegexDFA<char_type>> dfa):
+        m_dfa(dfa)
+    {
+        if (this->m_dfa == nullptr)
+            throw std::runtime_error("DFA is null");
+
+        this->reset();
+    }
+
+    virtual void feed(char_type c) override {
+        assert(traits::MIN <= c && c <= traits::MAX);
+        if (this->m_current_state == this->m_dfa->m_dead_state)
+            return;
+
+        auto cstate = this->m_current_state;
+        auto& transitions = this->m_dfa->m_transitions;
+        assert(transitions.size() > cstate);
+
+        auto& transition = transitions[cstate];
+        auto lb = std::lower_bound(transition.begin(), transition.end(), c,
+            [](const entry_type& entry, char_type c) {
+                return entry.high < c;
+            });
+        assert(lb != transition.end());
+        assert(lb->low <= c &&  c <= lb->high);
+        this->m_current_state = lb->state;
+    }
+
+    virtual bool match() const override {
+        auto& finals = m_dfa->m_final_states;
+        return finals.find(this->m_current_state) != finals.end();
+    }
+    virtual bool dead() const override {
+        return this->m_current_state == this->m_dfa->m_dead_state;
+    }
+    virtual void reset() override {
+        this->m_current_state = this->m_dfa->m_start_state;
+    }
+    virtual ~DFAMatcher() = default;
+};
+
+template<typename CharT>
+struct RegexNFA {
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    struct NFAEntry {
+        char_type low, high;
+        std::set<size_t> state;
+
+        NFAEntry() = default;
+        NFAEntry(char_type low, char_type high): low(low), high(high) {}
+        NFAEntry(char_type low, char_type high, std::set<size_t> states):
+            low(low), high(high), state(std::move(states))
+        {}
+    };
+
+    using NFATransitionTable = std::vector<std::vector<NFAEntry>>;
+    size_t m_start_state;
+    std::set<size_t> m_final_states;
+    NFATransitionTable m_transitions;
+};
+
+template<typename CharT>
+class NFAMatcher : public AutomataMatcher<CharT> {
+private:
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    using NFAEntry = typename RegexNFA<char_type>::NFAEntry;
+    std::shared_ptr<RegexNFA<char_type>> m_nfa;
+    std::set<size_t> m_current_states;
+
+public:
+    NFAMatcher() = delete;
+    NFAMatcher(std::shared_ptr<RegexNFA<char_type>> nfa):
+        m_nfa(nfa)
+    {
+        if (this->m_nfa == nullptr)
+            throw std::runtime_error("NFA is null");
+
+        this->reset();
+    }
+    NFAMatcher(const std::vector<char_type>& pattern);
+
+    virtual void feed(char_type c) override {
+        assert(traits::MIN <= c && c <= traits::MAX);
+        if (this->m_current_states.empty())
+            return;
+
+        std::set<size_t> next_states;
+        for (auto& state : this->m_current_states) {
+            auto& transitions = this->m_nfa->m_transitions;
+            assert(transitions.size() > state); // TODO
+            auto& transition = transitions[state];
+            auto lb = std::lower_bound(transition.begin(), transition.end(), c,
+                [](const NFAEntry& entry, char_type c) {
+                    return entry.high < c;
+                });
+
+            if (lb != transition.end() && lb->low <= c && c <= lb->high)
+                next_states.insert(lb->state.begin(), lb->state.end());
+        }
+
+        std::set<size_t> epsilon_states, seeit = next_states;
+        do {
+            next_states.insert(epsilon_states.begin(), epsilon_states.end());
+            epsilon_states.clear();
+
+            for (auto& state: seeit) {
+                auto& transitions = this->m_nfa->m_transitions;
+                assert(transitions.size() > state); // TODO
+                auto& transition = transitions[state];
+                auto lb = std::lower_bound(transition.begin(), transition.end(), c,
+                    [](const NFAEntry& entry, char_type c) {
+                        return entry.high < traits::EMPTY_CHAR;
+                    });
+                if (lb != transition.end() && lb->low == traits::EMPTY_CHAR) {
+                    assert(lb->high == traits::EMPTY_CHAR);
+                    for (auto s: lb->state) {
+                        if (next_states.find(s) == next_states.end())
+                            epsilon_states.insert(s);
+                    }
+                }
+            }
+            seeit = epsilon_states;
+        } while (epsilon_states.size() > 0);
+
+        this->m_current_states = next_states;
+    }
+    virtual bool match() const override {
+        auto& finals = m_nfa->m_final_states;
+        return std::any_of(m_current_states.begin(), m_current_states.end(),
+            [&finals](size_t state) {
+                return finals.find(state) != finals.end();
+            });
+    }
+    virtual bool dead() const override {
+        return m_current_states.empty();
+    }
+    virtual void reset() override {
+        m_current_states = { m_nfa->m_start_state };
+    }
+    virtual ~NFAMatcher() = default;
+};
 
 template<typename CharT>
 class Regex2BasicConvertor {
@@ -83,7 +282,7 @@ private:
                 return std::vector<char_type>({  this->__result.back() });
             }
         } else {
-            assert(this->__result.back() == traits::LPAREN);
+            assert(this->__result.back() == traits::RPAREN);
             std::vector<char_type> ans;
             std::copy(this->__result.begin() + last_lparen_pos, this->__result.end(), std::back_inserter(ans));
             return ans;
@@ -277,6 +476,133 @@ public:
     }
 };
 
+template<size_t Begin = 0, size_t End = std::numeric_limits<size_t>::max()>
+class StateAllocator {
+private:
+    static_assert(Begin < End, "Begin must be less than End");
+    size_t last_state;
+
+public:
+    StateAllocator() : last_state(Begin) {}
+
+    size_t newstate() {
+        if (last_state == End)
+            throw std::runtime_error("Too many states");
+
+        return last_state++;
+    }
+};
+
+template<typename CharT>
+struct NodeNFA {
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    using NodeNFAEntry = typename RegexNFA<char_type>::NFAEntry;
+    using NodeNFATransitionTable = std::map<size_t,std::vector<NodeNFAEntry>>;
+
+    size_t m_start_state, m_final_state;
+    NodeNFATransitionTable m_transitions;
+
+    explicit operator RegexNFA<char_type>()
+    {
+        RegexNFA<char_type> nfa;
+        nfa.m_start_state = m_start_state;
+        nfa.m_final_states = { m_final_state };
+        auto& transitions = nfa.m_transitions;
+        transitions.resize(transitions.size());
+
+        std::map<size_t,size_t> state_rewriter;
+        size_t state_size = 0;
+        const auto query_state = [&](size_t state) {
+            if (state_rewriter.find(state) == state_rewriter.end())
+                state_rewriter[state] = state_size++;
+            return state_rewriter[state];
+        };
+        const auto query_state_set = [&](std::set<size_t> states) {
+            std::set<size_t> result;
+            for (auto state : states)
+                result.insert(query_state(state));
+            return result;
+        };
+
+        for (auto& m: this->m_transitions) {
+            auto state = query_state(m.first);
+            auto& entries = m.second;
+            auto& new_entries = transitions[query_state(state)];
+            for (auto& entry : entries) {
+                auto& new_entry = new_entries.emplace_back();
+                new_entry.state = query_state_set(entry.state);
+                new_entry.low = entry.low;
+                new_entry.high = entry.high;
+            }
+            if (transitions.size() < state_size)
+                transitions.resize(state_size);
+            transitions[state] = new_entries;
+        }
+
+        return nfa;
+    }
+
+    static std::vector<NodeNFAEntry> merge_two_transitions(
+            std::vector<NodeNFAEntry> first,
+            std::vector<NodeNFAEntry> second)
+    {
+        std::vector<NodeNFAEntry> result;
+        result.reserve(first.size() + second.size());
+
+        auto first_it = first.begin();
+        auto second_it = second.begin();
+        while (first_it != first.end() && second_it != second.end()) {
+            if (first_it->high < second_it->low) {
+                result.push_back(std::move(*first_it));
+                ++first_it;
+            } else if (first_it->low > second_it->high) {
+                result.push_back(std::move(*second_it));
+                ++second_it;
+            } else {
+                auto& sm = first_it->low <  second_it->low ? first_it : second_it;
+                auto& bg = first_it->low >= second_it->low ? first_it : second_it;
+                
+                if (sm->low < bg->low) {
+                    result.push_back(NodeNFAEntry(sm->low, (char_type)(bg->low - 1), sm->state));
+                    sm->low = bg->low;
+                    assert(sm->low <= sm->high);
+                }
+
+                auto& sm2 = sm->high <  bg->high ? sm : bg;
+                auto& bg2 = sm->high >= bg->high ? sm : bg;
+                result.push_back(NodeNFAEntry(sm2->low, sm2->high, std::move(sm2->state)));
+                result.back().state.insert(bg2->state.begin(), bg2->state.end());
+                sm2++;
+
+                if (sm2->high + 1 <= bg2->high) {
+                    bg2->low = (char_type)(sm->high + 1);
+                } else {
+                    bg2++;
+                }
+            }
+        }
+
+        if (first_it != first.end()) {
+            for (; first_it != first.end(); ++first_it)
+                result.push_back(std::move(*first_it));
+        }
+        if (second_it != second.end()) {
+            for (; second_it != second.end(); ++second_it)
+                result.push_back(std::move(*second_it));
+        }
+
+        return result;
+    }
+
+    static NodeNFA<CharT> from_basic_regex(const std::vector<char_type>& regex);
+    static NodeNFA<char_type> from_regex(const std::vector<char_type>& regex) {
+        Regex2BasicConvertor<char_type> conv;
+        auto basic_regex = conv.convert(regex);
+        return from_basic_regex(basic_regex);
+    }
+};
+
 enum ExprNodeType {
     ExprNodeType_Empty, ExprNodeType_Group, ExprNodeType_CharRange,
     ExprNodeType_Concatenation, ExprNodeType_Union,  ExprNodeType_KleeneStar
@@ -287,16 +613,38 @@ class ExprNode {
 public:
     virtual ExprNodeType node_type() const = 0;
     virtual std::string to_string() const = 0;
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const = 0;
+
     virtual ~ExprNode() = default;
 };
 
 template<typename CharT>
 class ExprNodeEmpty : public ExprNode<CharT> {
+private:
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
+    using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
+
 public:
     virtual ExprNodeType node_type() const override { return ExprNodeType_Empty; }
     virtual std::string to_string() const override {
         return "";
     }
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    {
+        NodeNFA<CharT> retval;
+        retval.m_final_state = finals;
+        retval.m_start_state = starts;
+        auto& transitions = retval.m_transitions;
+        transitions[starts] = {
+            NodeNFAEntry(traits::EMPTY_CHAR, traits::EMPTY_CHAR, { finals }),
+        };
+        return retval;
+    }
+
     virtual ~ExprNodeEmpty() override = default;
 };
 
@@ -315,6 +663,13 @@ public:
     virtual std::string to_string() const override {
         return "(" + this->_next->to_string() + ")";
     }
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    {
+        auto next_nfa = this->_next->to_nfa(allocator, starts, finals);
+        return next_nfa;
+    }
+
     virtual ~ExprNodeGroup() override = default;
 };
 
@@ -323,6 +678,8 @@ class ExprNodeCharRange : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
     using char_type = typename traits::char_type;
+    using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
+    using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     char_type _min, _max;
 
 public:
@@ -343,6 +700,21 @@ public:
         else
             return char_to_string(this->_min) + "-" + char_to_string(this->_max);
     }
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    {
+        NodeNFA<CharT> retval;
+        retval.m_start_state = starts;
+        retval.m_final_state = finals;
+        auto& transitions = retval.m_transitions;
+
+        std::vector<NodeNFAEntry> entries;
+        entries.push_back(NodeNFAEntry(this->min(), this->max(), { finals }));
+        transitions[starts] = entries;
+
+        return retval;
+    }
+
     virtual ~ExprNodeCharRange() override = default;
 };
 
@@ -351,6 +723,8 @@ class ExprNodeConcatenation : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
     using char_type = typename traits::char_type;
+    using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
+    using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     std::vector<std::shared_ptr<ExprNode<CharT>>> children;
 
 public:
@@ -370,6 +744,48 @@ public:
             result += child->to_string();
         return result;
     }
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    {
+        assert(this->size() > 0);
+        if (this->size() == 1)
+            return this->back()->to_nfa(allocator, starts, finals);
+
+        NodeNFA<CharT> retval;
+        retval.m_start_state = starts;
+        retval.m_final_state = finals;
+        auto& transitions = retval.m_transitions;
+
+        std::vector<std::pair<size_t,size_t>> starts_finals(this->size());
+        starts_finals.front().first = starts;
+        starts_finals.back().second = finals;
+        for (size_t i=0;i<starts_finals.size()-1;i++) {
+            auto ns = allocator.newstate();
+            starts_finals[i].second = ns;
+            starts_finals[i+1].first = ns;
+        }
+
+        for (size_t i=0;i<starts_finals.size();i++) {
+            auto s = starts_finals[i].first;
+            auto f = starts_finals[i].second;
+            auto& child = this->children[i];
+            auto child_nfa = child->to_nfa(allocator, s, f);
+            auto& child_transitions = child_nfa.m_transitions;
+            for (auto& entryp : child_transitions) {
+                auto& w = entryp.first;
+                auto& entry = entryp.second;
+
+                if (transitions.find(w) == transitions.end()) {
+                    transitions[w] = entry;
+                } else {
+                    transitions[w] = NodeNFA<char_type>::merge_two_transitions(std::move(entry), std::move(transitions[w]));
+                }
+            }
+        }
+
+        return retval;
+    }
+
     virtual ~ExprNodeConcatenation() override = default;
 };
 
@@ -378,6 +794,8 @@ class ExprNodeUnion : public ExprNode<CharT> {
 private:
     using traits = character_traits<CharT>;
     using char_type = typename traits::char_type;
+    using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
+    using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     std::vector<std::shared_ptr<ExprNode<CharT>>> children;
 
 public:
@@ -398,12 +816,46 @@ public:
         result.erase(result.end() - 1);
         return result;
     }
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    {
+        assert(this->size() > 0);
+        if (this->size() == 1)
+            return this->back()->to_nfa(allocator, starts, finals);
+
+        NodeNFA<CharT> retval;
+        retval.m_start_state = starts;
+        retval.m_final_state = finals;
+        auto& transitions = retval.m_transitions;
+
+        for (auto& child: this->children) {
+            auto child_nfa = child->to_nfa(allocator, starts, finals);
+            auto& child_transitions = child_nfa.m_transitions;
+            for (auto& entryp : child_transitions) {
+                auto& w = entryp.first;
+                auto& entry = entryp.second;
+
+                if (transitions.find(w) == transitions.end()) {
+                    transitions[w] = entry;
+                } else {
+                    transitions[w] = NodeNFA<char_type>::merge_two_transitions(std::move(entry), std::move(transitions[w]));
+                }
+            }
+        }
+
+        return retval;
+    }
+
     virtual ~ExprNodeUnion() override = default;
 };
 
 template<typename CharT>
 class ExprNodeKleeneStar : public ExprNode<CharT> {
 private:
+    using traits = character_traits<CharT>;
+    using char_type = typename traits::char_type;
+    using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
+    using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
     std::shared_ptr<ExprNode<CharT>> _next;
 
 public:
@@ -416,6 +868,24 @@ public:
     virtual std::string to_string() const override {
         return this->_next->to_string() + "*";
     }
+
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    {
+        auto retval = this->next()->to_nfa(allocator, starts, starts);
+        auto& transitions = retval.m_transitions;
+
+        auto emptyTrans = NodeNFAEntry( traits::EMPTY_CHAR, traits::EMPTY_CHAR, { starts } );
+        if (transitions.find(traits::EMPTY_CHAR) == transitions.end()) {
+            transitions[traits::EMPTY_CHAR] = { std::move(emptyTrans) };
+        } else {
+            transitions[traits::EMPTY_CHAR] = NodeNFA<char_type>::merge_two_transitions(
+                    { std::move(emptyTrans) },
+                    std::move(transitions[traits::EMPTY_CHAR]));
+        }
+
+        return retval;
+    }
+
     virtual ~ExprNodeKleeneStar() override = default;
 };
 
@@ -764,5 +1234,32 @@ public:
         return gen.end();
     }
 };
+
+
+// -----------------------------------------------
+// template<typename CharT> NFAMatcher implementation
+// -----------------------------------------------
+template<typename CharT>
+NFAMatcher<CharT>::NFAMatcher(const std::vector<char_type>& pattern)
+{
+    auto nfa = NodeNFA<CharT>::from_regex(pattern);
+    auto rnfa = RegexNFA<char_type>(nfa);
+    this->m_nfa = std::make_shared<RegexNFA<char_type>>(std::move(rnfa));
+    this->reset();
+}
+
+// -----------------------------------------------
+// template<typename CharT> NodeNFA implementation
+// -----------------------------------------------
+/** static */
+template<typename CharT>
+NodeNFA<CharT> NodeNFA<CharT>::from_basic_regex(const std::vector<char_type>& regex) {
+    auto node = RegexNodeTreeGenerator<CharT>::parse(regex);
+    StateAllocator allocator;
+    auto starts = allocator.newstate();
+    auto finals = allocator.newstate();
+    auto nfa = node->to_nfa(allocator, starts, finals);
+    return nfa;
+}
 
 #endif // _DC_PARSER_REGEX_HPP_

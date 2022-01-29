@@ -62,6 +62,15 @@ TEST(regex, regex_convert) {
         {"a{,}", "a*"},
         {"a{2,4}", "aa(|a(|a))"},
 
+        {"(ab)*", "(ab)*"},
+        {"(ab){2}", "(ab)(ab)"},
+        {"(ab){2,}", "(ab)(ab)(ab)*"},
+
+        {"(ab(ab(ab)))*", "(ab(ab(ab)))*"},
+        {"(ab(ab(ab))){1}", "(ab(ab(ab)))"},
+        {"(ab(ab(ab))){1,2}", "(ab(ab(ab)))(|(ab(ab(ab))))"},
+        {"(ab(ab(ab))){1,}", "(ab(ab(ab)))(ab(ab(ab)))*"},
+
         {"\\{\\}\\?\\+\\.", "{}?+."},
     };
 
@@ -99,6 +108,15 @@ TEST(regex, regex_extend_node_generator) {
         {"a{2}", "aa"},
         {"a{,}", "a*"},
         {"a{2,4}", "aa(|a(|a))"},
+
+        {"(ab)*", "(ab)*"},
+        {"(ab){2}", "(ab)(ab)"},
+        {"(ab){2,}", "(ab)(ab)(ab)*"},
+
+        {"(ab(ab(ab)))*", "(ab(ab(ab)))*"},
+        {"(ab(ab(ab))){1}", "(ab(ab(ab)))"},
+        {"(ab(ab(ab))){1,2}", "(ab(ab(ab)))(|(ab(ab(ab))))"},
+        {"(ab(ab(ab))){1,}", "(ab(ab(ab)))(ab(ab(ab)))*"},
     };
 
     for (auto& test_case : test_cases) {
@@ -108,3 +126,26 @@ TEST(regex, regex_extend_node_generator) {
     }
 }
 
+TEST(NFA, basic_test) {
+    vector<pair<string,string>> accepts = {
+        {"a", "a"},
+        {"a|b|c|d|e", "e"},
+        {"(a)", "a"},
+        {"(a|bd)", "bd"},
+        {"(a())", "a"},
+        {"([a-bc])", "a"},
+
+        {"a?", "a"},
+        {"a+", "aaa"},
+        {"a{2}", "aa"},
+        {"a{,}", "a"},
+        {"a{2,4}", "aa"},
+    };
+
+    for (auto& accept : accepts) {
+        auto matcher = NFAMatcher<char>(vector<char>(accept.first.begin(), accept.first.end()));
+
+        auto& acceptval = accept.second;
+        ASSERT_TRUE(matcher.test(acceptval.begin(), acceptval.end()));
+    }
+}

@@ -64,6 +64,7 @@ private:
     bool m_brace_got_comma;
     int  m_brace_count_low;
     int  m_brace_count_up;
+    static constexpr size_t brace_infinity = std::numeric_limits<decltype(m_brace_count_up)>::max();
     std::vector<char_type> __copy_content;
 
     std::vector<char_type> get_last_node(size_t last_lparen_pos)
@@ -73,7 +74,7 @@ private:
 
         if (last_lparen_pos == npos) {
             const auto __rsize = __result.size();
-            if (this->__rsize >= 2 && 
+            if (__rsize >= 2 && 
                 this->__result[__rsize - 1] == traits::BACKSLASH &&
                 this->__result[__rsize - 2] == traits::BACKSLASH)
             {
@@ -105,6 +106,13 @@ private:
         return true;
     }
 
+    void enter_brace_mode() {
+        this->m_brace_count_low = 0;
+        this->m_brace_count_up = 0;
+        this->m_in_brace_mode = true;
+        this->m_brace_got_comma = false;
+    }
+
     bool handle_brace_mode(char_type c) {
         if (!this->m_in_brace_mode)
             return false;
@@ -113,6 +121,7 @@ private:
             if (this->m_brace_got_comma)
                 throw std::runtime_error("unexpected , in brace");
             this->m_brace_got_comma = true;
+            this->m_brace_count_up=brace_infinity;
             return true;
         } else if (c == traits::RBRACE) {
             this->__result.resize(this->__result.size() - this->__copy_content.size());
@@ -124,23 +133,32 @@ private:
                 if (this->m_brace_count_up < this->m_brace_count_low)
                     throw std::runtime_error("range error");
 
-                const auto opt_count = this->m_brace_count_up - this->m_brace_count_low;
-                for (size_t i=0; i<opt_count; i++) {
-                    this->__result.push_back(traits::LPAREN);
-                    this->__result.push_back(traits::OR);
+                if (this->m_brace_count_up == brace_infinity) {
                     this->__result.insert(this->__result.end(), this->__copy_content.begin(), this->__copy_content.end());
+                    this->__result.push_back(traits::STAR);
+                } else {
+                    const auto opt_count = this->m_brace_count_up - this->m_brace_count_low;
+                    for (size_t i=0; i<opt_count; i++) {
+                        this->__result.push_back(traits::LPAREN);
+                        this->__result.push_back(traits::OR);
+                        this->__result.insert(this->__result.end(), this->__copy_content.begin(), this->__copy_content.end());
+                    }
+                    std::vector<char_type> nrparen(opt_count, traits::RPAREN);
+                    this->__result.insert(this->__result.end(), nrparen.begin(), nrparen.end());
                 }
-                std::vector<char_type> nrparen(this->__copy_content.size(), traits::RPAREN);
-                this->__result.insert(this->__result.end(), nrparen.begin(), nrparen.end());
             }
 
             this->m_in_brace_mode = false;
+            return true;
         }
 
         if (c < '0' || c > '9')
-            throw std::runtime_error("brace mode: expect number");
+            throw std::runtime_error("brace mode: expect number, bug get '" + char_to_string(c) + "'");
 
         if (this->m_brace_got_comma) {
+            if (this->m_brace_count_up == brace_infinity)
+                this->m_brace_count_up = 0;
+
             this->m_brace_count_up *= 10;
             this->m_brace_count_up += c - '0';
         } else {
@@ -203,10 +221,7 @@ public:
                 this->escaping = true;
                 break;
             case traits::LBRACE:
-                this->m_brace_count_low = 0;
-                this->m_brace_count_up = 0;
-                this->m_in_brace_mode = true;
-                this->m_brace_got_comma = false;
+                this->enter_brace_mode();
                 this->__copy_content = this->get_last_node(last_lparen_pos);
                 break;
             case traits::RBRACE:
@@ -252,6 +267,13 @@ public:
             throw std::runtime_error("Regex: unclosed escape");
 
         return __result;
+    }
+
+    static std::vector<char_type> convert(const std::vector<char_type>& regex) {
+        Regex2BasicConvertor conv;
+        for (auto c : regex)
+            conv.feed(c);
+        return conv.end();
     }
 };
 
@@ -492,12 +514,14 @@ private:
                 assert(ptr->size() >= 1);
                 auto& back = ptr->back();
                 back = node_to_kleen_start_node(back);
+                ret = node;
             } break;
             case ExprNodeType_Union: {
                 auto ptr = std::dynamic_pointer_cast<ExprNodeUnion<char_type>>(node);
                 assert(ptr->size() >= 1);
                 auto& back = ptr->back();
                 back = node_to_kleen_start_node(back);
+                ret = node;
             } break;
             case ExprNodeType_Empty:
                 throw std::runtime_error("regex: invalid kleene star node");
@@ -509,7 +533,9 @@ private:
     }
     void to_kleene_star_node() {
         auto& stacktop = _stack.back();
+        assert(stacktop.node != nullptr);
         stacktop.node = node_to_kleen_start_node(stacktop.node);
+        assert(stacktop.node != nullptr);
     }
 
     bool m_in_bracket_mode;

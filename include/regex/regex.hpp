@@ -86,8 +86,8 @@ struct RegexDFA {
     };
 
     using DFATransitionTable = std::vector<std::vector<DFAEntry>>;
-    size_t m_start_state, m_dead_state;
-    std::set<size_t> m_final_states;
+    size_t m_start_state;
+    std::set<size_t> m_dead_states, m_final_states;
     DFATransitionTable m_transitions;
 };
 
@@ -113,7 +113,7 @@ public:
 
     virtual void feed(char_type c) override {
         assert(traits::MIN <= c && c <= traits::MAX);
-        if (this->m_current_state == this->m_dfa->m_dead_state)
+        if (this->m_dfa->m_dead_states.find(this->m_current_state) != this->m_dfa->m_dead_states.end())
             return;
 
         auto cstate = this->m_current_state;
@@ -135,7 +135,7 @@ public:
         return finals.find(this->m_current_state) != finals.end();
     }
     virtual bool dead() const override {
-        return this->m_current_state == this->m_dfa->m_dead_state;
+        return this->m_dfa->m_dead_states.find(this->m_current_state) != this->m_dfa->m_dead_states.end();
     }
     virtual void reset() override {
         this->m_current_state = this->m_dfa->m_start_state;
@@ -188,6 +188,53 @@ struct RegexNFA {
             ss << std::endl;
         }
         return ss.str();
+    }
+
+    RegexDFA<char_type> compile() const
+    {
+        size_t dfa_state_count = 0;
+        std::map<std::set<size_t>,size_t> dfa_state_map;
+        const auto query_dfa_state = [&](std::set<size_t> states) -> size_t {
+            auto it = dfa_state_map.find(states);
+            if (it == dfa_state_map.end()) {
+                dfa_state_map[states] = dfa_state_count++;
+            }
+            return it->second;
+        };
+
+        RegexDFA<char_type> dfa;
+        dfa.m_start_state = query_dfa_state({ this->m_start_state });;
+        dfa.m_dead_states = { query_dfa_state({ }) };;
+    }
+
+    std::vector<std::set<size_t>> epsilon_closure(std::set<size_t> states) const {
+        std::vector<std::set<size_t>> result(this->m_transitions.size());
+        return result;
+    }
+
+    std::vector<std::vector<std::pair<size_t,size_t>>> range_units_map(const std::vector<std::set<size_t>>& epsilon_closure) const
+    {
+        assert(epsilon_closure.size() == this->m_transitions.size());
+        std::vector<std::vector<std::pair<size_t,size_t>>> result;
+        result.resize(m_transitions.size());
+
+        for (size_t i = 0; i < m_transitions.size(); ++i) {
+            auto& ru = result[i];
+
+            for (auto& ci: epsilon_closure[i]) {
+                assert(ci < m_transitions[i].size());
+                auto& trans = this->m_transitions[ci];
+                for (auto& m: trans) {
+                    if (m.low == traits::EMPTY_CHAR)
+                        continue;
+
+                    ru.push_back(make_pair(m.low, m.high));
+                }
+            }
+            ru = split_ranges_to_units(std::move(ru));
+        }
+
+        return result;
     }
 };
 
@@ -265,6 +312,8 @@ public:
             });
     }
     virtual bool dead() const override {
+        /** by inductive reasoning (for concatenation, union and kleene star)
+         *  we can prove any state can reach final state */
         return m_current_states.empty();
     }
     virtual void reset() override {

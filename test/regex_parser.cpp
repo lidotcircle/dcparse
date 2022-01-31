@@ -25,7 +25,7 @@ TEST(regex, regex_basic_node_generator) {
         {"(a())", "(a())"},
         {"(a(b))", "(a(b))"},
 
-        {"([a-bc])", "((a-b|c))"},
+        {"([a-bc])", "((a-c))"},
     };
 
     for (auto& test_case : test_cases) {
@@ -102,7 +102,8 @@ TEST(regex, regex_extend_node_generator) {
         {"(a())", "(a())"},
         {"(a(b))", "(a(b))"},
 
-        {"([a-bc])", "((a-b|c))"},
+        {"([a-bc])", "((a-c))"},
+        {"([a-bd])", "((a-b|d))"},
 
         {"a?", "(|a)"},
         {"a+", "aa*"},

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include <memory>
+#include <queue>
 #include <set>
 #include <map>
 #include <stdexcept>
@@ -83,6 +84,9 @@ struct RegexDFA {
     struct DFAEntry {
         char_type low, high;
         size_t state;
+
+        DFAEntry(char_type low, char_type high, size_t state)
+            : low(low), high(high), state(state) {}
     };
 
     using DFATransitionTable = std::vector<std::vector<DFAEntry>>;
@@ -110,6 +114,7 @@ public:
 
         this->reset();
     }
+    DFAMatcher(const std::vector<char_type>& pattern);
 
     virtual void feed(char_type c) override {
         assert(traits::MIN <= c && c <= traits::MAX);
@@ -206,7 +211,101 @@ struct RegexNFA {
 
         RegexDFA<char_type> dfa;
         dfa.m_start_state = query_dfa_state({ this->m_start_state });;
-        dfa.m_dead_states = { query_dfa_state({ }) };;
+        const auto dead_state = query_dfa_state({ });
+        dfa.m_dead_states = {  dead_state };;
+        auto& transtable = dfa.m_transitions;
+
+        const auto state_trans = [&](size_t state, std::pair<size_t,size_t> ch) {
+            assert(state < this->m_transitions.size());
+            auto& trans = this->m_transitions[state];
+            auto lb = std::lower_bound(trans.begin(), trans.end(), ch.second,
+                                       [](const auto& trans, size_t bd) { return trans.high < bd; });
+            if (lb == trans.end())
+                return std::set<size_t>();
+            
+            assert(lb->low >= ch.first);
+            return lb->state;
+        };
+
+        const auto state_set_trans = [&](const std::set<size_t>& states, std::pair<size_t,size_t> ch)
+        {
+            std::set<size_t> next_state;
+            for (auto& s: states) {
+                auto sn = state_trans(s, ch);
+                next_state.insert(sn.begin(), sn.end());
+            }
+
+            return next_state;
+        };
+
+        std::queue<std::set<size_t>> process_queue;
+        process_queue.push({ this->m_start_state });
+        std::set<std::set<size_t>> processed_states={ { this->m_start_state } };
+
+        while (!process_queue.empty()) {
+            auto stateset = process_queue.front();
+            process_queue.pop();
+            auto state = query_dfa_state(stateset);
+            if (transtable.size() <= state)
+                transtable.resize(state + 1);
+            auto& trans = transtable[state];
+
+            std::set<std::pair<size_t,size_t>> range_units;
+            for (auto& s: stateset) {
+                assert(m_range_units.size() > s);
+                auto& range_unit = m_range_units[s];
+                range_units.insert(range_unit.begin(), range_unit.end());
+            }
+            auto ranges = split_ranges_to_units(
+                    std::vector<std::pair<size_t,size_t>>(range_units.begin(), range_units.end()));
+
+            auto lv = traits::MIN;
+            for (auto& r: ranges) {
+                auto sn = state_set_trans(stateset, r);
+                if (processed_states.find(sn) == processed_states.end()) {
+                    process_queue.push(sn);
+                    processed_states.insert(sn);
+                }
+
+                auto n = query_dfa_state(sn);
+                if (lv == traits::MAX) {
+                    assert(r.first == r.second);
+                    assert(r.first == traits::MAX);
+                }
+
+                if (r.first > lv)
+                    trans.emplace_back(lv, r.first - 1, dead_state);
+                trans.emplace_back(r.first, r.second, n);
+                if (r.second < traits::MAX) {
+                    lv = r.second + 1;
+                } else {
+                    assert(r.second == traits::MAX);
+                    lv = traits::MAX;
+                }
+            }
+
+            if (trans.empty()) {
+                trans.emplace_back(traits::MIN, traits::MAX, dead_state);
+            } else if (trans.back().high < traits::MAX) {
+                trans.emplace_back(trans.back().high + 1, traits::MAX, dead_state);
+            }
+        }
+
+        for (auto& s: processed_states) {
+            for (auto& f: this->m_final_states) {
+                if (s.find(f) != s.end()) {
+                    dfa.m_final_states.insert(query_dfa_state(s));
+                    break;
+                }
+            }
+        }
+
+        for (auto& trans: transtable) {
+            const auto min = traits::MIN;
+            const auto max = traits::MAX;
+        }
+
+        return dfa;
     }
 
     std::vector<std::set<size_t>> epsilon_closure() const {
@@ -237,7 +336,7 @@ struct RegexNFA {
                     if (m.low == traits::EMPTY_CHAR)
                         continue;
 
-                    ru.push_back(make_pair(m.low, m.high));
+                    ru.push_back(std::make_pair(m.low, m.high));
                 }
             }
             ru = split_ranges_to_units(std::move(ru));
@@ -614,6 +713,7 @@ struct NodeNFA {
         auto finals = query_state(m_final_state);
         nfa.m_final_states = { finals };
         nfa.m_epsilon_closure = nfa.epsilon_closure();
+        nfa.m_range_units = nfa.range_units_map();
         auto& start_closure = nfa.m_epsilon_closure[nfa.m_start_state];
         if (start_closure.find(finals) != start_closure.end())
             nfa.m_final_states.insert(nfa.m_start_state);
@@ -698,7 +798,7 @@ struct NodeNFA {
         return ss.str();
     }
 
-    static NodeNFA<CharT> from_basic_regex(const std::vector<char_type>& regex);
+    static NodeNFA<char_type> from_basic_regex(const std::vector<char_type>& regex);
     static NodeNFA<char_type> from_regex(const std::vector<char_type>& regex) {
         Regex2BasicConvertor<char_type> conv;
         auto basic_regex = conv.convert(regex);
@@ -1357,6 +1457,19 @@ NFAMatcher<CharT>::NFAMatcher(const std::vector<char_type>& pattern)
     auto nfa = NodeNFA<CharT>::from_regex(pattern);
     auto rnfa = RegexNFA<char_type>(nfa);
     this->m_nfa = std::make_shared<RegexNFA<char_type>>(std::move(rnfa));
+    this->reset();
+}
+
+// -----------------------------------------------
+// template<typename CharT> DFAMatcher implementation
+// -----------------------------------------------
+template<typename CharT>
+DFAMatcher<CharT>::DFAMatcher(const std::vector<char_type>& pattern)
+{
+    auto nfa = NodeNFA<CharT>::from_regex(pattern);
+    auto rnfa = RegexNFA<char_type>(nfa);
+    auto dfa = rnfa.compile();
+    this->m_dfa = std::make_shared<RegexDFA<char_type>>(std::move(dfa));
     this->reset();
 }
 

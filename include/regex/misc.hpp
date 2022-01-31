@@ -20,7 +20,7 @@ std::vector<std::pair<T,T>> merge_sorted_range(const std::vector<std::pair<T,T>>
     return result;
 }
 
-std::vector<std::pair<size_t,size_t>>
+extern std::vector<std::pair<size_t,size_t>>
 split_ranges_to_units(std::vector<std::pair<size_t,size_t>> ranges)
 {
     std::sort(ranges.begin(), ranges.end());
@@ -64,6 +64,23 @@ split_ranges_to_units(std::vector<std::pair<size_t,size_t>> ranges)
     }
 
     return std::vector<std::pair<size_t,size_t>>(merged_set.begin(), merged_set.end());
+}
+
+extern std::vector<std::set<size_t>>
+transitive_closure(std::vector<std::set<size_t>> const& graph)
+{
+    std::vector<std::set<size_t>> result(graph.size());
+    for (size_t i = 0; i < graph.size(); ++i) {
+        result[i].insert(i);
+
+        for (auto const& j: graph[i]) {
+            result[i].insert(j);
+            for (auto const& k: graph[j]) {
+                result[i].insert(k);
+            }
+        }
+    }
+    return result;
 }
 
 #endif // _DC_PARSER_REGEX_MISC_HPP_

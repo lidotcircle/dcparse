@@ -162,6 +162,8 @@ struct RegexNFA {
     size_t m_start_state;
     std::set<size_t> m_final_states;
     NFATransitionTable m_transitions;
+    std::vector<std::set<size_t>> m_epsilon_closure;
+    std::vector<std::vector<std::pair<size_t,size_t>>> m_range_units;
 
     std::string to_string() const {
         std::ostringstream ss;
@@ -207,21 +209,28 @@ struct RegexNFA {
         dfa.m_dead_states = { query_dfa_state({ }) };;
     }
 
-    std::vector<std::set<size_t>> epsilon_closure(std::set<size_t> states) const {
-        std::vector<std::set<size_t>> result(this->m_transitions.size());
-        return result;
+    std::vector<std::set<size_t>> epsilon_closure() const {
+        std::vector<std::set<size_t>> worklist(this->m_transitions.size());
+        for (size_t i=0;i<worklist.size();++i) {
+            auto& states = this->m_transitions[i];
+            if (states.size() > 0 && states[0].low == traits::EMPTY_CHAR) {
+                worklist[i].insert(states[0].state.begin(), states[0].state.end());
+            }
+        }
+
+        return transitive_closure(worklist);
     }
 
-    std::vector<std::vector<std::pair<size_t,size_t>>> range_units_map(const std::vector<std::set<size_t>>& epsilon_closure) const
+    std::vector<std::vector<std::pair<size_t,size_t>>> range_units_map() const
     {
-        assert(epsilon_closure.size() == this->m_transitions.size());
+        assert(this->m_epsilon_closure.size() == this->m_transitions.size());
         std::vector<std::vector<std::pair<size_t,size_t>>> result;
         result.resize(m_transitions.size());
 
         for (size_t i = 0; i < m_transitions.size(); ++i) {
             auto& ru = result[i];
 
-            for (auto& ci: epsilon_closure[i]) {
+            for (auto& ci: this->m_epsilon_closure[i]) {
                 assert(ci < m_transitions[i].size());
                 auto& trans = this->m_transitions[ci];
                 for (auto& m: trans) {
@@ -274,33 +283,14 @@ public:
                     return entry.high < c;
                 });
 
-            if (lb != transition.end() && lb->low <= c && c <= lb->high)
-                next_states.insert(lb->state.begin(), lb->state.end());
-        }
-
-        std::set<size_t> epsilon_states, seeit = next_states;
-        do {
-            next_states.insert(epsilon_states.begin(), epsilon_states.end());
-            epsilon_states.clear();
-
-            for (auto& state: seeit) {
-                auto& transitions = this->m_nfa->m_transitions;
-                assert(transitions.size() > state);
-                auto& transition = transitions[state];
-                auto lb = std::lower_bound(transition.begin(), transition.end(), c,
-                    [](const NFAEntry& entry, char_type c) {
-                        return entry.high < traits::EMPTY_CHAR;
-                    });
-                if (lb != transition.end() && lb->low == traits::EMPTY_CHAR) {
-                    assert(lb->high == traits::EMPTY_CHAR);
-                    for (auto s: lb->state) {
-                        if (next_states.find(s) == next_states.end())
-                            epsilon_states.insert(s);
-                    }
+            if (lb != transition.end() && lb->low <= c && c <= lb->high) {
+                for (auto k=lb->state.begin(); k!=lb->state.end(); ++k) {
+                    assert(*k < this->m_nfa->m_epsilon_closure.size());
+                    const auto& cl = this->m_nfa->m_epsilon_closure[*k];
+                    next_states.insert(cl.begin(), cl.end());
                 }
             }
-            seeit = epsilon_states;
-        } while (epsilon_states.size() > 0);
+        }
 
         this->m_current_states = next_states;
     }
@@ -623,31 +613,11 @@ struct NodeNFA {
         nfa.m_start_state = query_state(m_start_state);
         auto finals = query_state(m_final_state);
         nfa.m_final_states = { finals };
+        nfa.m_epsilon_closure = nfa.epsilon_closure();
+        auto& start_closure = nfa.m_epsilon_closure[nfa.m_start_state];
+        if (start_closure.find(finals) != start_closure.end())
+            nfa.m_final_states.insert(nfa.m_start_state);
 
-        bool start_is_final = true;
-        std::set<size_t> seen = { nfa.m_start_state }, s = { nfa.m_start_state }, w;
-        for (;s.find(finals) == s.end();) {
-            for (auto state : s) {
-                auto& transition = transitions[state];
-                if (transition.empty() || transition[0].low != traits::EMPTY_CHAR)
-                    continue;
-
-                auto& epsilon_trans = transition[0];
-                for (auto& n: epsilon_trans.state) {
-                    if (seen.find(n) == seen.end()) {
-                        w.insert(n);
-                        seen.insert(n);
-                    }
-                }
-            }
-
-            if (w.empty()) {
-                start_is_final = false;
-                break;
-            }
-            s = std::move(w);
-        }
-        if (start_is_final) nfa.m_final_states.insert(nfa.m_start_state);
         return nfa;
     }
 

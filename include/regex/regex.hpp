@@ -93,6 +93,28 @@ struct RegexDFA {
     size_t m_start_state;
     std::set<size_t> m_dead_states, m_final_states;
     DFATransitionTable m_transitions;
+
+    std::string to_string() const {
+        std::stringstream ss;
+        ss << "start state: " << m_start_state << std::endl;
+        ss << "dead states: ";
+        for (auto s : m_dead_states)
+            ss << s << " ";
+        ss << std::endl;
+        ss << "final states: ";
+        for (auto s : m_final_states)
+            ss << s << " ";
+        ss << std::endl;
+        ss << "transitions: " << std::endl;
+        for (size_t i = 0; i < m_transitions.size(); ++i) {
+            ss << "state " << i << ": ";
+            for (auto& entry : m_transitions[i]) {
+                ss << "[" << char_to_string(entry.low) << "-" << char_to_string(entry.high) << "] -> " << entry.state << " ";
+            }
+            ss << std::endl;
+        }
+        return ss.str();
+    }
 };
 
 template<typename CharT>
@@ -144,6 +166,9 @@ public:
     }
     virtual void reset() override {
         this->m_current_state = this->m_dfa->m_start_state;
+    }
+    std::string to_string() const {
+        return m_dfa->to_string();
     }
     virtual ~DFAMatcher() = default;
 };
@@ -330,7 +355,7 @@ struct RegexNFA {
             auto& ru = result[i];
 
             for (auto& ci: this->m_epsilon_closure[i]) {
-                assert(ci < m_transitions[i].size());
+                assert(ci < m_transitions.size());
                 auto& trans = this->m_transitions[ci];
                 for (auto& m: trans) {
                     if (m.low == traits::EMPTY_CHAR)

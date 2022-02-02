@@ -203,13 +203,15 @@ TEST(DFA, basic_dfa_test) {
         for (auto& accept: accepts) {
             matcher.reset();
             ASSERT_TRUE(matcher.test(accept.begin(), accept.end()))
-                << re << ": " << accept << endl;
+                << re << ": " << accept << endl
+                << matcher.to_string();
         }
 
         for (auto& reject: rejects) {
             matcher.reset();
             ASSERT_FALSE(matcher.test(reject.begin(), reject.end()))
-                << re << ": " << reject << endl;
+                << re << ": " << reject << endl
+                << matcher.to_string();
         }
     }
 }

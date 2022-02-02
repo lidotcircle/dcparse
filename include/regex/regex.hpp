@@ -11,7 +11,6 @@
 #include <stdexcept>
 #include <string>
 #include <sstream>
-#include <iostream>
 #include <assert.h>
 #include "./misc.hpp"
 
@@ -228,23 +227,28 @@ struct RegexNFA {
         std::map<std::set<size_t>,size_t> dfa_state_map;
         const auto query_dfa_state = [&](std::set<size_t> states) -> size_t {
             auto it = dfa_state_map.find(states);
-            if (it == dfa_state_map.end()) {
-                dfa_state_map[states] = dfa_state_count++;
-            }
-            return it->second;
+            if (it != dfa_state_map.end())
+                return it->second;
+
+            const auto val = dfa_state_count++;
+            dfa_state_map[states] = val;
+            return val;
         };
 
         RegexDFA<char_type> dfa;
-        dfa.m_start_state = query_dfa_state({ this->m_start_state });;
+        const auto start_state = query_dfa_state({this->m_start_state});
         const auto dead_state = query_dfa_state({ });
-        dfa.m_dead_states = {  dead_state };;
+        dfa.m_start_state = start_state;
+        dfa.m_dead_states = {  dead_state };
         auto& transtable = dfa.m_transitions;
+        transtable.resize(dfa_state_count);
+        transtable[dead_state].emplace_back(traits::MIN, traits::MAX, dead_state);
 
-        const auto state_trans = [&](size_t state, std::pair<size_t,size_t> ch) {
+        const auto state_trans = [&](size_t state, std::pair<char_type,char_type> ch) {
             assert(state < this->m_transitions.size());
             auto& trans = this->m_transitions[state];
             auto lb = std::lower_bound(trans.begin(), trans.end(), ch.second,
-                                       [](const auto& trans, size_t bd) { return trans.high < bd; });
+                                       [](const auto& trans, char_type bd) { return trans.high < bd; });
             if (lb == trans.end())
                 return std::set<size_t>();
             
@@ -252,12 +256,15 @@ struct RegexNFA {
             return lb->state;
         };
 
-        const auto state_set_trans = [&](const std::set<size_t>& states, std::pair<size_t,size_t> ch)
+        const auto state_set_trans = [&](const std::set<size_t>& states, std::pair<char_type,char_type> ch)
         {
             std::set<size_t> next_state;
             for (auto& s: states) {
                 auto sn = state_trans(s, ch);
-                next_state.insert(sn.begin(), sn.end());
+                for (auto& ks: sn) {
+                    auto& mm = this->m_epsilon_closure[ks];
+                    next_state.insert(mm.begin(), mm.end());
+                }
             }
 
             return next_state;
@@ -275,14 +282,14 @@ struct RegexNFA {
                 transtable.resize(state + 1);
             auto& trans = transtable[state];
 
-            std::set<std::pair<size_t,size_t>> range_units;
+            std::set<std::pair<char_type,char_type>> range_units;
             for (auto& s: stateset) {
                 assert(m_range_units.size() > s);
                 auto& range_unit = m_range_units[s];
                 range_units.insert(range_unit.begin(), range_unit.end());
             }
             auto ranges = split_ranges_to_units(
-                    std::vector<std::pair<size_t,size_t>>(range_units.begin(), range_units.end()));
+                    std::vector<std::pair<char_type,char_type>>(range_units.begin(), range_units.end()));
 
             auto lv = traits::MIN;
             for (auto& r: ranges) {
@@ -323,11 +330,6 @@ struct RegexNFA {
                     break;
                 }
             }
-        }
-
-        for (auto& trans: transtable) {
-            const auto min = traits::MIN;
-            const auto max = traits::MAX;
         }
 
         return dfa;

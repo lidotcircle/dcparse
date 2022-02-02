@@ -20,14 +20,15 @@ std::vector<std::pair<T,T>> merge_sorted_range(const std::vector<std::pair<T,T>>
     return result;
 }
 
-extern std::vector<std::pair<size_t,size_t>>
-split_ranges_to_units(std::vector<std::pair<size_t,size_t>> ranges)
+template<typename ValueT>
+std::vector<std::pair<ValueT,ValueT>>
+split_ranges_to_units(std::vector<std::pair<ValueT,ValueT>> ranges)
 {
     std::sort(ranges.begin(), ranges.end());
     auto merged = merge_sorted_range(ranges);
-    std::set<std::pair<size_t,size_t>> merged_set(merged.begin(), merged.end());
-    std::set<size_t> low_set;
-    std::set<size_t> high_set;
+    std::set<std::pair<ValueT,ValueT>> merged_set(merged.begin(), merged.end());
+    std::set<ValueT> low_set;
+    std::set<ValueT> high_set;
     for (auto& r: ranges) {
         low_set.insert(r.first);
         high_set.insert(r.second);
@@ -35,12 +36,12 @@ split_ranges_to_units(std::vector<std::pair<size_t,size_t>> ranges)
 
     for (auto low: low_set) {
         auto lb = std::lower_bound(merged_set.begin(), merged_set.end(), low,
-                                   [](auto const& r, size_t l) { return r.second < l; });
+                                   [](auto const& r, ValueT l) { return r.second < l; });
         assert(lb != merged_set.end());
 
         if (lb->first > low) continue;
 
-        std::vector<std::pair<size_t,size_t>> mv;
+        std::vector<std::pair<ValueT,ValueT>> mv;
         if (low > lb->first) mv.push_back(std::make_pair(lb->first, low - 1));
         mv.push_back(std::make_pair(low, lb->second));
 
@@ -50,12 +51,12 @@ split_ranges_to_units(std::vector<std::pair<size_t,size_t>> ranges)
 
     for (auto high: high_set) {
         auto lb = std::lower_bound(merged_set.begin(), merged_set.end(), high,
-                                   [](auto const& r, size_t l) { return r.second < l; });
+                                   [](auto const& r, ValueT l) { return r.second < l; });
         assert(lb != merged_set.end());
 
         if (lb->first > high) continue;
 
-        std::vector<std::pair<size_t,size_t>> mv;
+        std::vector<std::pair<ValueT,ValueT>> mv;
         mv.push_back(std::make_pair(lb->first, high));
         if (high < lb->second) mv.push_back(std::make_pair(high + 1, lb->second));
 
@@ -63,7 +64,7 @@ split_ranges_to_units(std::vector<std::pair<size_t,size_t>> ranges)
         merged_set.insert(mv.begin(), mv.end());
     }
 
-    return std::vector<std::pair<size_t,size_t>>(merged_set.begin(), merged_set.end());
+    return std::vector<std::pair<ValueT,ValueT>>(merged_set.begin(), merged_set.end());
 }
 
 extern std::vector<std::set<size_t>>

@@ -1145,6 +1145,7 @@ private:
     using char_type = CharT;
     using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
     using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
+    using NFAState_t = typename NodeNFA<CharT>::NFAState_t;
     std::shared_ptr<ExprNode<CharT>> _next;
 
 public:
@@ -1158,7 +1159,7 @@ public:
         return this->_next->to_string() + "*";
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, size_t starts, size_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
     {
         auto retval = this->next()->to_nfa(allocator, starts, finals);
         retval.add_link(starts, { finals }, traits::EMPTY_CHAR, traits::EMPTY_CHAR);

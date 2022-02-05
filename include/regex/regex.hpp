@@ -12,6 +12,7 @@
 #include <string>
 #include <sstream>
 #include <assert.h>
+#include <iostream>
 #include "./misc.hpp"
 
 
@@ -46,9 +47,26 @@ std::string char_to_string(CharT c) {
     return std::to_string(c);;
 }
 template<>
-std::string char_to_string<char>(char c) {
-    return std::string(1, c);
-}
+std::string char_to_string<char>(char c);
+
+
+template<typename Iterator>
+struct is_forward_iterator {
+    static constexpr bool value = std::is_base_of<
+        std::forward_iterator_tag,
+        typename std::iterator_traits<Iterator>::iterator_category
+    >::value || std::is_same<
+        std::forward_iterator_tag,
+        typename std::iterator_traits<Iterator>::iterator_category
+    >::value;
+};
+template<typename Iterator, typename valuetype>
+struct iterator_value_type_is_same {
+    static constexpr bool value = std::is_same<
+        typename std::iterator_traits<Iterator>::value_type,
+        valuetype
+    >::value;
+};
 
 template<typename CharT>
 class AutomataMatcher {
@@ -62,7 +80,9 @@ public:
     virtual bool dead() const = 0;
     virtual void reset() = 0;
 
-    template<typename Iterator>
+    template<typename Iterator, typename = typename std::enable_if<
+        is_forward_iterator<Iterator>::value &&
+        iterator_value_type_is_same<Iterator,char_type>::value,void>::type>
     bool test(Iterator begin, Iterator end) {
         this->reset();
         for (auto it = begin; it != end; ++it)
@@ -467,6 +487,8 @@ public:
         this->reset();
     }
     NFAMatcher(const std::vector<char_type>& pattern);
+
+    std::shared_ptr<RegexNFA<char_type>> get_nfa() { return this->m_nfa; }
 
     virtual void feed(char_type c) override {
         assert(traits::MIN <= c && c <= traits::MAX);
@@ -1555,5 +1577,52 @@ NodeNFA<CharT> NodeNFA<CharT>::from_basic_regex(const std::vector<char_type>& re
     auto nfa = node->to_nfa(allocator, starts, finals);
     return nfa;
 }
+
+template<typename CharT>
+class SimpleRegExp: public AutomataMatcher<CharT>
+{
+private:
+    using traits = character_traits<CharT>;
+    using char_type = CharT;
+    std::shared_ptr<AutomataMatcher<char_type>> m_matcher;
+
+public:
+    SimpleRegExp() = delete;
+    SimpleRegExp(const std::vector<char_type>& regex) {
+        auto nfa = NodeNFA<char_type>::from_regex(regex);
+        auto rnfa = nfa.toRegexNFA();
+        auto rnfa_ptr = std::make_shared<RegexNFA<char_type>>(std::move(rnfa));
+        this->m_matcher = std::make_shared<NFAMatcher<char_type>>(rnfa_ptr);
+    }
+
+    virtual void feed(char_type c) override { std::cout << c << std::endl; this->m_matcher->feed(c); }
+    virtual bool match() const override { return this->m_matcher->match(); }
+    virtual bool dead() const override { return this->m_matcher->dead(); }
+    virtual void reset() override { this->m_matcher->reset(); }
+    void compile()
+    {
+        auto nfa_matcher = std::dynamic_pointer_cast<NFAMatcher<char_type>>(m_matcher);
+        if (nfa_matcher == nullptr)
+            throw std::runtime_error("unexpected matcher type");
+
+        auto nfa = nfa_matcher->get_nfa();
+        auto dfa = std::make_shared<RegexDFA<char_type>>(nfa->compile());
+        this->m_matcher = std::make_shared<DFAMatcher<char_type>>(dfa);
+    }
+
+    std::string to_string() const
+    {
+        auto nfa_matcher = std::dynamic_pointer_cast<NFAMatcher<char_type>>(m_matcher);
+        auto dfa_matcher = std::dynamic_pointer_cast<DFAMatcher<char_type>>(m_matcher);
+
+        if (nfa_matcher) {
+            return nfa_matcher->to_string();
+        } else if (dfa_matcher) {
+            return dfa_matcher->to_string();
+        } else {
+            return "bad matcher";
+        }
+    }
+};
 
 #endif // _DC_PARSER_REGEX_HPP_

@@ -67,21 +67,7 @@ split_ranges_to_units(std::vector<std::pair<ValueT,ValueT>> ranges)
     return std::vector<std::pair<ValueT,ValueT>>(merged_set.begin(), merged_set.end());
 }
 
-extern std::vector<std::set<size_t>>
-transitive_closure(std::vector<std::set<size_t>> const& graph)
-{
-    std::vector<std::set<size_t>> result(graph.size());
-    for (size_t i = 0; i < graph.size(); ++i) {
-        result[i].insert(i);
-
-        for (auto const& j: graph[i]) {
-            result[i].insert(j);
-            for (auto const& k: graph[j]) {
-                result[i].insert(k);
-            }
-        }
-    }
-    return result;
-}
+std::vector<std::set<size_t>>
+transitive_closure(std::vector<std::set<size_t>> const& graph);
 
 #endif // _DC_PARSER_REGEX_MISC_HPP_

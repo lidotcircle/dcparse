@@ -20,22 +20,23 @@ template<typename CharT>
 struct character_traits {
     using char_type = CharT;
 
-    constexpr static char_type LPAREN    = '(';
-    constexpr static char_type RPAREN    = ')';
-    constexpr static char_type LBRACKET  = '[';
-    constexpr static char_type CARET     = '^';
-    constexpr static char_type DASH      = '-';
-    constexpr static char_type RBRACKET  = ']';
-    constexpr static char_type OR        = '|';
-    constexpr static char_type STAR      = '*';
-    constexpr static char_type BACKSLASH = '\\';
+    constexpr static char_type LPAREN      = '(';
+    constexpr static char_type EXCLAMATION = '!';
+    constexpr static char_type RPAREN      = ')';
+    constexpr static char_type LBRACKET    = '[';
+    constexpr static char_type CARET       = '^';
+    constexpr static char_type DASH        = '-';
+    constexpr static char_type RBRACKET    = ']';
+    constexpr static char_type OR          = '|';
+    constexpr static char_type STAR        = '*';
+    constexpr static char_type BACKSLASH   = '\\';
 
-    constexpr static char_type LBRACE    = '{';
-    constexpr static char_type COMMA     = ',';
-    constexpr static char_type RBRACE    = '}';
-    constexpr static char_type QUESTION  = '?';
-    constexpr static char_type PLUS      = '+';
-    constexpr static char_type DOT       = '.';
+    constexpr static char_type LBRACE      = '{';
+    constexpr static char_type COMMA       = ',';
+    constexpr static char_type RBRACE      = '}';
+    constexpr static char_type QUESTION    = '?';
+    constexpr static char_type PLUS        = '+';
+    constexpr static char_type DOT         = '.';
 
     constexpr static char_type EMPTY_CHAR = std::numeric_limits<char_type>::min();
     constexpr static char_type MIN = std::numeric_limits<char_type>::min() + 1;
@@ -102,6 +103,9 @@ public:
 };
 
 template<typename CharT>
+class NodeNFA;
+
+template<typename CharT>
 class RegexDFA {
 public:
     using DFAState_t = size_t;
@@ -143,6 +147,99 @@ public:
         assert(lb->low <= c &&  c <= lb->high);
         return lb->state;
     }
+
+    RegexDFA<char_type> complement() const 
+    {
+        std::set<DFAState_t> new_finals;
+        for (size_t i=0;i<this->m_transitions.size();i++) {
+            if (this->m_final_states.count(i) == 0) {
+                new_finals.insert(i);
+            }
+        }
+
+        return RegexDFA(this->m_transitions, this->m_start_state, std::set<DFAState_t>(), new_finals);
+    }
+
+    void optimize() 
+    {
+        std::map<DFAState_t,std::set<DFAState_t>> state_reverse_graph;
+        for (size_t i=0;i<this->m_transitions.size();i++) {
+            for (auto& entry : this->m_transitions[i]) {
+                state_reverse_graph[entry.state].insert(i);
+            }
+        }
+
+        std::set<size_t> seen_states = this->m_final_states;
+        std::queue<size_t> process_queue;
+        for (auto s: seen_states)
+            process_queue.push(s);
+
+        while (!process_queue.empty()) {
+            auto s = process_queue.front();
+            process_queue.pop();
+            for (auto& t : state_reverse_graph[s]) {
+                if (seen_states.find(t) == seen_states.end()) {
+                    seen_states.insert(t);
+                    process_queue.push(t);
+                }
+            }
+        }
+
+        std::set<size_t> deleted_states;
+        for (size_t i=0;i<this->m_transitions.size();i++) {
+            if (seen_states.find(i) == seen_states.end()) {
+                deleted_states.insert(i);
+            }
+        }
+
+        std::map<size_t,size_t> state_rewriter;
+        const auto n_dead_state = 0;
+        size_t state_n = 1;
+        for (size_t i=0;i<this->m_transitions.size();i++) {
+            if (deleted_states.find(i) == deleted_states.end())
+            {
+                state_rewriter[i] = state_n;
+                state_n++;
+            } else {
+                state_rewriter[i] = 0;
+            }
+        }
+
+        decltype(this->m_transitions) new_transitions(state_n);
+        for (size_t i=0;i<this->m_transitions.size();i++) {
+            if (deleted_states.find(i) != deleted_states.end())
+                continue;
+
+            auto m1 = state_rewriter[i];
+            assert(new_transitions.size() > m1);
+            auto& ntrans = new_transitions[m1];
+            bool prev_is_dead = false;
+            for (auto& entry : this->m_transitions[i]) {
+                auto m2 = state_rewriter[entry.state];
+                assert(new_transitions.size() > m2);
+                if (prev_is_dead && m2 == n_dead_state) {
+                    assert(ntrans.size() > 0);
+                    assert(ntrans.back().high + 1 == entry.low);
+                    ntrans.back().high = entry.high;
+                } else {
+                    ntrans.push_back(DFAEntry(entry.low, entry.high, m2));
+                }
+                prev_is_dead = m2 == n_dead_state;
+            }
+        }
+
+        this->m_transitions = new_transitions;
+        this->m_start_state = state_rewriter[this->m_start_state];
+        this->m_dead_states.clear();
+        this->m_dead_states.insert(n_dead_state);
+        auto old_finals = std::move(this->m_final_states);
+        this->m_final_states.clear();
+        for (auto f: old_finals) {
+            this->m_final_states.insert(state_rewriter[f]);
+        }
+    }
+
+    NodeNFA<char_type> toNodeNFA() const;
 
     std::string to_string() const {
         std::stringstream ss;
@@ -927,6 +1024,30 @@ public:
         this->merge_with(from, { NodeNFAEntry(low, high, to) });
     }
 
+    NodeNFA<char_type> relocate_state(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals)
+    {
+        NodeNFATransitionTable new_transitions;
+        std::map<NFAState_t,NFAState_t> state_rewriter({ {this->m_start_state, starts}, {this->m_final_state, finals} });
+        for (auto& transp: this->m_transitions) {
+            if (state_rewriter.find(transp.first) == state_rewriter.end())
+                state_rewriter[transp.first] = allocator.newstate();
+
+            auto& new_transp = new_transitions[state_rewriter[transp.first]];
+            for (auto& entry: transp.second) {
+                std::set<NFAState_t> new_states;
+                for (auto s: entry.state) {
+                    if (state_rewriter.find(s) == state_rewriter.end())
+                        state_rewriter[s] = allocator.newstate();
+                    new_states.insert(state_rewriter[s]);
+                }
+
+                new_transp.emplace_back(entry.low, entry.high, new_states);
+            }
+        }
+
+        return NodeNFA<char_type>(std::move(new_transitions), starts, finals);
+    }
+
     static NodeNFA<char_type> from_basic_regex(const std::vector<char_type>& regex);
     static NodeNFA<char_type> from_regex(const std::vector<char_type>& regex) {
         Regex2BasicConvertor<char_type> conv;
@@ -982,9 +1103,10 @@ class ExprNodeGroup : public ExprNode<CharT> {
 private:
     using NFAState_t = typename NodeNFA<CharT>::NFAState_t;
     std::shared_ptr<ExprNode<CharT>> _next;
+    bool _complemented;
 
 public:
-    ExprNodeGroup(std::shared_ptr<ExprNode<CharT>> next) : _next(next) {}
+    ExprNodeGroup(std::shared_ptr<ExprNode<CharT>> next, bool complemented) : _next(next), _complemented(complemented) {}
 
     const std::shared_ptr<ExprNode<CharT>> next() const { return _next; }
     std::shared_ptr<ExprNode<CharT>> next() { return _next; }
@@ -996,7 +1118,16 @@ public:
 
     virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
     {
-        return this->_next->to_nfa(allocator, starts, finals);
+        auto nfa = this->_next->to_nfa(allocator, starts, finals);
+        if (!this->_complemented)
+            return nfa;
+
+        auto rnfa = nfa.toRegexNFA();
+        auto dfa = rnfa.compile();
+        auto complemented_dfa = dfa.complement();
+        complemented_dfa.optimize();
+        auto complemented_nfa = complemented_dfa.toNodeNFA();
+        return complemented_nfa.relocate_state(allocator, starts, finals);;
     }
 
     virtual ~ExprNodeGroup() override = default;
@@ -1200,8 +1331,9 @@ private:
     using node_type = std::shared_ptr<ExprNode<char_type>>;;
     struct StackValueState {
         std::shared_ptr<ExprNode<char_type>> node;
+        bool complemented;
 
-        StackValueState(): node(std::make_shared<ExprNodeEmpty<char_type>>()) {}
+        StackValueState(): node(std::make_shared<ExprNodeEmpty<char_type>>()), complemented(false) {}
     };
     std::vector<StackValueState> _stack;
     bool _endding;
@@ -1341,14 +1473,14 @@ private:
 
         if (merged_ranges.size() == 1) {
             auto node = std::make_shared<ExprNodeCharRange<char_type>>(merged_ranges[0].first, merged_ranges[0].second);
-            this->push_node(std::make_shared<ExprNodeGroup<char_type>>(node));
+            this->push_node(std::make_shared<ExprNodeGroup<char_type>>(node, false));
         } else {
             auto node = std::make_shared<ExprNodeUnion<char_type>>();
             for (auto& range : merged_ranges) {
                 auto node_range = std::make_shared<ExprNodeCharRange<char_type>>(range.first, range.second);
                 node->add_child(node_range);
             }
-            this->push_node(std::make_shared<ExprNodeGroup<char_type>>(node));
+            this->push_node(std::make_shared<ExprNodeGroup<char_type>>(node, false));
         }
     }
     void push_bracket_range() {
@@ -1461,6 +1593,7 @@ public:
                 c != traits::LBRACKET && c != traits::CARET &&
                 c != traits::DASH && c != traits::RBRACKET &&
                 c != traits::OR && c != traits::STAR &&
+                c != traits::EXCLAMATION &&
                 c != traits::BACKSLASH)
             {
                 throw std::runtime_error("unexpected escape seqeuence");
@@ -1476,6 +1609,16 @@ public:
             {
                 this->_stack.push_back(StackValueState());
             } break;
+            case traits::EXCLAMATION:
+            {
+                auto& back = this->_stack.back();
+                auto emptynode = std::dynamic_pointer_cast<ExprNodeEmpty<char_type>>(back.node);
+                if (emptynode && !back.complemented) {
+                    this->_stack.back().complemented = true;
+                } else {
+                    this->push_char(c);
+                }
+            } break;
             case traits::RPAREN:
             {
                 if (this->_stack.size() < 2)
@@ -1483,7 +1626,7 @@ public:
 
                 auto top = this->_stack.back();
                 this->_stack.pop_back();
-                auto group = std::make_shared<ExprNodeGroup<char_type>>(top.node);
+                auto group = std::make_shared<ExprNodeGroup<char_type>>(top.node, top.complemented);
                 this->push_node(group);
             } break;
             case traits::LBRACKET:
@@ -1576,6 +1719,41 @@ NodeNFA<CharT> NodeNFA<CharT>::from_basic_regex(const std::vector<char_type>& re
     auto finals = allocator.newstate();
     auto nfa = node->to_nfa(allocator, starts, finals);
     return nfa;
+}
+
+// -----------------------------------------------
+// template<typename CharT> RegexNFA implementation
+// -----------------------------------------------
+template<typename CharT>
+NodeNFA<CharT> RegexDFA<CharT>::toNodeNFA() const
+{
+    using NodeNFATransitionTable = typename NodeNFA<CharT>::NodeNFATransitionTable;
+    using NodeNFAEntry = typename NodeNFA<CharT>::NodeNFAEntry;
+    using NFAState_t = typename NodeNFA<CharT>::NFAState_t;
+
+    const auto epsilon_symbol = traits::EMPTY_CHAR;
+    const NFAState_t startstate = this->m_start_state;
+    const NFAState_t nfinals = this->m_transitions.size();
+    NodeNFATransitionTable table;
+    for (size_t s=0;s<this->m_transitions.size();s++) {
+        if (this->m_final_states.find(s) != this->m_final_states.end()) {
+            table[s].push_back(NodeNFAEntry(epsilon_symbol, epsilon_symbol, { nfinals }));
+        }
+
+        auto& t = this->m_transitions[s];
+        for (auto& e: t) {
+            if (this->m_dead_states.find(e.state) != this->m_dead_states.end())
+                continue;
+
+            NodeNFAEntry ne;
+            ne.state = { e.state };
+            ne.low = e.low;
+            ne.high = e.high;
+            table[s].push_back(ne);
+        }
+    }
+
+    return NodeNFA<CharT>(table, startstate, nfinals);
 }
 
 template<typename CharT>

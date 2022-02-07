@@ -1,8 +1,9 @@
 #ifndef _DC_PARSER_REGEX_UTF8_HPP_
 #define _DC_PARSER_REGEX_UTF8_HPP_
 
-#include "./regex.hpp"
+#include "./regex_internal.hpp"
 #include <string>
+#include <vector>
 #include <memory>
 #include <assert.h>
 

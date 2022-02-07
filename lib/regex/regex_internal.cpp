@@ -1,4 +1,4 @@
-#include "regex/regex.hpp"
+#include "regex/regex_internal.hpp"
 
 
 template<>

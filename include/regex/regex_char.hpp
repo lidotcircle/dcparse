@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <string>
+#include <vector>
 
 
 template<typename CharT>
@@ -42,12 +43,15 @@ std::string char_to_string<char>(char c);
 template<typename CharT>
 class RegexPatternChar {
 private:
+    using traits = character_traits<CharT>;
     bool m_escaping;
     CharT m_char;
 
     RegexPatternChar(bool escaping, CharT c) : m_escaping(escaping), m_char(c) {}
 
 public:
+    RegexPatternChar() : m_escaping(false), m_char(traits::EMPTY_CHAR) {}
+
     static RegexPatternChar<CharT> unescape(CharT c) {
         return RegexPatternChar<CharT>(false, c);
     }
@@ -62,6 +66,23 @@ public:
     CharT get() const {
         return m_char;
     }
+
+    std::string to_string() const {
+        if (m_escaping) {
+            return char_to_string(traits::BACKSLASH) + char_to_string(m_char);
+        } else {
+            return char_to_string(m_char);
+        }
+    }
 };
+
+template<typename CharT>
+std::string pattern_to_string(std::vector<RegexPatternChar<CharT>> pattern) {
+    std::string result;
+    for (auto c : pattern) {
+        result += c.to_string();
+    }
+    return result;
+}
 
 #endif // _DC_PARSER_REGEX_CHAR_HPP_

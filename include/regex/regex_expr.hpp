@@ -18,7 +18,7 @@ public:
     RegexPatternEscaper() = delete;
 
     template<typename Iterator>
-    static std::vector<char_type> convert(Iterator first, Iterator last)
+    static std::vector<regex_char> convert(Iterator first, Iterator last)
     {
         std::vector<regex_char> result;
         bool escaped = false;
@@ -41,6 +41,24 @@ public:
 
         return result;
     }
+
+    template<typename Iterator>
+    static std::vector<char_type> convertback(Iterator first, Iterator last)
+    {
+        std::vector<char_type> result;
+
+        for (; first != last; ++first) {
+            auto c = *first;
+
+            if (c.is_escaped()) {
+                result.push_back(traits::BACKSLASH);
+            }
+
+            result.push_back(c.get());
+        }
+
+        return result;
+    }
 };
 
 template<typename CharT>
@@ -48,60 +66,33 @@ class Regex2BasicConvertor {
 private:
     using traits = character_traits<CharT>;
     using char_type = CharT;
+    using regex_char = RegexPatternChar<char_type>;
     std::vector<size_t> m_lparen_pos;
-    std::vector<char_type> __result;
-    bool escaping;
+    std::vector<regex_char> __result;
     bool endding;
     size_t m_last_lparen_pos;
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
-
-    bool m_in_bracket_mode;
-    bool m_escaping_in_bracket_mode;
 
     bool m_in_brace_mode;
     bool m_brace_got_comma;
     int  m_brace_count_low;
     int  m_brace_count_up;
     static constexpr size_t brace_infinity = std::numeric_limits<decltype(m_brace_count_up)>::max();
-    std::vector<char_type> __copy_content;
+    std::vector<regex_char> __copy_content;
 
-    std::vector<char_type> get_last_node(size_t last_lparen_pos)
+    std::vector<regex_char> get_last_node(size_t last_lparen_pos)
     {
         if (this->__result.empty())
             throw std::runtime_error("unexpected {} / + / ?");
 
         if (last_lparen_pos == npos) {
-            const auto __rsize = __result.size();
-            if (__rsize >= 2 && 
-                this->__result[__rsize - 1] == traits::BACKSLASH &&
-                this->__result[__rsize - 2] == traits::BACKSLASH)
-            {
-                return std::vector<char_type>({  traits::BACKSLASH, traits::BACKSLASH });
-            } else {
-                return std::vector<char_type>({  this->__result.back() });
-            }
+            return std::vector<regex_char>({  this->__result.back() });
         } else {
-            assert(this->__result.back() == traits::RPAREN);
-            std::vector<char_type> ans;
+            assert(this->__result.back().get() == traits::RPAREN || this->__result.back().get() == traits::RBRACKET);
+            std::vector<regex_char> ans;
             std::copy(this->__result.begin() + last_lparen_pos, this->__result.end(), std::back_inserter(ans));
             return ans;
         }
-    }
-
-    bool handle_bracket_mode(char_type c) {
-        if (!this->m_in_bracket_mode)
-            return false;
-
-        this->__result.push_back(c);
-
-        if (c == traits::BACKSLASH) {
-            this->m_escaping_in_bracket_mode = !this->m_escaping_in_bracket_mode;
-        } else {
-            this->m_escaping_in_bracket_mode = false;
-            this->m_in_bracket_mode = c != traits::RBRACKET;
-        }
-
-        return true;
     }
 
     void enter_brace_mode() {
@@ -111,9 +102,13 @@ private:
         this->m_brace_got_comma = false;
     }
 
-    bool handle_brace_mode(char_type c) {
+    bool handle_brace_mode(regex_char _c) {
         if (!this->m_in_brace_mode)
             return false;
+
+        if (_c.is_escaped())
+            throw std::runtime_error("unexpected escape sequence in brace");
+        auto c =  _c.get();
 
         if (c == traits::COMMA) {
             if (this->m_brace_got_comma)
@@ -133,15 +128,15 @@ private:
 
                 if (this->m_brace_count_up == brace_infinity) {
                     this->__result.insert(this->__result.end(), this->__copy_content.begin(), this->__copy_content.end());
-                    this->__result.push_back(traits::STAR);
+                    this->__result.push_back(regex_char::unescape(traits::STAR));
                 } else {
                     const auto opt_count = this->m_brace_count_up - this->m_brace_count_low;
                     for (size_t i=0; i<opt_count; i++) {
-                        this->__result.push_back(traits::LPAREN);
-                        this->__result.push_back(traits::OR);
+                        this->__result.push_back(regex_char::unescape(traits::LPAREN));
+                        this->__result.push_back(regex_char::unescape(traits::OR));
                         this->__result.insert(this->__result.end(), this->__copy_content.begin(), this->__copy_content.end());
                     }
-                    std::vector<char_type> nrparen(opt_count, traits::RPAREN);
+                    std::vector<regex_char> nrparen(opt_count, regex_char::unescape(traits::RPAREN));
                     this->__result.insert(this->__result.end(), nrparen.begin(), nrparen.end());
                 }
             }
@@ -169,54 +164,51 @@ private:
 
 public:
     Regex2BasicConvertor():
-        escaping(false), endding(false),
+        endding(false),
         m_last_lparen_pos(npos),
-        m_in_bracket_mode(false), m_in_brace_mode(false) {}
+        m_in_brace_mode(false) {}
 
-    void feed(char_type c) {
+    void feed(regex_char c) {
         assert(!this->endding);
         auto last_lparen_pos = this->m_last_lparen_pos;
         this->m_last_lparen_pos = npos;
 
-        if (this->handle_bracket_mode(c))
-            return;
-
         if (this->handle_brace_mode(c))
             return;
 
-        if (this->escaping) {
-            switch (c) {
+        auto _c = c.get();
+        if (c.is_escaped()) {
+
+            switch (_c) {
                 case traits::LBRACE:
+                case traits::COMMA:
                 case traits::RBRACE:
                 case traits::QUESTION:
                 case traits::PLUS:
                 case traits::DOT:
-                    this->__result.push_back(c);
+                    this->__result.push_back(regex_char::unescape(_c));
                     break;
                 default:
-                    this->__result.push_back(traits::BACKSLASH);
                     this->__result.push_back(c);
                     break;
             }
 
-            this->escaping = false;
             return;
         }
 
-        switch (c) {
+        switch (_c) {
             case traits::LPAREN:
+            case traits::LBRACKET:
                 this->m_lparen_pos.push_back(this->__result.size());
                 this->__result.push_back(c);
                 break;
             case traits::RPAREN:
+            case traits::RBRACKET:
                 if (this->m_lparen_pos.empty())
                     throw std::runtime_error("unmatched right parenthese");
                 this->__result.push_back(c);
                 this->m_last_lparen_pos = this->m_lparen_pos.back();
                 this->m_lparen_pos.pop_back();
-                break;
-            case traits::BACKSLASH:
-                this->escaping = true;
                 break;
             case traits::LBRACE:
                 this->enter_brace_mode();
@@ -225,31 +217,26 @@ public:
             case traits::RBRACE:
                 throw std::runtime_error("unexpected rbrace");
                 break;
-            case traits::LBRACKET:
-                this->m_in_bracket_mode = true;
-                this->m_escaping_in_bracket_mode = false;
-                this->__result.push_back(c);
-                break;
             case traits::QUESTION: {
                 auto last_node = this->get_last_node(last_lparen_pos);
                 assert(this->__result.size() >= last_node.size());
                 this->__result.resize(this->__result.size() - last_node.size());
-                this->__result.push_back(traits::LPAREN);
-                this->__result.push_back(traits::OR);
+                this->__result.push_back(regex_char::unescape(traits::LPAREN));
+                this->__result.push_back(regex_char::unescape(traits::OR));
                 this->__result.insert(this->__result.end(), last_node.begin(), last_node.end());
-                this->__result.push_back(traits::RPAREN);
+                this->__result.push_back(regex_char::unescape(traits::RPAREN));
             } break;
             case traits::PLUS: {
                 auto last_node = this->get_last_node(last_lparen_pos);
                 this->__result.insert(this->__result.end(), last_node.begin(), last_node.end());
-                this->__result.push_back(traits::STAR);
+                this->__result.push_back(regex_char::unescape(traits::STAR));
             } break;
             case traits::DOT:
-                this->__result.push_back(traits::LBRACKET);
-                this->__result.push_back(traits::MIN);
-                this->__result.push_back(traits::DASH);
-                this->__result.push_back(traits::MAX);
-                this->__result.push_back(traits::RBRACKET);
+                this->__result.push_back(regex_char::unescape(traits::LBRACKET));
+                this->__result.push_back(regex_char::unescape(traits::MIN));
+                this->__result.push_back(regex_char::unescape(traits::DASH));
+                this->__result.push_back(regex_char::unescape(traits::MAX));
+                this->__result.push_back(regex_char::unescape(traits::RBRACKET));
                 break;
             default:
                 this->__result.push_back(c);
@@ -257,21 +244,24 @@ public:
         }
     }
 
-    std::vector<char_type>& end() {
+    std::vector<regex_char>& end() {
         assert(!this->endding);
         this->endding = true;
-
-        if (this->escaping)
-            throw std::runtime_error("Regex: unclosed escape");
 
         return __result;
     }
 
-    static std::vector<char_type> convert(const std::vector<char_type>& regex) {
+    static std::vector<regex_char> convert(const std::vector<regex_char>& regex) {
         Regex2BasicConvertor conv;
         for (auto c : regex)
             conv.feed(c);
         return conv.end();
+    }
+
+    static std::vector<char_type> convert(const std::vector<char_type>& regex) {
+        auto f1 = RegexPatternEscaper<char_type>::convert(regex.begin(), regex.end());
+        auto f2 = Regex2BasicConvertor::convert(f1);
+        return RegexPatternEscaper<char_type>::convertback(f2.begin(), f2.end());
     }
 };
 

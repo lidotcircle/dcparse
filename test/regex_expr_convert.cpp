@@ -4,6 +4,20 @@
 #include "regex/regex.hpp"
 using namespace std;
 
+TEST(regex, escaping_test) {
+    vector<pair<string,string>> test_cases = {
+        { "abc", "abc" },
+        { "\\abc", "\\abc" },
+        { "a\\bc", "a\\bc" },
+        { "\\\\abc", "\\\\abc" },
+    };
+
+    for (auto& test_case : test_cases) {
+        auto ff = RegexPatternEscaper<char>::convert(test_case.first.begin(), test_case.first.end());
+        auto rs = pattern_to_string(ff);
+        EXPECT_EQ(rs, test_case.second);
+    }
+}
 
 TEST(regex, regex_convert) {
     vector<pair<string,string>> test_cases = {

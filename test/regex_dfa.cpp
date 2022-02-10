@@ -26,6 +26,7 @@ TEST(DFA, basic_dfa_test) {
         {"(!1234)", { "431", "" }, { "1234" }},
 
         {"(a(a(a(a(a)))))", { "aaaaa" }, { "a" } },
+        {"[^0-9]+", { "abc" }, { "a1234" } },
     };
 
     for (auto& testcase : test_cases) {

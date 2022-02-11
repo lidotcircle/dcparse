@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <assert.h>
 #include "./regex_char.hpp"
+#include "./regex_expr.hpp"
 #include "./regex_automata_node_nfa.hpp"
 
 
@@ -283,6 +284,7 @@ class RegexNodeTreeGenerator {
 private:
     using traits = character_traits<CharT>;
     using char_type = CharT;
+    using regex_char = RegexPatternChar<char_type>;
     using node_type = std::shared_ptr<ExprNode<char_type>>;;
     struct StackValueState {
         std::shared_ptr<ExprNode<char_type>> node;
@@ -292,7 +294,6 @@ private:
     };
     std::vector<StackValueState> _stack;
     bool _endding;
-    bool _escaping;
 
     node_type push_node_to_node(node_type oldnode, node_type node)
     {
@@ -329,15 +330,15 @@ private:
 
         return ret;
     }
-    void push_node(node_type node) {
+    void push_node_to_stacktop(node_type node) {
         auto& stacktop = _stack.back();
         stacktop.node = push_node_to_node(stacktop.node, node);
     }
     void push_char(char_type c) {
         auto node = std::make_shared<ExprNodeCharRange<char_type>>(c, c);
-        push_node(node);
+        push_node_to_stacktop(node);
     }
-    void to_union_node() {
+    void stacktop_to_union_node() {
         auto& stacktop = _stack.back();
         assert (stacktop.node != nullptr);
 
@@ -391,7 +392,7 @@ private:
 
         return ret;
     }
-    void to_kleene_star_node() {
+    void stacktop_to_kleene_star_node() {
         auto& stacktop = _stack.back();
         assert(stacktop.node != nullptr);
         stacktop.node = node_to_kleen_start_node(stacktop.node);
@@ -399,7 +400,6 @@ private:
     }
 
     bool m_in_bracket_mode;
-    bool m_escaping_in_bracket_mode;
     bool m_bracket_reversed;
     size_t m_bracket_eat_count;
     enum BracketState {
@@ -411,7 +411,6 @@ private:
 
     void enter_bracket_mode() {
         m_in_bracket_mode = true;
-        m_escaping_in_bracket_mode = false;
         m_bracket_eat_count = 0;
         m_bracket_reversed = false;
         m_bracket_state = BracketState_None;
@@ -428,14 +427,14 @@ private:
 
         if (merged_ranges.size() == 1) {
             auto node = std::make_shared<ExprNodeCharRange<char_type>>(merged_ranges[0].first, merged_ranges[0].second);
-            this->push_node(std::make_shared<ExprNodeGroup<char_type>>(node, false));
+            this->push_node_to_stacktop(std::make_shared<ExprNodeGroup<char_type>>(node, false));
         } else {
             auto node = std::make_shared<ExprNodeUnion<char_type>>();
             for (auto& range : merged_ranges) {
                 auto node_range = std::make_shared<ExprNodeCharRange<char_type>>(range.first, range.second);
                 node->add_child(node_range);
             }
-            this->push_node(std::make_shared<ExprNodeGroup<char_type>>(node, false));
+            this->push_node_to_stacktop(std::make_shared<ExprNodeGroup<char_type>>(node, false));
         }
     }
     void push_bracket_range() {
@@ -475,28 +474,29 @@ private:
                throw std::runtime_error("invalid bracket state");
         }
     }
-    bool handle_bracket_mode(char_type c) {
+    bool handle_bracket_mode(regex_char _c) {
         if (!this->m_in_bracket_mode)
             return false;
 
-        if (this->m_bracket_eat_count++ == 0 && c == traits::CARET) {
+        const auto c = _c.get();
+        const auto escaped = _c.is_escaped();
+        if (this->m_bracket_eat_count++ == 0 &&
+            !escaped &&
+            c == traits::CARET)
+        {
             this->m_bracket_reversed = true;
             return true;
         }
 
-        const bool bracket_end = !this->m_escaping_in_bracket_mode && c == traits::RBRACKET;
+        const bool bracket_end = !escaped && c == traits::RBRACKET;
         if (bracket_end) {
             this->leave_bracket_mode();
             return true;
         }
 
-        if (this->m_escaping_in_bracket_mode) {
+        if (escaped) {
             if (c != traits::RBRACKET && c != traits::BACKSLASH)
                 throw std::runtime_error("unexpected escape seqeuence");
-            this->m_escaping_in_bracket_mode = false;
-        } else if (c == traits::BACKSLASH) {
-            this->m_escaping_in_bracket_mode = true;
-            return true;
         }
 
         switch (this->m_bracket_state) {
@@ -507,7 +507,7 @@ private:
             } break;
             case BracketState_One:
             {
-                if (c == traits::DASH) {
+                if (!escaped && c == traits::DASH) {
                     this->m_bracket_state = BracketState_Dashed;
                 } else {
                     this->push_bracket_range();
@@ -530,20 +530,21 @@ private:
 
 public:
     RegexNodeTreeGenerator():
-       _endding(false), _escaping(false),
-        m_in_bracket_mode(false), m_escaping_in_bracket_mode(false),
+       _endding(false),
+        m_in_bracket_mode(false),
         _stack()
     {
         this->_stack.push_back(StackValueState());
     }
 
-    void feed(char_type c) {
+    void feed(regex_char _c) {
         assert(!this->_endding);
 
-        if (this->handle_bracket_mode(c))
+        if (this->handle_bracket_mode(_c))
             return;
 
-        if (this->_escaping) {
+        auto c = _c.get();
+        if (_c.is_escaped()) {
             if (c != traits::LPAREN && c != traits::RPAREN &&
                 c != traits::LBRACKET && c != traits::CARET &&
                 c != traits::DASH && c != traits::RBRACKET &&
@@ -554,7 +555,6 @@ public:
                 throw std::runtime_error("unexpected escape seqeuence");
             }
 
-            this->_escaping = false;
             this->push_char(c);
             return;
         }
@@ -582,7 +582,7 @@ public:
                 auto top = this->_stack.back();
                 this->_stack.pop_back();
                 auto group = std::make_shared<ExprNodeGroup<char_type>>(top.node, top.complemented);
-                this->push_node(group);
+                this->push_node_to_stacktop(group);
             } break;
             case traits::LBRACKET:
             {
@@ -594,7 +594,7 @@ public:
             } break;
             case traits::OR:
             {
-                this->to_union_node();
+                this->stacktop_to_union_node();
                 auto& top = this->_stack.back();
                 auto node = std::dynamic_pointer_cast<ExprNodeUnion<char_type>>(top.node);
                 assert(node != nullptr);
@@ -602,11 +602,7 @@ public:
             } break;
             case traits::STAR:
             {
-                this->to_kleene_star_node();
-            } break;
-            case traits::BACKSLASH:
-            {
-                this->_escaping = true;
+                this->stacktop_to_kleene_star_node();
             } break;
             default:
                 this->push_char(c);
@@ -627,12 +623,17 @@ public:
         return top.node;
     }
 
-    static node_type parse(const std::vector<char_type>& str) {
+    static node_type parse(const std::vector<regex_char>& pattern) {
         RegexNodeTreeGenerator<char_type> gen;
-        for (auto c: str) {
+        for (auto c: pattern) {
             gen.feed(c);
         }
         return gen.end();
+    }
+
+    static node_type parse(const std::vector<char_type>& str) {
+        auto nx = RegexPatternEscaper<char_type>::convert(str.begin(), str.end());
+        return parse(nx);
     }
 };
 

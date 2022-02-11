@@ -70,7 +70,7 @@ private:
     std::vector<size_t> m_lparen_pos;
     std::vector<regex_char> __result;
     bool endding;
-    size_t m_last_lparen_pos;
+    size_t m_last_group_pos;
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
 
     bool m_in_brace_mode;
@@ -80,17 +80,17 @@ private:
     static constexpr size_t brace_infinity = std::numeric_limits<decltype(m_brace_count_up)>::max();
     std::vector<regex_char> __copy_content;
 
-    std::vector<regex_char> get_last_node(size_t last_lparen_pos)
+    std::vector<regex_char> get_last_node(size_t last_group_pos)
     {
         if (this->__result.empty())
             throw std::runtime_error("unexpected {} / + / ?");
 
-        if (last_lparen_pos == npos) {
+        if (last_group_pos == npos) {
             return std::vector<regex_char>({  this->__result.back() });
         } else {
             assert(this->__result.back().get() == traits::RPAREN || this->__result.back().get() == traits::RBRACKET);
             std::vector<regex_char> ans;
-            std::copy(this->__result.begin() + last_lparen_pos, this->__result.end(), std::back_inserter(ans));
+            std::copy(this->__result.begin() + last_group_pos, this->__result.end(), std::back_inserter(ans));
             return ans;
         }
     }
@@ -165,13 +165,13 @@ private:
 public:
     Regex2BasicConvertor():
         endding(false),
-        m_last_lparen_pos(npos),
+        m_last_group_pos(npos),
         m_in_brace_mode(false) {}
 
     void feed(regex_char c) {
         assert(!this->endding);
-        auto last_lparen_pos = this->m_last_lparen_pos;
-        this->m_last_lparen_pos = npos;
+        auto last_group_pos = this->m_last_group_pos;
+        this->m_last_group_pos = npos;
 
         if (this->handle_brace_mode(c))
             return;
@@ -207,18 +207,18 @@ public:
                 if (this->m_lparen_pos.empty())
                     throw std::runtime_error("unmatched right parenthese");
                 this->__result.push_back(c);
-                this->m_last_lparen_pos = this->m_lparen_pos.back();
+                this->m_last_group_pos = this->m_lparen_pos.back();
                 this->m_lparen_pos.pop_back();
                 break;
             case traits::LBRACE:
                 this->enter_brace_mode();
-                this->__copy_content = this->get_last_node(last_lparen_pos);
+                this->__copy_content = this->get_last_node(last_group_pos);
                 break;
             case traits::RBRACE:
                 throw std::runtime_error("unexpected rbrace");
                 break;
             case traits::QUESTION: {
-                auto last_node = this->get_last_node(last_lparen_pos);
+                auto last_node = this->get_last_node(last_group_pos);
                 assert(this->__result.size() >= last_node.size());
                 this->__result.resize(this->__result.size() - last_node.size());
                 this->__result.push_back(regex_char::unescape(traits::LPAREN));
@@ -227,7 +227,7 @@ public:
                 this->__result.push_back(regex_char::unescape(traits::RPAREN));
             } break;
             case traits::PLUS: {
-                auto last_node = this->get_last_node(last_lparen_pos);
+                auto last_node = this->get_last_node(last_group_pos);
                 this->__result.insert(this->__result.end(), last_node.begin(), last_node.end());
                 this->__result.push_back(regex_char::unescape(traits::STAR));
             } break;

@@ -4,6 +4,7 @@
 #include "token.h"
 #include <memory>
 #include <string>
+#include <vector>
 
 
 template<typename T>
@@ -17,7 +18,7 @@ public:
     virtual bool match() = 0;
 
     virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn) = 0;
-    virtual std::shared_ptr<LexerToken> token() = 0;
+    virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) = 0;
 };
 
 #endif // _LEXER_LEXER_RULE_HPP_

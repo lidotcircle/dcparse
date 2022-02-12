@@ -28,6 +28,17 @@ private:
 
 public:
     SimpleRegExp() = delete;
+
+    template<typename Iterator>
+    SimpleRegExp(Iterator begin, Iterator end)
+    {
+        std::vector<char_type> regex(begin, end);
+        auto nfa = NodeNFA<char_type>::from_regex(regex);
+        auto rnfa = nfa.toRegexNFA();
+        auto rnfa_ptr = std::make_shared<RegexNFA<char_type>>(std::move(rnfa));
+        this->m_matcher = std::make_shared<NFAMatcher<char_type>>(rnfa_ptr);
+    }
+
     SimpleRegExp(const std::vector<char_type>& regex) {
         auto nfa = NodeNFA<char_type>::from_regex(regex);
         auto rnfa = nfa.toRegexNFA();

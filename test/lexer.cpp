@@ -5,6 +5,7 @@
 #include "lexer/lexer.hpp"
 #include "lexer/lexer_rule_cstring_literal.hpp"
 #include "lexer/lexer_rule_regex.hpp"
+#include "lexer/simple_lexer.hpp"
 using namespace std;
 
 class TokenID: public LexerToken {
@@ -152,4 +153,35 @@ TEST_F(LexerTest, StringLiteral) {
     auto stoken = std::dynamic_pointer_cast<TokenStringLiteral>(t2[0]);
     EXPECT_NE(stoken, nullptr);
     EXPECT_EQ(stoken->literal, "hello \"world");
+}
+
+TEST_F(LexerTest, SimpleLexer) {
+    string str = "if /*hello world   fi if ll*/ fi if \"hello \\\"world\"";
+    SimpleLexer<char> slexer(
+            std::make_unique<Lexer<char>>(std::move(lexer)),
+            vector<char>(str.begin(), str.end()));
+    EXPECT_FALSE(slexer.end());
+
+    auto t1 = slexer.next();
+    EXPECT_FALSE(slexer.end());
+
+    auto t2 = slexer.next();
+    EXPECT_FALSE(slexer.end());
+
+    auto t3 = slexer.next();
+    EXPECT_FALSE(slexer.end());
+
+    auto t4 = slexer.next();
+    EXPECT_FALSE(slexer.end());
+
+    auto t5 = slexer.next();
+    EXPECT_TRUE(slexer.end());
+
+    slexer.back();
+    EXPECT_FALSE(slexer.end());
+
+    t5 = slexer.next();
+    EXPECT_TRUE(slexer.end());
+
+    EXPECT_THROW(slexer.next(), LexerError);
 }

@@ -276,6 +276,9 @@ public:
     }
     ~Lexer() = default;
 
+    Lexer(const Lexer&) = delete;
+    Lexer(Lexer&&) = default;
+
     void reset(const std::string& fn)
     {
         this->m_filename = fn;

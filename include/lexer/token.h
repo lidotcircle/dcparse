@@ -14,15 +14,23 @@ template<typename T, typename = std::enable_if_t<std::is_base_of<DChar,T>::value
 size_t CharID() { return typeid(T).hash_code(); }
 
 class LexerToken : public DChar {
+public:
+    struct TokenInfo {
+        size_t      line_num;
+        size_t      column_num;
+        size_t      pos;
+        size_t      len;
+        std::string filename;
+
+        inline TokenInfo(size_t line_num, size_t column_num, size_t pos, size_t len, std::string filename)
+            : line_num(line_num), column_num(column_num), pos(pos), len(len), filename(std::move(filename)) {}
+    };
+
 private:
-    size_t      m_line;
-    size_t      m_column;
-    size_t      m_pos;
-    size_t      m_len;
-    std::string m_filename;
+    TokenInfo m_info;
 
 public:
-    LexerToken(size_t ln, size_t cn, size_t pos, size_t len, const std::string& fn);
+    LexerToken(TokenInfo info);
 
     virtual size_t line_number() const;
     virtual size_t column_number() const;

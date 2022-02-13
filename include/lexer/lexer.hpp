@@ -8,6 +8,7 @@
 #include <algorithm>
 #include "lexer_rule.hpp"
 #include "lexer_error.h"
+#include "regex/regex_char.hpp"
 
 
 template<typename T>
@@ -77,7 +78,7 @@ private:
                 if (val != nullptr)
                     tokens.push_back(val);
 
-                auto& lp = *(this->m_cache.begin() + (len - 1));
+                const auto& lp = *(this->m_cache.begin() + (len - 1));
                 this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename);
                 this->m_cache.erase(this->m_cache.begin(),
                                     this->m_cache.begin() + len);
@@ -103,7 +104,7 @@ private:
             std::vector<std::tuple<size_t,size_t,size_t>> finished_rules;
 
             for (size_t j=0;j<r1.size();j++) {
-                auto& r2 = r1[i];
+                auto& r2 = r1[j];
 
                 for (size_t k=0;k<r2.size();k++) {
                     auto& ri = r2[k];
@@ -138,10 +139,17 @@ private:
             }
             prevs_is_dead = prevs_is_dead && current_is_dead;
 
-            if (!prevs_is_dead)
+            if (!prevs_is_dead || finished_rules.empty())
                 continue;
 
             return this->get_token_by_candidates(i, finished_rules);
+        }
+
+        if (prevs_is_dead)
+        {
+            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " +
+                                     std::to_string(c.line_num) + ":" +
+                                     std::to_string(c.col_num));
         }
 
         return std::make_pair(std::nullopt, 0);
@@ -187,6 +195,7 @@ private:
     std::pair<std::optional<std::shared_ptr<LexerToken>>,size_t>
     get_token_by_candidates(size_t major_index, std::vector<std::tuple<size_t,size_t,size_t>>& candidates)
     {
+        assert(candidates.size() > 0);
         std::sort(candidates.rbegin(), candidates.rend());
         auto f1 = candidates.front();
         for (auto& a: candidates) {
@@ -245,6 +254,13 @@ protected:
         }
     }
 
+    void setup_rules_set()
+    {
+        this->m_rules.resize(1);
+        this->m_rules.back().resize(1);
+    }
+
+
 public:
     Lexer()
     {
@@ -255,12 +271,6 @@ public:
         this->setup_rules_set();
     }
     ~Lexer() = default;
-
-    void setup_rules_set()
-    {
-        this->m_rules.resize(1);
-        this->m_rules.back().resize(1);
-    }
 
     void dec_priority_major()
     {
@@ -281,6 +291,11 @@ public:
         auto& ruleset = back.back();
 
         ruleset.push_back(RuleInfo(std::move(rule)));
+    }
+
+    Lexer& operator()(std::unique_ptr<LexerRule<CharType>> rule) {
+        this->add_rule(std::move(rule));
+        return *this;
     }
 
     std::vector<std::shared_ptr<LexerToken>> feed_char(CharType c)

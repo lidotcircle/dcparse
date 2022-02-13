@@ -11,25 +11,24 @@ size_t DChar::charid() const {
     return typeid(*this).hash_code();
 }
 
-LexerToken::LexerToken(size_t ln, size_t cn, size_t pos, size_t len, const string& fn):
-    m_line(ln), m_column(cn), m_filename(fn), m_pos(pos), m_len(len) {}
+LexerToken::LexerToken(TokenInfo info): m_info(move(info)) {}
 
 size_t LexerToken::line_number() const {
-    return m_line;
+    return m_info.line_num;
 }
 
 size_t LexerToken::column_number() const {
-    return m_column;
+    return m_info.column_num;
 }
 
 size_t LexerToken::position() const {
-    return m_pos;
+    return m_info.pos;
 }
 
 size_t LexerToken::length() const {
-    return m_len;
+    return m_info.len;
 }
 
 const string& LexerToken::filename() const {
-    return m_filename;
+    return m_info.filename;
 }

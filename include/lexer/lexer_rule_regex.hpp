@@ -1,6 +1,7 @@
 #ifndef _LEXER_LEXER_RULE_REGEX_HPP_
 #define _LEXER_LEXER_RULE_REGEX_HPP_
 
+#include "./token.h"
 #include "./lexer_rule.hpp"
 #include "../regex/regex.hpp"
 #include <functional>
@@ -9,13 +10,13 @@
 
 template<typename T>
 class LexerRuleRegex: public LexerRule<T> {
-private:
+public:
     using CharType = T;
+    using TokenInfo = LexerToken::TokenInfo;
+
+private:
     using string_t = std::vector<CharType>;
-    using token_factory_t = std::function<std::shared_ptr<LexerToken>(
-            const std::vector<CharType>& token_value,
-            size_t line, size_t column, 
-            size_t pos, const std::string& filename)>;
+    using token_factory_t = std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TokenInfo)>;
     size_t m_line, m_column, m_pos;
     std::string m_filename;
     string_t m_string;
@@ -54,8 +55,8 @@ public:
 
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) override {
         return this->m_token_factory(
-                this->m_string,
-                this->m_line, this->m_column, this->m_pos, this->m_filename);
+            this->m_string,
+            TokenInfo(this->m_line, this->m_column, this->m_pos, this->m_string.size(), this->m_filename));
     }
 };
 

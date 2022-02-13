@@ -19,6 +19,8 @@ public:
 
     virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn) = 0;
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) = 0;
+
+    virtual ~LexerRule() = default;
 };
 
 #endif // _LEXER_LEXER_RULE_HPP_

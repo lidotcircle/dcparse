@@ -11,7 +11,7 @@ TEST(algo, regex_range) {
     std::default_random_engine generator;
     std::uniform_int_distribution<size_t> distribution(0,100000);
 
-    for (size_t i=0;i<10000;i++) {
+    for (size_t i=0;i<1000;i++) {
         auto a = distribution(generator);
         auto b = distribution(generator);
         if (a > b)

@@ -145,7 +145,7 @@ private:
             return true;
         }
 
-        if (c < '0' || c > '9')
+        if (c < traits::ZERO || c > traits::NINE)
             throw std::runtime_error("brace mode: expect number, bug get '" + char_to_string(c) + "'");
 
         if (this->m_brace_got_comma) {
@@ -153,10 +153,10 @@ private:
                 this->m_brace_count_up = 0;
 
             this->m_brace_count_up *= 10;
-            this->m_brace_count_up += c - '0';
+            this->m_brace_count_up += c - traits::ZERO;
         } else {
             this->m_brace_count_low *= 10;
-            this->m_brace_count_low += c - '0';
+            this->m_brace_count_low += c - traits::ZERO;
         }
 
         return true;

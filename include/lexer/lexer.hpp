@@ -15,6 +15,7 @@ template<typename T>
 class Lexer {
 public:
     using CharType = T;
+    using traits = character_traits<CharType>;
 
 private:
     static constexpr auto npos = std::string::npos;
@@ -30,6 +31,7 @@ private:
         {
             this->rule->reset(ln, cn, pos, fn);
             this->match_len = 0;
+            this->feed_len = 0;
         }
     };
     // major priority => minor priority => rules
@@ -45,6 +47,7 @@ private:
               line_num(ln), col_num(cn), pos(pos) {}
     };
     std::vector<CharInfo> m_cache;
+    size_t line_num, col_num, pos;
     std::string m_filename;
 
     std::vector<CharType> getcachestr(size_t len)
@@ -147,6 +150,7 @@ private:
 
         if (prevs_is_dead)
         {
+            assert(!this->m_match_major_priority.has_value());
             throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " +
                                      std::to_string(c.line_num) + ":" +
                                      std::to_string(c.col_num));
@@ -237,16 +241,14 @@ private:
                 }
             }
         }
+        this->m_match_major_priority = std::nullopt;
     }
 
-
-protected:
-    size_t line_num = 1, col_num = 0, pos = 0;
     virtual void update_position_info(CharType c)
     {
         pos += 1;
 
-        if (c == '\n') {
+        if (c == traits::NEWLINE) {
             line_num++;
             col_num = 1;
         } else {
@@ -265,16 +267,35 @@ public:
     Lexer()
     {
         this->setup_rules_set();
+        this->reset();
     }
-    Lexer(const std::string& fn): m_filename(fn)
+    Lexer(const std::string& fn)
     {
         this->setup_rules_set();
+        this->reset(fn);
     }
     ~Lexer() = default;
+
+    void reset(const std::string& fn)
+    {
+        this->m_filename = fn;
+        this->m_cache.clear();
+        this->m_match_major_priority = std::nullopt;
+        this->line_num = 1;
+        this->col_num = 0;
+        this->pos = 0;
+        this->reset_rules(1, 0, 0, fn);
+    }
+
+    void reset()
+    {
+        this->reset(this->m_filename);
+    }
 
     void dec_priority_major()
     {
         this->m_rules.resize(this->m_rules.size() + 1);
+        this->m_rules.back().resize(1);
     }
 
     void dec_priority_minor()
@@ -303,6 +324,25 @@ public:
         this->update_position_info(c);
         this->m_cache.push_back(CharInfo(c, this->line_num, this->col_num, this->pos));
         return this->push_cache_to_end(this->m_cache.size());
+    }
+
+    template<typename Iterator>
+    std::vector<std::shared_ptr<LexerToken>> feed_char(Iterator begin, Iterator end)
+    {
+        std::vector<std::shared_ptr<LexerToken>> ret;
+
+        for (;begin != end;begin++) {
+            auto r = this->feed_char(*begin);
+            ret.insert(ret.end(), r.begin(), r.end());
+        }
+
+        return ret;
+    }
+
+    template<typename Container>
+    std::vector<std::shared_ptr<LexerToken>> feed_char(const Container& c)
+    {
+        return this->feed_char(c.begin(), c.end());
     }
 
     std::vector<std::shared_ptr<LexerToken>> feed_end()

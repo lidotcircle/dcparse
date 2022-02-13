@@ -22,6 +22,7 @@ public:
         size_t      len;
         std::string filename;
 
+        TokenInfo() = default;
         inline TokenInfo(size_t line_num, size_t column_num, size_t pos, size_t len, std::string filename)
             : line_num(line_num), column_num(column_num), pos(pos), len(len), filename(std::move(filename)) {}
     };

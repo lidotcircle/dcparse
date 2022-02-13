@@ -39,7 +39,7 @@ protected:
                     return std::make_shared<TokenBlockComment>(
                         string(str.begin(), str.end()), 
                         info);
-                })
+                }, false, true)
         );
 
         lexer.dec_priority_major();
@@ -116,7 +116,6 @@ TEST_F(LexerTest, spacechars) {
 }
 
 TEST_F(LexerTest, BlockComment) {
-    return;
     auto t1 = lexer.feed_char(string("if /*hello world   fi if ll*/ fi if"));
     EXPECT_EQ(t1.size(), 3);
 

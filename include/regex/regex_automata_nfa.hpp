@@ -174,11 +174,12 @@ public:
             assert(state < this->m_transitions.size());
             auto& trans = this->m_transitions[state];
             auto lb = std::lower_bound(trans.begin(), trans.end(), ch.second,
-                                       [](const auto& trans, char_type bd) { return trans.high < bd; });
-            if (lb == trans.end())
+                                       [](const auto& te, char_type bd) { return te.high < bd; });
+            if (lb == trans.end() || lb->low > ch.second)
                 return std::set<size_t>();
             
-            assert(lb->low >= ch.first);
+            assert(lb->high >= ch.second);
+            assert(ch.first >= lb->low);
             return lb->state;
         };
 

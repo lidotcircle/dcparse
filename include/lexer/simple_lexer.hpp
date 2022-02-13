@@ -9,8 +9,20 @@
 #include <assert.h>
 
 
+class ISimpleLexer
+{
+public:
+    using token_t = std::shared_ptr<LexerToken>;
+
+    virtual bool end() const = 0;
+    virtual token_t next() = 0;
+    virtual void back() = 0;
+    virtual ~ISimpleLexer() = default;
+};
+
+
 template<typename T>
-class SimpleLexer {
+class SimpleLexer: public ISimpleLexer {
 public:
     using CharType = T;
     using token_t = std::shared_ptr<LexerToken>;
@@ -67,7 +79,7 @@ public:
         assert(buffer.size() > 0);
     }
 
-    bool end() const {
+    bool end() const override {
         auto _this = const_cast<SimpleLexer*>(this);
         _this->fill_one();
 
@@ -75,14 +87,14 @@ public:
         return cur_pos == this->token_buffer.size();
     }
 
-    token_t next() {
+    token_t next() override {
         if (this->end())
             throw LexerError("No more tokens");
 
         return token_buffer[cur_pos++];
     }
 
-    void back() {
+    void back() override {
         if (this->cur_pos == 0)
             throw LexerError("lexer can't go backward");
 

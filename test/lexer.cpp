@@ -3,6 +3,7 @@
 #include <tuple>
 #include "lexer/token.h"
 #include "lexer/lexer.hpp"
+#include "lexer/lexer_rule_cstring_literal.hpp"
 #include "lexer/lexer_rule_regex.hpp"
 using namespace std;
 
@@ -26,6 +27,13 @@ public:
         LexerToken(info), comment(comment) {}
 };
 
+class TokenStringLiteral: public LexerToken {
+public:
+    string literal;
+    TokenStringLiteral(string literal, LexerToken::TokenInfo info): 
+        LexerToken(info), literal(literal) {}
+};
+
 
 class LexerTest: public ::testing::Test {
 protected:
@@ -40,6 +48,17 @@ protected:
                         string(str.begin(), str.end()), 
                         info);
                 }, false, true)
+        );
+
+        lexer.dec_priority_major();
+
+        lexer(
+            std::make_unique<LexerRuleCStringLiteral<char>>(
+                [](auto str, auto info) {
+                    return std::make_shared<TokenStringLiteral>(
+                        string(str.begin(), str.end()), 
+                        info);
+                })
         );
 
         lexer.dec_priority_major();
@@ -121,4 +140,16 @@ TEST_F(LexerTest, BlockComment) {
 
     auto t2 = lexer.feed_end();
     EXPECT_EQ(t2.size(), 1);
+}
+
+TEST_F(LexerTest, StringLiteral) {
+    auto t1 = lexer.feed_char(string("if /*hello world   fi if ll*/ fi if \"hello \\\"world\""));
+    EXPECT_EQ(t1.size(), 4);
+
+    auto t2 = lexer.feed_end();
+    EXPECT_EQ(t2.size(), 1);
+    EXPECT_EQ(t2[0]->length(), 15);
+    auto stoken = std::dynamic_pointer_cast<TokenStringLiteral>(t2[0]);
+    EXPECT_NE(stoken, nullptr);
+    EXPECT_EQ(stoken->literal, "hello \"world");
 }

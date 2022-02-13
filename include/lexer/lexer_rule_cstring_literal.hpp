@@ -30,13 +30,7 @@ private:
     TokenInfo _token_info;
     token_factory_t _token_factory;
 
-    static const std::map<CharType,CharType> _escape_map = {
-        { traits::DQUOTE, traits::DQUOTE },
-        { traits::BACKSLASH, traits::BACKSLASH },
-        { traits::LOWER_N, traits::NEWLINE },
-        { traits::LOWER_R, traits::RETURN },
-        { traits::LOWER_T, traits::TAB },
-    };
+    static const std::map<CharType,CharType> _escape_map;
 
 public:
     LexerRuleCStringLiteral() = delete;
@@ -94,17 +88,27 @@ public:
         this->_literal.clear();
         this->_token_info.line_num = ln;
         this->_token_info.column_num = cn;
-        this->_token_info.position = pos;
-        this->_token_info.file_name = fn;
+        this->_token_info.pos = pos;
+        this->_token_info.filename = fn;
     }
 
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) {
+        this->_token_info.len = str.size();
         return this->_token_factory(
                 std::vector<CharType>(
                     this->_literal.begin(),
                     this->_literal.end()),
                 this->_token_info);
     }
+};
+
+template<typename T>
+const std::map<T,T> LexerRuleCStringLiteral<T>::_escape_map = {
+    { traits::DQUOTE, traits::DQUOTE },
+    { traits::BACKSLASH, traits::BACKSLASH },
+    { traits::LOWER_N, traits::NEWLINE },
+    { traits::LOWER_R, traits::RETURN },
+    { traits::LOWER_T, traits::TAB },
 };
 
 #endif // _LEXER_LEXER_RULE_CSTRING_LITERAL_HPP_

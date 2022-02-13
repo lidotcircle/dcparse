@@ -39,7 +39,7 @@ public:
     template<typename Iterator>
     LexerRuleRegex(
             Iterator begin, Iterator end, token_factory_t factory,
-            bool compile = false, bool first_match = false): 
+            bool compile = true, bool first_match = false): 
         m_regex(begin, end), m_token_factory(factory)
     {
         this->apply_options(compile, first_match);
@@ -47,7 +47,7 @@ public:
 
     LexerRuleRegex(
             const std::basic_string<CharType>& regex, token_factory_t factory,
-            bool compile = false, bool first_match = false): 
+            bool compile = true, bool first_match = false): 
         m_regex(std::vector<CharType>(regex.begin(), regex.end())), m_token_factory(factory)
     {
         this->apply_options(compile, first_match);

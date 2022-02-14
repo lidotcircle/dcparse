@@ -8,6 +8,7 @@ class DChar {
 public:
     virtual const char* charname() const;
     virtual size_t charid() const;
+    virtual ~DChar() = default;
 };
 
 template<typename T, typename = std::enable_if_t<std::is_base_of<DChar,T>::value>>

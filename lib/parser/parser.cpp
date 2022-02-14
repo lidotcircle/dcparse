@@ -16,6 +16,13 @@ struct EOFChar: public LexerToken {
 };
 charid_t GetEOFChar() { return CharID<EOFChar>(); }
 
+struct RealStartSymbol: public NonTerminal {
+    shared_ptr<NonTerminal> sym;
+
+    RealStartSymbol() = delete;
+    RealStartSymbol(shared_ptr<NonTerminal> sym): sym(sym) {}
+};
+
 struct RuleOption {
     size_t            priority;
     RuleAssocitive    associtive;
@@ -147,6 +154,8 @@ public:
 
 void DCParser::ensure_epsilon_closure()
 {
+    assert(this->m_real_start_symbol.has_value());
+
     if (!this->u_epsilon_closure.empty())
         return;
 
@@ -163,19 +172,20 @@ void DCParser::ensure_epsilon_closure()
         changed = false;
 
         for (auto& rs: pvpv) {
-            auto cr = rs.first;
-            auto& rx = rs.second;
+            const auto rx = rs.second;
 
-            for (auto& r: rx) {
+            for (const auto r: rx) {
                 assert(r < this->m_rules.size());
-                auto& rr = this->m_rules[r];
+                const auto& rr = this->m_rules[r];
 
                 if (rr.m_rhs.size() > 0) {
                     auto cx = rr.m_rhs[0];
 
                     if (pvpv.find(cx) != pvpv.end()) {
-                        rx.insert(pvpv[cx].begin(), pvpv[cx].end());
-                        changed = true;
+                        auto& tx = pvpv[cx];
+                        const auto old_size = rs.second.size();
+                        rs.second.insert(tx.begin(), tx.end());
+                        changed = changed || rs.second.size() != old_size;
                     }
                 }
             }
@@ -206,12 +216,10 @@ set<pair<ruleid_t,size_t>> DCParser::stateset_move(const set<pair<ruleid_t,size_
     _this->ensure_epsilon_closure();
 
     for (auto& p: old) {
-        auto& r = this->m_rules[p.first];
-        auto pos = p.second;
+        const auto& r = this->m_rules[p.first];
+        const auto pos = p.second;
 
-        assert(pos <= r.m_rhs.size());
-        if (pos == r.m_rhs.size())
-            continue;
+        assert(pos < r.m_rhs.size() || r.m_rhs.empty());
 
         if (r.m_rhs[pos] == ch) {
             ret.insert(make_pair(p.first, pos + 1));
@@ -219,8 +227,7 @@ set<pair<ruleid_t,size_t>> DCParser::stateset_move(const set<pair<ruleid_t,size_
             if (pos + 1 < r.m_rhs.size()) {
                 auto cx = r.m_rhs[pos + 1];
                 if (this->u_epsilon_closure.find(cx) != this->u_epsilon_closure.end()) {
-                    auto _this = const_cast<DCParser*>(this);
-                    for (auto& rr: _this->u_epsilon_closure[cx]) {
+                    for (auto rr: this->u_epsilon_closure.at(cx)) {
                         ret.insert(make_pair(rr, 0));
                     }
                 }
@@ -236,15 +243,17 @@ bool DCParser::is_nonterm(charid_t id) const {
 }
 
 set<pair<ruleid_t,size_t>> DCParser::startState() const {
+    assert(this->m_real_start_symbol.has_value());
+
     set<pair<ruleid_t,size_t>> ret;
     auto _this = const_cast<DCParser*>(this);
     _this->ensure_epsilon_closure();
 
-    for (auto& start_sym: this->m_start_symbols) {
-        auto& start_rules = _this->u_epsilon_closure[start_sym];
-        for (auto& start_rule: start_rules) {
-            ret.insert(make_pair(start_rule, 0));
-        }
+    const auto ssym = this->m_real_start_symbol.value();
+    assert(this->u_epsilon_closure.find(ssym) != this->u_epsilon_closure.end());
+    const auto& start_rules = _this->u_epsilon_closure.at(ssym);
+    for (auto& start_rule: start_rules) {
+        ret.insert(make_pair(start_rule, 0));
     }
 
     return ret;
@@ -259,6 +268,8 @@ int DCParser::add_rule(charid_t lh, vector<charid_t> rh,
                        reduce_callback_t cb,
                        RuleAssocitive associtive)
 {
+    assert(!this->m_real_start_symbol.has_value());
+
     this->m_nonterms.insert(lh);
     this->m_symbols.insert(lh);
     if (this->m_terms.find(lh) != this->m_terms.end())
@@ -279,7 +290,8 @@ int DCParser::add_rule(charid_t lh, vector<charid_t> rh,
     ri.m_rule_option->associtive = associtive;
     ri.m_rule_option->priority = this->m_priority;
 
-    return 0;
+    this->m_rules.push_back(ri);
+    return this->m_rules.size() - 1;
 }
 
 DCParser& DCParser::operator()(charid_t lh, vector<charid_t> rh,
@@ -291,6 +303,8 @@ DCParser& DCParser::operator()(charid_t lh, vector<charid_t> rh,
 }
 
 void DCParser::add_start_symbol(charid_t id) {
+    assert(!this->m_real_start_symbol.has_value());
+
     if (this->m_start_symbols.find(id) != this->m_start_symbols.end()) {
         throw std::runtime_error("start symbol already exists");
     }
@@ -302,8 +316,28 @@ void DCParser::add_start_symbol(charid_t id) {
     this->m_start_symbols.insert(id);
 }
 
+void DCParser::setup_real_start_symbol()
+{
+    assert(!this->m_real_start_symbol.has_value());
+    const auto start_sym = CharID<RealStartSymbol>();
+
+    for (auto sym: this->m_start_symbols) {
+        this->add_rule( start_sym, { sym }, 
+                        [](auto,auto& rn) {
+                            assert(rn.size() == 1);
+                            auto val = dynamic_pointer_cast<NonTerminal>(rn[0]);
+                            assert(val);
+                            return make_shared<RealStartSymbol>(val);
+                        });
+    }
+
+    this->m_real_start_symbol = start_sym;
+}
+
 void DCParser::generate_table()
 {
+    this->setup_real_start_symbol();
+
     state_t allocated_state = 0;
     map<set<pair<ruleid_t,size_t>>,state_t> state_map;
     const auto query_state = [&](set<pair<ruleid_t,size_t>> s)
@@ -328,8 +362,8 @@ void DCParser::generate_table()
         q.pop();
 
         auto state = query_state(s);
-        if (mapping.size() <= start_state)
-            mapping.resize(start_state+1);
+        if (mapping.size() <= state)
+            mapping.resize(state+1);
         auto& state_mapping = mapping[state];
 
         for (auto ch: this->m_symbols) {
@@ -343,11 +377,12 @@ void DCParser::generate_table()
 
             set<ruleid_t> completed_rules;
             for (auto& s: s_next) {
-                auto ruleid  = s.first;
-                auto rulepos = s.second;
-                assert(this->m_rules.size() >= ruleid);
+                const auto ruleid  = s.first;
+                const auto rulepos = s.second;
+                assert(this->m_rules.size() > ruleid);
+                const auto& rule = this->m_rules[ruleid];
 
-                if (this->m_rules.size() == ruleid)
+                if (rule.m_rhs.size() == rulepos)
                     completed_rules.insert(ruleid);
             }
 
@@ -467,7 +502,6 @@ void DCParser::generate_table()
 
 void DCParser::do_shift(state_t state, dchar_t char_)
 {
-    assert(!this->p_char_stack.empty());
     this->p_state_stack.push_back(state);
     this->p_char_stack.push_back(char_);
 }
@@ -486,7 +520,7 @@ dchar_t DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
     assert(rn.size() <= p_char_stack.size());
     assert(rn.size() <= p_state_stack.size());
 
-    p_state_stack.resize(p_state_stack.size() - (rn.size() - 1));
+    p_state_stack.resize(p_state_stack.size() - rn.size());
     auto ei = p_char_stack.end();
     std::vector<dchar_t> rhs_tokens(ei - rn.size(), ei);
     p_char_stack.resize(p_char_stack.size() - rn.size());
@@ -566,14 +600,22 @@ void DCParser::feed_internal(dchar_t char_)
         case PushdownEntry::STATE_TYPE_SHIFT:
             this->do_shift(entry.state(), char_);
             break;
-        case PushdownEntry::STATE_TYPE_REDUCE:
-            this->do_reduce(entry.rule(), char_);
-            break;
+        case PushdownEntry::STATE_TYPE_REDUCE: {
+            auto nc = this->do_reduce(entry.rule(), char_);
+            assert(nc != nullptr);
+
+            if (nc->charid() == this->m_real_start_symbol.value()) {
+                this->p_char_stack.push_back(nc);
+            } else {
+                this->feed_internal(nc);
+            }
+         }  break;
         case PushdownEntry::STATE_TYPE_LOOKAHEAD:
             this->p_not_finished = char_;
             break;
         case PushdownEntry::STATE_TYPE_REJECT:
-            throw ParserSyntaxError("reject");
+            assert(false);
+            throw ParserSyntaxError("reject in '" + string(char_->charname()) + "'");
             break;
         default:
             assert(false && "unexpected action type");
@@ -617,10 +659,10 @@ dnonterm_t DCParser::end()
     assert(this->p_state_stack.size() == 1);
 
     auto char_ = this->p_char_stack.back();
-    auto nonterm = dynamic_pointer_cast<NonTerminal>(char_);
-    assert(nonterm && "should be a non-terminal");
+    auto realstart = dynamic_pointer_cast<RealStartSymbol>(char_);
+    assert(realstart && "should be real start symbol");
 
-    return nonterm;
+    return realstart->sym;
 }
 
 dnonterm_t DCParser::parse(ISimpleLexer& lexer)

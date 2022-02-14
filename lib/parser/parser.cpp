@@ -277,7 +277,7 @@ int DCParser::add_rule(charid_t lh, vector<charid_t> rh,
 
     for (auto r: rh) {
         this->m_symbols.insert(r);
-        if (this->m_nonterms.find(r) != this->m_nonterms.end())
+        if (this->m_nonterms.find(r) == this->m_nonterms.end())
             this->m_terms.insert(r);
     }
 
@@ -455,8 +455,9 @@ void DCParser::generate_table()
             for (auto& r: s_next) {
                 assert(this->m_rules.size() > r.first);
                 auto& rule = this->m_rules[r.first];
-                if (rule.m_rhs.size() < r.second && 
-                    (rule.m_rule_option->priority <= completed_highest_priority || 
+                // TODO
+                if (rule.m_rhs.size() > r.second && 
+                    (rule.m_rule_option->priority < completed_highest_priority || 
                      (rule.m_rule_option->priority == completed_highest_priority &&
                       completed_highest_associtive == RuleAssocitiveRight &&
                       rule.m_rule_option->associtive == RuleAssocitiveRight)))
@@ -474,7 +475,7 @@ void DCParser::generate_table()
             // LOOKAHEAD
             PushdownStateLookup lookahead_table;
             lookahead_table[GetEOFChar()] = PushdownEntry::reduce(completed_highest_priority_rule);
-            for (auto& s: this->m_symbols) {
+            for (auto& s: this->m_terms) {
                 auto s_next = this->stateset_move(v_incompleted_candidates, s);
                 
                 if (s_next.empty()) {
@@ -558,14 +559,14 @@ optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)
     const auto& lookup = mapping[cstate];
     const auto charid = ptoken->charid();
     if (lookup.find(charid) == lookup.end())
-        throw ParserUnknownToken(ptoken->charname());
+        throw ParserUnknownToken("handle_lookahead(): unknown char: " + string(ptoken->charname()));
 
     const auto& entry = lookup.at(charid);
     assert(entry.type() == PushdownEntry::STATE_TYPE_LOOKAHEAD);
 
     const auto& state_lookup = entry.lookup();
     if (state_lookup->find(token->charid()) == state_lookup->end())
-        throw ParserUnknownToken(token->charname());
+        throw ParserUnknownToken("handle_lookahead(): unknown lookahead char: " + string(token->charname()));
 
     const auto& state_entry = state_lookup->at(token->charid());
     assert(state_entry.type() == PushdownEntry::STATE_TYPE_REDUCE ||
@@ -592,7 +593,7 @@ void DCParser::feed_internal(dchar_t char_)
     const auto charid = char_->charid();
 
     if (lookup.find(charid) == lookup.end())
-        throw ParserUnknownToken(char_->charname());
+        throw ParserUnknownToken("feed_internal(): unknown char: " + string(char_->charname()));
 
     const auto& entry = lookup.at(charid);
 

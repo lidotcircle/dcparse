@@ -260,7 +260,7 @@ set<pair<ruleid_t,size_t>> DCParser::startState() const {
 }
 
 
-DCParser::DCParser(): m_priority(0) { }
+DCParser::DCParser(): m_priority(0), m_context(make_unique<DCParserContext>(*this)) { }
 
 void DCParser::dec_priority() { this->m_priority++; }
 
@@ -533,7 +533,7 @@ dchar_t DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
         assert(cid == c->charid());
     }
 
-    auto s = rule.m_reduce_callback(*this, rhs_tokens);
+    auto s = rule.m_reduce_callback(*this->m_context, rhs_tokens);
     if (s == nullptr)
         throw ParserError("expect a valid token, but get nullptr");
 

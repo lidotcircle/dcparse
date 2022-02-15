@@ -28,10 +28,25 @@ struct PushdownStateMapping;
 
 class DCParser {
 public:
+    class DCParserContext {
+    private:
+        DCParser* m_parser;
+
+    public:
+        inline DCParserContext(): m_parser(nullptr) {}
+        inline DCParserContext(DCParser& parser): m_parser(&parser) {}
+
+        inline DCParser* parser() { return this->m_parser; }
+        inline void      set_parser(DCParser& parser) { this->m_parser = &parser; }
+
+        virtual ~DCParserContext() = default;
+    };
+
     using charid_t = size_t;
     using ruleid_t = size_t;
     using state_t  = size_t;
-    using reduce_callback_t = std::function<dnonterm_t(DCParser& parser, std::vector<dchar_t>& children)>;
+    using context_t = std::unique_ptr<DCParserContext>;
+    using reduce_callback_t = std::function<dnonterm_t(DCParserContext& context, std::vector<dchar_t>& children)>;
 
 private:
     struct RuleInfo {
@@ -41,6 +56,7 @@ private:
         std::shared_ptr<RuleOption> m_rule_option;
     };
     std::vector<RuleInfo> m_rules;
+    context_t m_context;
     std::set<charid_t> m_nonterms;
     std::set<charid_t> m_terms;
     std::set<charid_t> m_symbols;

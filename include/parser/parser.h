@@ -96,6 +96,7 @@ public:
     virtual ~DCParser() = default;
 
     void dec_priority();
+    inline void __________() { this->dec_priority(); }
 
     int  add_rule(charid_t leftside, std::vector<charid_t> rightside,
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);

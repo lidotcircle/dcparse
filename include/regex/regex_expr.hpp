@@ -72,6 +72,7 @@ private:
     bool endding;
     size_t m_last_group_pos;
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
+    bool m_bracket_mode;
 
     bool m_in_brace_mode;
     bool m_brace_got_comma;
@@ -165,6 +166,7 @@ private:
 public:
     Regex2BasicConvertor():
         endding(false),
+        m_bracket_mode(false),
         m_last_group_pos(npos),
         m_in_brace_mode(false) {}
 
@@ -196,14 +198,21 @@ public:
             return;
         }
 
+        if (this->m_bracket_mode && _c != traits::RBRACKET) {
+            this->__result.push_back(c);
+            return;
+        }
+
         switch (_c) {
-            case traits::LPAREN:
             case traits::LBRACKET:
+                this->m_bracket_mode = true;
+            case traits::LPAREN:
                 this->m_lparen_pos.push_back(this->__result.size());
                 this->__result.push_back(c);
                 break;
-            case traits::RPAREN:
             case traits::RBRACKET:
+                this->m_bracket_mode = false;
+            case traits::RPAREN:
                 if (this->m_lparen_pos.empty())
                     throw std::runtime_error("unmatched right parenthese");
                 this->__result.push_back(c);
@@ -217,7 +226,8 @@ public:
             case traits::RBRACE:
                 throw std::runtime_error("unexpected rbrace");
                 break;
-            case traits::QUESTION: {
+            case traits::QUESTION:
+            {
                 auto last_node = this->get_last_node(last_group_pos);
                 assert(this->__result.size() >= last_node.size());
                 this->__result.resize(this->__result.size() - last_node.size());
@@ -226,18 +236,20 @@ public:
                 this->__result.insert(this->__result.end(), last_node.begin(), last_node.end());
                 this->__result.push_back(regex_char::unescape(traits::RPAREN));
             } break;
-            case traits::PLUS: {
+            case traits::PLUS: 
+            {
                 auto last_node = this->get_last_node(last_group_pos);
                 this->__result.insert(this->__result.end(), last_node.begin(), last_node.end());
                 this->__result.push_back(regex_char::unescape(traits::STAR));
             } break;
             case traits::DOT:
+            {
                 this->__result.push_back(regex_char::unescape(traits::LBRACKET));
                 this->__result.push_back(regex_char::unescape(traits::MIN));
                 this->__result.push_back(regex_char::unescape(traits::DASH));
                 this->__result.push_back(regex_char::unescape(traits::MAX));
                 this->__result.push_back(regex_char::unescape(traits::RBRACKET));
-                break;
+            } break;
             default:
                 this->__result.push_back(c);
                 break;

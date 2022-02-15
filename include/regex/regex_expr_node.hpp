@@ -495,7 +495,7 @@ private:
         }
 
         if (escaped) {
-            if (c != traits::RBRACKET && c != traits::BACKSLASH)
+            if (c != traits::RBRACKET && c != traits::BACKSLASH && c != traits::DASH)
                 throw std::runtime_error("unexpected escape seqeuence");
         }
 

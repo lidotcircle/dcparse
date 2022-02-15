@@ -84,17 +84,13 @@ public:
     {
         this->m_epsilon_closure = this->get_epsilon_closure();
         this->m_range_units = this->range_units_map();
-
-        auto& start_closure = m_epsilon_closure[m_start_state];
-        if (std::any_of(start_closure.begin(), start_closure.end(), [this](size_t i) {
-            return this->m_final_states.find(i) != this->m_final_states.end();
-        }))
-        {
-            m_final_states.insert(m_start_state);
-        }
     }
 
-    NFAState_t start_state() const { return m_start_state; }
+    std::set<NFAState_t> start_closure() const
+    {
+        return this->m_epsilon_closure[this->m_start_state];
+    }
+
     const std::set<NFAState_t>& final_states() const { return m_final_states; }
     const std::vector<std::set<NFAState_t>>& epsilon_closure() const { return m_epsilon_closure; }
 
@@ -164,8 +160,9 @@ public:
             return val;
         };
 
+        const auto sclosure = this->start_closure();
         typename RegexDFA<char_type>::DFATransitionTable transtable;
-        const auto start_state = query_dfa_state({this->m_start_state});
+        const auto start_state = query_dfa_state(sclosure);
         const auto dead_state = query_dfa_state({ });
         transtable.resize(dfa_state_count);
         transtable[dead_state].emplace_back(traits::MIN, traits::MAX, dead_state);
@@ -198,8 +195,8 @@ public:
         };
 
         std::queue<std::set<NFAState_t>> process_queue;
-        process_queue.push({ this->m_start_state });
-        std::set<std::set<NFAState_t>> processed_states={ { this->m_start_state } };
+        process_queue.push(sclosure);
+        std::set<std::set<NFAState_t>> processed_states={ sclosure };
 
         while (!process_queue.empty()) {
             auto stateset = process_queue.front();
@@ -309,7 +306,7 @@ public:
         return m_current_states.empty();
     }
     virtual void reset() override {
-        m_current_states = { m_nfa->start_state() };
+        m_current_states = m_nfa->start_closure();
     }
     std::string to_string() const { return m_nfa->to_string(); }
     virtual ~NFAMatcher() = default;

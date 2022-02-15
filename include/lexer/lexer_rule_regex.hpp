@@ -53,6 +53,14 @@ public:
         this->apply_options(compile, first_match);
     }
 
+    LexerRuleRegex(
+            const std::vector<CharType>& regex, token_factory_t factory,
+            bool compile = true, bool first_match = false): 
+        m_regex(std::vector<CharType>(regex.begin(), regex.end())), m_token_factory(factory)
+    {
+        this->apply_options(compile, first_match);
+    }
+
     virtual void feed(CharType c) override {
         if (this->_opt_first_match && this->m_regex.match()) {
             this->match_dead = true;

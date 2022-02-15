@@ -43,12 +43,12 @@ protected:
     void SetUp() override {
         lexer(
             std::make_unique<LexerRuleRegex<char>>(
-                "/\\*(!\\*/)\\*/",
+                "/\\*(!.*\\*/.*)\\*/",
                 [](auto str, auto info) {
                     return std::make_shared<TokenBlockComment>(
                         string(str.begin(), str.end()), 
                         info);
-                }, false, true)
+                })
         );
 
         lexer.dec_priority_major();

@@ -1,4 +1,4 @@
-#include "./token.h"
+#include "scalc/token.h"
 #include "lexer/lexer_rule.hpp"
 #include "lexer/lexer_rule_regex.hpp"
 #include <string>
@@ -9,14 +9,14 @@ inline static auto s2u(string str) { return UTF8Decoder::strdecode(str); };
 inline static auto u2s(std::vector<int> cps) { return UTF8Encoder::strencode(cps.begin(), cps.end()); }
 
 #define KEYWORD_TOKEN \
-    TENTRY(PLUS,         "+") \
-    TENTRY(MINUS,        "-") \
-    TENTRY(MULTIPLY,     "*") \
+    TENTRY(PLUS,         "\\+") \
+    TENTRY(MINUS,        "\\-") \
+    TENTRY(MULTIPLY,     "\\*") \
     TENTRY(DIVISION,     "/") \
     TENTRY(REMAINDER,    "%") \
-    TENTRY(CARET,        "^") \
-    TENTRY(PLUSPLUS,     "++") \
-    TENTRY(MINUSMINUS,   "--") \
+    TENTRY(CARET,        "\\^") \
+    TENTRY(PLUSPLUS,     "\\+\\+") \
+    TENTRY(MINUSMINUS,   "\\-\\-") \
     \
     TENTRY(EQUAL,        "==") \
     TENTRY(NOTEQUAL,     "!=") \
@@ -27,10 +27,10 @@ inline static auto u2s(std::vector<int> cps) { return UTF8Encoder::strencode(cps
     \
     TENTRY(ASSIGNMENT,   "=") \
     \
-    TENTRY(LPAREN,       "(") \
-    TENTRY(RPAREN,       ")") \
-    TENTRY(LBRACE,       "{") \
-    TENTRY(RBRACE,       "}") \
+    TENTRY(LPAREN,       "\\(") \
+    TENTRY(RPAREN,       "\\)") \
+    TENTRY(LBRACE,       "\\{") \
+    TENTRY(RBRACE,       "\\}") \
     \
     TENTRY(IF,           "if") \
     TENTRY(ELSE,         "else") \

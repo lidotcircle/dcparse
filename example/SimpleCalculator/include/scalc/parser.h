@@ -16,6 +16,7 @@
     TENTRY(ReturnStatement) \
     TENTRY(StatementList) \
     TENTRY(BlockStatement) \
+    TENTRY(ExprStatement) \
     TENTRY(Statement) \
     \
     TENTRY(ExprList) \
@@ -31,6 +32,12 @@ NONTERMS
 
 
 class CalcParser: private DCParser {
+private:
+    void expression_rules();
+    void statement_rules ();
+    void function_rules  ();
+    void calcunit_rules  ();
+
 public:
     CalcParser();
 

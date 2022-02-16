@@ -249,6 +249,7 @@ set<pair<ruleid_t,size_t>> DCParser::startState() const {
     auto _this = const_cast<DCParser*>(this);
     _this->ensure_epsilon_closure();
 
+    assert(!this->m_start_symbols.empty() && "must add at least one start symbol");
     const auto ssym = this->m_real_start_symbol.value();
     assert(this->u_epsilon_closure.find(ssym) != this->u_epsilon_closure.end());
     const auto& start_rules = _this->u_epsilon_closure.at(ssym);

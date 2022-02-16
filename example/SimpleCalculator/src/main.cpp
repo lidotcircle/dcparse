@@ -1,4 +1,4 @@
-#include "parser.h"
+#include "scalc/parser.h"
 
 int main() {
     CalcParser parser;

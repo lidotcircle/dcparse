@@ -111,13 +111,18 @@ KEYWORD_TOKEN
     );
 }
 
-vector<token_t> CalcLexer::feed_char(char c)
+vector<token_t> CalcLexer::feed(char c)
 {
     auto cx = this->m_decoder.decode(c);
     if (cx.presented())
         return this->feed_char(cx.getval());
     else
         return vector<token_t>();
+}
+
+vector<token_t> CalcLexer::end()
+{
+    return this->feed_end();
 }
 
 void CalcLexer::reset()

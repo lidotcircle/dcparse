@@ -75,8 +75,8 @@ private:
 public:
     CalcLexer();
 
-    std::vector<token_t> feed_char(char c);
-    using Lexer<int>::feed_end;
+    std::vector<token_t> feed(char c);
+    std::vector<token_t> end();
 
     void reset();
 };

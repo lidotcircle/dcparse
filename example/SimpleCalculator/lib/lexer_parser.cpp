@@ -8,14 +8,14 @@ CalcLexerParser::CalcLexerParser()
 
 void CalcLexerParser::feed(char c)
 {
-    auto tokens = this->lexer.feed_char(c);
+    auto tokens = this->lexer.feed(c);
     for (auto t: tokens)
         this->parser.feed(t);
 }
 
 std::shared_ptr<ASTNode> CalcLexerParser::end()
 {
-    auto tokens = this->lexer.feed_end();
+    auto tokens = this->lexer.end();
     for (auto t: tokens)
         this->parser.feed(t);
 

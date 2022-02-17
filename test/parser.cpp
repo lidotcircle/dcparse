@@ -139,9 +139,9 @@ protected:
         parser.dec_priority();
 
         parser( NI(EXPR),
-                { TI(LPAREN), NI(EXPR), TI(RPAREN) },
+                { TI(LPAREN), ParserChar::beOptional(NI(EXPR)), TI(RPAREN) },
                 [](auto, auto& ts) {
-                    assert(ts.size() == 3);
+                    assert(ts.size() == 3 || ts.size() == 2);
                     return make_shared<NonTermEXPR>(cs2s(ts));
                 } );
 
@@ -181,6 +181,8 @@ TEST_F(ExprParserTest, ID_NUMBER) {
     vector<std::pair<vector<dctoken_t>,string>> test_cases = {
         { { MK(ID), MK(SEMICOLON), }, "i;" },
         { { MK(NUMBER), MK(SEMICOLON), }, "n;" },
+        { { MK(LPAREN), MK(RPAREN), MK(SEMICOLON) }, "();" },
+        { { MK(LPAREN), MK(LPAREN), MK(RPAREN), MK(RPAREN), MK(SEMICOLON) }, "(());" },
         { { MK(ID), MK(PLUS), MK(NUMBER), MK(SEMICOLON), }, "(i+n);" },
         { { MK(ID), MK(MINUS), MK(NUMBER), MK(SEMICOLON), }, "(i-n);" },
         { { MK(ID), MK(MULTIPLY), MK(NUMBER), MK(SEMICOLON), }, "(i*n);" },

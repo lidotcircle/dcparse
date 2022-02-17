@@ -265,9 +265,10 @@ DCParser::DCParser(): m_priority(0), m_context(make_unique<DCParserContext>(*thi
 
 void DCParser::dec_priority() { this->m_priority++; }
 
-int DCParser::add_rule(charid_t lh, vector<charid_t> rh,
-                       reduce_callback_t cb,
-                       RuleAssocitive associtive)
+int DCParser::add_rule_internal(
+        charid_t lh, vector<charid_t> rh,
+        reduce_callback_t cb,
+        RuleAssocitive associtive)
 {
     assert(!this->m_real_start_symbol.has_value());
 
@@ -295,7 +296,40 @@ int DCParser::add_rule(charid_t lh, vector<charid_t> rh,
     return this->m_rules.size() - 1;
 }
 
-DCParser& DCParser::operator()(charid_t lh, vector<charid_t> rh,
+void DCParser::add_rule(
+        charid_t leftside, std::vector<ParserChar> rightside,
+        reduce_callback_t reduce_cb, RuleAssocitive associative)
+{
+    vector<vector<charid_t>> rightsides = { {} };
+    const auto doubleit = [&]() {
+        const auto size =rightsides.size();
+
+        for (size_t i=0;i<size;i++)
+            rightsides.push_back(rightsides[i]);
+    };
+
+    for (auto& rt: rightside) {
+        if (rt.optional()) {
+            doubleit();
+            assert(rightsides.size() % 2 == 0);
+
+            const auto half = rightsides.size() / 2;
+            for (size_t i=0;i<half;i++) {
+                rightsides[i].push_back(rt.cid());
+            }
+        } else {
+            for (auto& rset: rightsides) {
+                rset.push_back(rt.cid());
+            }
+        }
+    }
+
+    for (auto& rset: rightsides)
+        this->add_rule_internal(leftside, rset, reduce_cb, associative);
+}
+
+
+DCParser& DCParser::operator()(charid_t lh, vector<ParserChar> rh,
                                reduce_callback_t cb,
                                RuleAssocitive associtive)
 {

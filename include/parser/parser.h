@@ -48,6 +48,28 @@ public:
     using context_t = std::unique_ptr<DCParserContext>;
     using reduce_callback_t = std::function<dnonterm_t(DCParserContext& context, std::vector<dchar_t>& children)>;
 
+    class ParserChar {
+    private:
+        charid_t _cid;
+        bool _optional;
+
+    public:
+        ParserChar() = delete;
+        inline ParserChar(charid_t cid): _cid(cid), _optional(false) { }
+
+        inline charid_t cid() const  { return this->_cid; }
+        inline bool optional() const { return this->_optional; }
+
+        static inline ParserChar beOptional(charid_t cid)
+        {
+            auto c = ParserChar(cid);
+            c._optional = true;
+            return c; 
+        }
+        static inline ParserChar beOptional(ParserChar c) { c._optional = true; return c; }
+    };
+
+
 private:
     struct RuleInfo {
         charid_t                    m_lhs;
@@ -91,6 +113,9 @@ private:
     bool is_nonterm(charid_t id) const;
     std::set<std::pair<ruleid_t,size_t>> startState() const;
 
+    int  add_rule_internal(charid_t leftside, std::vector<charid_t> rightside,
+                           reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
+
 public:
     DCParser();
     virtual ~DCParser() = default;
@@ -98,10 +123,10 @@ public:
     void dec_priority();
     inline void __________() { this->dec_priority(); }
 
-    int  add_rule(charid_t leftside, std::vector<charid_t> rightside,
+    void add_rule(charid_t leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 
-    DCParser& operator()(charid_t leftside, std::vector<charid_t> rightside,
+    DCParser& operator()(charid_t leftside, std::vector<ParserChar> rightside,
                           reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 
     void add_start_symbol(charid_t start);
@@ -126,5 +151,7 @@ public:
 
     void reset();
 };
+
+using ParserChar = DCParser::ParserChar;
 
 #endif // _DC_PARSER_HPP_

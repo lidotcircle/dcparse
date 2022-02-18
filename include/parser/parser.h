@@ -125,6 +125,10 @@ public:
     void dec_priority();
     inline void __________() { this->dec_priority(); }
 
+    inline void setContext(context_t context)        { this->m_context = std::move(context); }
+    inline DCParserContext& getContext()             { return *this->m_context; }
+    inline const DCParserContext& getContext() const { return *this->m_context; }
+
     void add_rule(charid_t leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 

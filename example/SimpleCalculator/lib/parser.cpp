@@ -45,6 +45,9 @@ parser( NI(Expr), \
     auto name##ast = dynamic_pointer_cast<nodetype>(name->astnode); \
     assert(name##ast)
 
+using ParserChar = DCParser::ParserChar;
+
+
 void CalcParser::expression_rules()
 {
     DCParser& parser = *this;
@@ -195,7 +198,7 @@ void CalcParser::statement_rules()
     parser( NI(BlockStatement), { TI(LBRACE), NI(StatementList), TI(RBRACE) },
             [] (auto c, auto ts) {
                 assert(ts.size() == 3);
-                pnonterm(StatementList, ASTNodeStatList, 0, statlist);
+                pnonterm(StatementList, ASTNodeStatList, 1, statlist);
 
                 auto ast = make_shared<ASTNodeBlockStat>(&c, statlistast);
                 return make_shared<NonTermBlockStatement>(ast);
@@ -265,7 +268,7 @@ void CalcParser::statement_rules()
     parser ( NI(Statement), { NI(type) }, \
             [] (auto c, auto ts) { \
                 assert(ts.size() == 1); \
-                pnonterm(ExprStatement, ASTNodeStat, 0, stat); \
+                pnonterm(type, ASTNodeStat, 0, stat); \
                 return make_shared<NonTermStatement>(statast);\
             })
 
@@ -281,26 +284,22 @@ void CalcParser::function_rules()
 {
     DCParser& parser = *this;
 
-    parser( NI(FunctionDef), { TI(FUNCTION), NI(Expr), TI(LPAREN), NI(ArgList), TI(RPAREN), NI(BlockStatement) },
+    parser( NI(FunctionDef), { TI(FUNCTION), NI(Expr), TI(LPAREN), ParserChar::beOptional(NI(ArgList)), TI(RPAREN), NI(BlockStatement) },
             [] (auto c, auto ts) {
                 assert(ts.size() == 6);
                 pnonterm(Expr, ASTNodeExpr, 1, func);
-                pnonterm(ArgList, ASTNodeArgList, 3, args);
-                pnonterm(Statement, ASTNodeBlockStat, 5, stat);
+
+                std::shared_ptr<ASTNodeArgList> argsast;
+                if (ts[3]) {
+                    pnonterm(ArgList, ASTNodeArgList, 3, argsast);
+                } else {
+                    argsast = make_shared<ASTNodeArgList>(&c);
+                }
+
+                pnonterm(BlockStatement, ASTNodeBlockStat, 5, stat);
 
                 auto ast = make_shared<ASTNodeFunctionDef>(&c, funcast, argsast, statast);
-                return make_shared<NonTermReturnStatement>(ast);
-            });
-
-    parser( NI(FunctionDef), { TI(FUNCTION), NI(Expr), TI(LPAREN), TI(RPAREN), NI(BlockStatement) },
-            [] (auto c, auto ts) {
-                assert(ts.size() == 5);
-                pnonterm(Expr, ASTNodeExpr, 1, func);
-                pnonterm(Statement, ASTNodeBlockStat, 3, stat);
-
-                auto argsast = make_shared<ASTNodeArgList>(&c);
-                auto ast = make_shared<ASTNodeFunctionDef>(&c, funcast, argsast, statast);
-                return make_shared<NonTermReturnStatement>(ast);
+                return make_shared<NonTermFunctionDef>(ast);
             });
 
     parser( NI(ArgList), { TI(ID) },

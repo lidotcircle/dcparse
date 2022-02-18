@@ -7,13 +7,26 @@ using namespace std;
 TEST(SimpleCalculator, AcceptText) {
     vector<string> test_cases = {
         "a = b;",
+        "a();",
+        "a(a);",
+        "a(a, b);",
+        "c = a(a, b, c);",
+        "a = b + c;",
+        "a = b - c;",
+        "a = b * c;",
+        "a = b / c;",
+        "a = b % c;",
+        "a = b ^ c;",
+        "a = func(a + b, c+d);",
+        "function f1(a, b) { { c =a + b; return a + b; } }",
     };
 
+    CalcLexerParser lp;
     for (auto& t: test_cases) {
-        CalcLexerParser lp;
         for (auto c: t) lp.feed(c);
 
         lp.end();
+        lp.reset();
     }
 }
 

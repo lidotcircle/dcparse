@@ -74,6 +74,7 @@ private:
     struct RuleInfo {
         charid_t                    m_lhs;
         std::vector<charid_t>       m_rhs;
+        std::vector<bool>           m_rhs_optional;
         reduce_callback_t           m_reduce_callback;
         std::shared_ptr<RuleOption> m_rule_option;
     };
@@ -113,8 +114,9 @@ private:
     bool is_nonterm(charid_t id) const;
     std::set<std::pair<ruleid_t,size_t>> startState() const;
 
-    int  add_rule_internal(charid_t leftside, std::vector<charid_t> rightside,
-                           reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
+    int  add_rule_internal(charid_t leftside, 
+                           std::vector<charid_t> rightside, std::vector<bool> optional,
+                           reduce_callback_t reduce_cb, RuleAssocitive associative);
 
 public:
     DCParser();
@@ -127,7 +129,7 @@ public:
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 
     DCParser& operator()(charid_t leftside, std::vector<ParserChar> rightside,
-                          reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
+                         reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 
     void add_start_symbol(charid_t start);
 

@@ -73,7 +73,10 @@ static string c2s(dchar_t cr)
 static string cs2s(vector<dchar_t> crs)
 {
     string ret;
-    for (auto c: crs) ret += c2s(c);
+    for (auto c: crs) {
+        if (c)
+            ret += c2s(c);
+    }
     return ret;
 }
 
@@ -141,7 +144,7 @@ protected:
         parser( NI(EXPR),
                 { TI(LPAREN), ParserChar::beOptional(NI(EXPR)), TI(RPAREN) },
                 [](auto, auto& ts) {
-                    assert(ts.size() == 3 || ts.size() == 2);
+                    assert(ts.size() == 3);
                     return make_shared<NonTermEXPR>(cs2s(ts));
                 } );
 

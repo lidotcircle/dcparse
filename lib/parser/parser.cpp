@@ -266,7 +266,7 @@ DCParser::DCParser(): m_priority(0), m_context(make_unique<DCParserContext>(*thi
 void DCParser::dec_priority() { this->m_priority++; }
 
 int DCParser::add_rule_internal(
-        charid_t lh, vector<charid_t> rh,
+        charid_t lh, vector<charid_t> rh, vector<bool> rhop,
         reduce_callback_t cb,
         RuleAssocitive associtive)
 {
@@ -283,9 +283,17 @@ int DCParser::add_rule_internal(
             this->m_terms.insert(r);
     }
 
+    size_t ntoken = 0;
+    for (auto b: rhop) {
+        if (!b)
+            ntoken++;
+    }
+    assert(ntoken == rh.size());
+
     RuleInfo ri;
     ri.m_lhs = lh;
     ri.m_rhs = rh;
+    ri.m_rhs_optional = move(rhop);
     ri.m_reduce_callback = cb;
     ri.m_rule_option = std::make_shared<RuleOption>();
 
@@ -300,7 +308,7 @@ void DCParser::add_rule(
         charid_t leftside, std::vector<ParserChar> rightside,
         reduce_callback_t reduce_cb, RuleAssocitive associative)
 {
-    vector<vector<charid_t>> rightsides = { {} };
+    vector<pair<vector<charid_t>,vector<bool>>> rightsides = { { {}, {} } };
     const auto doubleit = [&]() {
         const auto size =rightsides.size();
 
@@ -315,17 +323,22 @@ void DCParser::add_rule(
 
             const auto half = rightsides.size() / 2;
             for (size_t i=0;i<half;i++) {
-                rightsides[i].push_back(rt.cid());
+                rightsides[i].first.push_back(rt.cid());
+                rightsides[i].second.push_back(false);
+            }
+            for (size_t i=half;i<rightsides.size();i++) {
+                rightsides[i].second.push_back(true);
             }
         } else {
             for (auto& rset: rightsides) {
-                rset.push_back(rt.cid());
+                rset.first.push_back(rt.cid());
+                rset.second.push_back(false);
             }
         }
     }
 
     for (auto& rset: rightsides)
-        this->add_rule_internal(leftside, rset, reduce_cb, associative);
+        this->add_rule_internal(leftside, rset.first, rset.second, reduce_cb, associative);
 }
 
 
@@ -562,13 +575,24 @@ optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
     p_char_stack.resize(p_char_stack.size() - rn.size());
 
     assert(rn.size() == rhs_tokens.size());
+    vector<dchar_t> rhs_tokens_with_optional;
+    size_t ni = 0;
+    for (auto opt: rule.m_rhs_optional) {
+        if (opt) {
+            rhs_tokens_with_optional.push_back(nullptr);
+        } else {
+            rhs_tokens_with_optional.push_back(rhs_tokens[ni++]);
+        }
+    }
+    assert(ni == rhs_tokens.size());
+
     for (size_t i=0; i<rn.size(); ++i) {
         auto cid = rn[i];
         auto c   = rhs_tokens[i];
         assert(cid == c->charid());
     }
 
-    auto s = rule.m_reduce_callback(*this->m_context, rhs_tokens);
+    auto s = rule.m_reduce_callback(*this->m_context, rhs_tokens_with_optional);
     if (s == nullptr)
         throw ParserError("expect a valid token, but get nullptr");
 

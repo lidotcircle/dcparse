@@ -95,8 +95,8 @@ private:
     std::optional<charid_t> m_real_start_symbol;
     void setup_real_start_symbol();
 
-    void    do_shift(state_t state, dchar_t char_);
-    dchar_t do_reduce(ruleid_t rule_id, dchar_t char_);
+    void                   do_shift(state_t state, dchar_t char_);
+    std::optional<dchar_t> do_reduce(ruleid_t rule_id, dchar_t char_);
 
     std::optional<dchar_t> handle_lookahead(dctoken_t token);
     void feed_internal(dchar_t char_);

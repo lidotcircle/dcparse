@@ -542,7 +542,7 @@ void DCParser::do_shift(state_t state, dchar_t char_)
     this->p_char_stack.push_back(char_);
 }
 
-dchar_t DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
+optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
 {
     assert(!this->p_state_stack.empty());
     assert(this->m_rules.size() > ruleid);
@@ -577,6 +577,13 @@ dchar_t DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
 
     auto nonterm = dynamic_pointer_cast<NonTerminal>(s);
     assert(nonterm != nullptr);
+
+    if (s->charid() == this->m_real_start_symbol.value()) {
+        this->p_char_stack.push_back(s);
+        return nullopt;
+    } else {
+        return s;
+    }
 
     return s;
 }
@@ -638,19 +645,13 @@ void DCParser::feed_internal(dchar_t char_)
             break;
         case PushdownEntry::STATE_TYPE_REDUCE: {
             auto nc = this->do_reduce(entry.rule(), char_);
-            assert(nc != nullptr);
-
-            if (nc->charid() == this->m_real_start_symbol.value()) {
-                this->p_char_stack.push_back(nc);
-            } else {
-                this->feed_internal(nc);
-            }
+            if (nc.has_value())
+                this->feed_internal(nc.value());
          }  break;
         case PushdownEntry::STATE_TYPE_LOOKAHEAD:
             this->p_not_finished = char_;
             break;
         case PushdownEntry::STATE_TYPE_REJECT:
-            assert(false);
             throw ParserSyntaxError("reject in '" + string(char_->charname()) + "'");
             break;
         default:
@@ -679,7 +680,7 @@ void DCParser::feed(dctoken_t token)
 dnonterm_t DCParser::end()
 {
     assert(!this->p_state_stack.empty());
-    assert(!this->p_char_stack.empty());
+    assert(!this->p_char_stack.empty() || this->p_not_finished.has_value());
 
     while (this->p_not_finished.has_value()) {
         auto v = this->handle_lookahead(std::make_shared<EOFChar>());

@@ -717,7 +717,9 @@ dnonterm_t DCParser::end()
     if (this->p_char_stack.size() != 1)
         throw ParserSyntaxError("unexpected end of token stream");
 
-    assert(this->p_state_stack.size() == 1);
+    assert(this->p_state_stack.size() >= 1);
+    if (this->p_state_stack.size() > 1)
+        throw ParserSyntaxError("unexpected end of token stream");
 
     auto char_ = this->p_char_stack.back();
     auto realstart = dynamic_pointer_cast<RealStartSymbol>(char_);

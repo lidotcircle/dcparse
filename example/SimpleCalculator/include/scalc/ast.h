@@ -20,6 +20,8 @@ public:
 class ASTNodeExpr : public ASTNode {
 public:
     inline ASTNodeExpr(DCParser::DCParserContext* p): ASTNode(p) {}
+
+    virtual double evaluate() = 0;
 };
 
 class UnaryOperatorExpr: public ASTNodeExpr {
@@ -41,6 +43,8 @@ public:
             ):
         ASTNodeExpr(c), m_operator(optype),
         m_expr(expr) {}
+
+    virtual double evaluate() override;
 };
 
 class BinaryOperatorExpr: public ASTNodeExpr {
@@ -68,6 +72,8 @@ public:
             ):
         ASTNodeExpr(c), m_operator(optype),
         m_left(std::move(left)), m_right(std::move(right)) {}
+
+    virtual double evaluate() override;
 };
 
 class IDExpr: public ASTNodeExpr
@@ -80,6 +86,8 @@ public:
             DCParser::DCParserContext* c,
             std::string id): ASTNodeExpr(c), _id(id) {}
     inline const std::string& id() const { return this->_id; }
+
+    virtual double evaluate() override;
 };
 
 class NumberExpr: public ASTNodeExpr
@@ -92,6 +100,8 @@ public:
             DCParser::DCParserContext* c,
             double val): ASTNodeExpr(c), val(val) {}
     inline double value() const { return this->val; }
+
+    virtual double evaluate() override;
 };
 
 class ASTNodeExprList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeExpr>>
@@ -132,6 +142,8 @@ public:
     inline std::shared_ptr<ASTNodeExprList> parameters() { return this->_parameters; }
     inline const std::shared_ptr<ASTNodeExpr>     function()   const { return this->_func; }
     inline const std::shared_ptr<ASTNodeExprList> parameters() const { return this->_parameters; }
+
+    virtual double evaluate() override;
 };
 
 
@@ -139,6 +151,8 @@ class ASTNodeStat: public ASTNode
 {
 public:
     inline ASTNodeStat(DCParser::DCParserContext* c): ASTNode(c) {}
+
+    virtual void execute() = 0;
 };
 
 class ASTNodeStatList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeStat>>
@@ -176,6 +190,8 @@ public:
 
     inline std::shared_ptr<ASTNodeStatList>       StatementList()       { return this->_statlist; }
     inline const std::shared_ptr<ASTNodeStatList> StatementList() const { return this->_statlist; }
+
+    virtual void execute() override;
 };
 
 class ASTNodeExprStat: public ASTNodeStat
@@ -190,6 +206,8 @@ public:
 
     inline       std::shared_ptr<ASTNodeExprList> exprList()       { return this->_exprlist; }
     inline const std::shared_ptr<ASTNodeExprList> exprList() const { return this->_exprlist; }
+
+    virtual void execute() override;
 };
 
 class ASTNodeReturnStat: public ASTNodeStat
@@ -204,6 +222,8 @@ public:
 
     inline       std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline const std::shared_ptr<ASTNodeExpr> expr() const { return this->_expr; }
+
+    virtual void execute() override;
 };
 
 class ASTNodeIFStat: public ASTNodeStat
@@ -224,6 +244,8 @@ public:
     inline std::shared_ptr<ASTNodeStat> trueStat()  { return this->_truestat; }
     inline std::shared_ptr<ASTNodeStat> falseStat() { return this->_falsestat; }
     inline std::shared_ptr<ASTNodeExpr> condition() { return this->_cond; }
+
+    virtual void execute() override;
 };
 
 class ASTNodeFORStat: public ASTNodeStat
@@ -247,6 +269,8 @@ public:
     inline std::shared_ptr<ASTNodeExpr> condition() { return this->_cond; }
     inline std::shared_ptr<ASTNodeExprList> pre () { return this->_pre; }
     inline std::shared_ptr<ASTNodeExprList> post() { return this->_post; }
+
+    virtual void execute() override;
 };
 
 /*
@@ -303,6 +327,8 @@ public:
     inline std::shared_ptr<ASTNodeExpr>      function()  { return this->func; }
     inline std::shared_ptr<ASTNodeArgList>   argList()   { return this->arglist; }
     inline std::shared_ptr<ASTNodeBlockStat> blockStat() { return this->blockstat; }
+
+    void call(std::vector<double> parameters);
 };
 
 class ASTNodeCalcUnit: public ASTNode
@@ -314,8 +340,8 @@ private:
 public:
     inline ASTNodeCalcUnit(DCParser::DCParserContext* c): ASTNode(c) {}
 
-    inline void push_function(std::shared_ptr<ASTNodeFunctionDef> func) { this->functions.push_back(func);  }
-    inline void push_statement(std::shared_ptr<ASTNodeStat> stat)       { this->statements.push_back(stat); }
+    void push_function(std::shared_ptr<ASTNodeFunctionDef> func) ;
+    void push_statement(std::shared_ptr<ASTNodeStat> stat);
 };
 
 #endif // _SIMPLE_CALCULATOR_AST_H_

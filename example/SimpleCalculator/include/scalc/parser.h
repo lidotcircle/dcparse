@@ -30,6 +30,21 @@
 NONTERMS
 #undef TENTRY
 
+// Forward declaration
+class SCalcContext;
+
+class SCalcParserContext: public DCParser::DCParserContext
+{
+private:
+    std::shared_ptr<SCalcContext> m_execution_context;
+
+public:
+    SCalcParserContext() = delete;
+    SCalcParserContext(DCParser& parser);
+
+    std::shared_ptr<SCalcContext>       ExecutionContext();
+    const std::shared_ptr<SCalcContext> ExecutionContext() const;
+};
 
 class CalcParser: private DCParser {
 private:

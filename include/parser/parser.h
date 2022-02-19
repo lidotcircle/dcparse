@@ -33,11 +33,10 @@ public:
         DCParser* m_parser;
 
     public:
-        inline DCParserContext(): m_parser(nullptr) {}
+        DCParserContext() = delete;
         inline DCParserContext(DCParser& parser): m_parser(&parser) {}
 
         inline DCParser* parser() { return this->m_parser; }
-        inline void      set_parser(DCParser& parser) { this->m_parser = &parser; }
 
         virtual ~DCParserContext() = default;
     };

@@ -1,5 +1,6 @@
 #include "scalc/parser.h"
 #include "scalc/token.h"
+#include "scalc/context.h"
 using namespace std;
 
 
@@ -46,6 +47,21 @@ parser( NI(Expr), \
     assert(name##ast)
 
 using ParserChar = DCParser::ParserChar;
+
+
+SCalcParserContext::SCalcParserContext(DCParser& p):
+    DCParserContext(p),
+    m_execution_context(make_shared<SCalcContext>())
+{
+}
+std::shared_ptr<SCalcContext> SCalcParserContext::ExecutionContext()
+{
+    return this->m_execution_context;
+}
+const std::shared_ptr<SCalcContext> SCalcParserContext::ExecutionContext() const
+{
+    return this->m_execution_context;
+}
 
 
 void CalcParser::expression_rules()
@@ -221,8 +237,7 @@ void CalcParser::statement_rules()
                 pnonterm(Expr, ASTNodeExpr, 2, cond);
                 pnonterm(Statement, ASTNodeStat, 4, truestat);
 
-                auto falsestatast = make_shared<ASTNodeStat>(&c);
-                auto ast = make_shared<ASTNodeIFStat>(&c, condast, truestatast, falsestatast);
+                auto ast = make_shared<ASTNodeIFStat>(&c, condast, truestatast, nullptr);
                 return make_shared<NonTermIfStatement>(ast);
             }, RuleAssocitiveRight);
 
@@ -377,6 +392,7 @@ void CalcParser::calcunit_rules()
 CalcParser::CalcParser()
 {
     DCParser& parser = *this;
+    this->setContext(make_unique<SCalcParserContext>(parser));
 
     this->statement_rules();
     this->function_rules();

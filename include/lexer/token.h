@@ -11,8 +11,19 @@ public:
     virtual ~DChar() = default;
 };
 
+struct DCharInfo {
+    size_t id;
+    const char* name;
+};
+
+template<typename T,typename = std::enable_if_t<std::is_base_of<DChar,T>::value>>
+DCharInfo CharInfo() {
+    auto& typeinfo = typeid(T);
+    return { typeinfo.hash_code(), typeinfo.name() };
+}
+
 template<typename T, typename = std::enable_if_t<std::is_base_of<DChar,T>::value>>
-size_t CharID() { return typeid(T).hash_code(); }
+size_t CharID() { return CharInfo<T>().id; }
 
 class LexerToken : public DChar {
 public:

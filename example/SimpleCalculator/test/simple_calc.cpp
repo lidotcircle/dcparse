@@ -6,8 +6,9 @@ using namespace std;
 
 TEST(SimpleCalculator, AcceptText) {
     vector<string> test_cases = {
-        "a = b;",
-        "a();",
+        "a = b, c = d, d = a;",
+        "a = b; return 1;",
+        "function f1() { return a + b; } f1();",
         "a(a);",
         "a(a, b);",
         "c = a(a, b, c);",

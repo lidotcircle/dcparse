@@ -5,8 +5,8 @@
 using namespace std;
 
 
-#define NI(t) CharID<NonTerm##t>()
-#define TI(t) CharID<Token##t>()
+#define NI(t) CharInfo<NonTerm##t>()
+#define TI(t) CharInfo<Token##t>()
 
 #define add_binary_rule(op, assoc) \
 parser( NI(Expr), \
@@ -405,6 +405,6 @@ CalcParser::CalcParser(bool execute)
 
     this->expression_rules();
 
-    parser.add_start_symbol(NI(CalcUnit));
+    parser.add_start_symbol(NI(CalcUnit).id);
     parser.generate_table();
 }

@@ -52,19 +52,21 @@ public:
 
     class ParserChar {
     private:
-        charid_t _cid;
+        DCharInfo _info;
         bool _optional;
 
     public:
         ParserChar() = delete;
-        inline ParserChar(charid_t cid): _cid(cid), _optional(false) { }
+        inline ParserChar(DCharInfo info): _info(info), _optional(false) { }
 
-        inline charid_t cid() const  { return this->_cid; }
-        inline bool optional() const { return this->_optional; }
+        inline const char* name() const { return _info.name; }
+        inline charid_t cid()     const { return this->_info.id; }
+        inline DCharInfo info()   const { return this->_info; }
+        inline bool optional()    const { return this->_optional; }
 
-        static inline ParserChar beOptional(charid_t cid)
+        static inline ParserChar beOptional(DCharInfo info)
         {
-            auto c = ParserChar(cid);
+            auto c = ParserChar(info);
             c._optional = true;
             return c; 
         }
@@ -90,6 +92,12 @@ private:
 
     std::shared_ptr<PushdownStateMapping> m_pds_mapping;
     std::optional<state_t> m_start_state;
+    std::vector<std::set<std::pair<ruleid_t,size_t>>> h_state2set;
+    std::map<charid_t,DCharInfo> h_charinfo;
+    void      see_dchar(DCharInfo char_);
+    DCharInfo get_dchar(charid_t id) const;
+    std::string help_rule2str(ruleid_t rule, size_t pos) const;
+    std::string help_when_reject_at(state_t state, charid_t token) const;
 
     std::vector<state_t> p_state_stack;
     std::vector<dchar_t> p_char_stack;
@@ -131,10 +139,10 @@ public:
     inline context_t getContext()             { return this->m_context; }
     inline const context_t getContext() const { return this->m_context; }
 
-    void add_rule(charid_t leftside, std::vector<ParserChar> rightside,
+    void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 
-    DCParser& operator()(charid_t leftside, std::vector<ParserChar> rightside,
+    DCParser& operator()(DCharInfo leftside, std::vector<ParserChar> rightside,
                          reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
 
     void add_start_symbol(charid_t start);

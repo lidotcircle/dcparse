@@ -1,6 +1,7 @@
 #include "parser/parser.h"
 #include "parser/parser_error.h"
 #include "assert.h"
+#include <sstream>
 #include <map>
 #include <queue>
 #include <stdexcept>
@@ -304,10 +305,71 @@ int DCParser::add_rule_internal(
     return this->m_rules.size() - 1;
 }
 
+void DCParser::see_dchar(DCharInfo char_)
+{
+    if (this->h_charinfo.find(char_.id) == this->h_charinfo.end()) {
+        this->h_charinfo[char_.id] = char_;
+    } else {
+        assert(this->h_charinfo[char_.id].id == char_.id);
+    }
+}
+
+DCharInfo DCParser::get_dchar(charid_t id) const
+{
+    assert(this->h_charinfo.find(id) != this->h_charinfo.end());
+    return this->h_charinfo.at(id);
+}
+
+string DCParser::help_rule2str(ruleid_t rule, size_t pos) const
+{
+    ostringstream oss;
+    const auto& r = this->m_rules[rule];
+    oss << this->get_dchar(r.m_lhs).name << " -> ";
+    for (size_t i = 0; i < r.m_rhs.size(); i++) {
+        if (i == pos)
+            oss << "* ";
+        oss << this->get_dchar(r.m_rhs[i]).name;
+        if (i != r.m_rhs.size() - 1)
+            oss << " ";
+    }
+
+    return oss.str();
+}
+
+string DCParser::help_when_reject_at(state_t state, charid_t char_) const
+{
+    ostringstream oss;
+    assert(this->h_state2set.size() > state);
+
+    oss << endl;
+    auto& statesets = this->h_state2set[state];
+    set<string> expected;
+    for (auto& p: statesets) {
+        const auto& r = this->m_rules[p.first];
+        assert(r.m_rhs.size() > p.second);
+
+        oss << "    Rule [ " << this->help_rule2str(p.first, p.second) << " ]" << endl;
+        auto rx = this->m_rules[p.first].m_rhs[p.second];
+        expected.insert(this->get_dchar(rx).name);
+    }
+    oss << "Expected: ";
+    for (auto& e: expected) {
+        oss << e << " ";
+    }
+    oss << endl;
+    oss << "But Get Char '" << this->get_dchar(char_).name << "'" << endl;
+
+    return oss.str();
+}
+
 void DCParser::add_rule(
-        charid_t leftside, std::vector<ParserChar> rightside,
+        DCharInfo leftside, std::vector<ParserChar> rightside,
         reduce_callback_t reduce_cb, RuleAssocitive associative)
 {
+    this->see_dchar(leftside);
+    for (auto& rh: rightside)
+        this->see_dchar(rh.info());
+
     vector<pair<vector<charid_t>,vector<bool>>> rightsides = { { {}, {} } };
     const auto doubleit = [&]() {
         const auto size =rightsides.size();
@@ -338,11 +400,11 @@ void DCParser::add_rule(
     }
 
     for (auto& rset: rightsides)
-        this->add_rule_internal(leftside, rset.first, rset.second, reduce_cb, associative);
+        this->add_rule_internal(leftside.id, rset.first, rset.second, reduce_cb, associative);
 }
 
 
-DCParser& DCParser::operator()(charid_t lh, vector<ParserChar> rh,
+DCParser& DCParser::operator()(DCharInfo lh, vector<ParserChar> rh,
                                reduce_callback_t cb,
                                RuleAssocitive associtive)
 {
@@ -367,10 +429,11 @@ void DCParser::add_start_symbol(charid_t id) {
 void DCParser::setup_real_start_symbol()
 {
     assert(!this->m_real_start_symbol.has_value());
-    const auto start_sym = CharID<RealStartSymbol>();
+    const auto start_sym = CharInfo<RealStartSymbol>();
 
     for (auto sym: this->m_start_symbols) {
-        this->add_rule( start_sym, { sym }, 
+        auto info = this->get_dchar(sym);
+        this->add_rule( start_sym, { info }, 
                         [](auto,auto& rn) {
                             assert(rn.size() == 1);
                             auto val = dynamic_pointer_cast<NonTerminal>(rn[0]);
@@ -379,7 +442,7 @@ void DCParser::setup_real_start_symbol()
                         });
     }
 
-    this->m_real_start_symbol = start_sym;
+    this->m_real_start_symbol = start_sym.id;
 }
 
 void DCParser::generate_table()
@@ -547,6 +610,11 @@ void DCParser::generate_table()
 
     this->m_start_state = start_state;
     this->m_pds_mapping = std::make_shared<PushdownStateMapping>(move(mapping));
+
+    this->h_state2set.clear();
+    this->h_state2set.resize(allocated_state);
+    for (auto& s: state_map)
+        this->h_state2set[s.second] = s.first;
 }
 
 void DCParser::do_shift(state_t state, dchar_t char_)
@@ -673,7 +741,7 @@ void DCParser::feed_internal(dchar_t char_)
             this->p_not_finished = char_;
             break;
         case PushdownEntry::STATE_TYPE_REJECT:
-            throw ParserSyntaxError("reject in '" + string(char_->charname()) + "'");
+            throw ParserSyntaxError(this->help_when_reject_at(cstate, char_->charid()));
             break;
         default:
             assert(false && "unexpected action type");

@@ -38,7 +38,7 @@ NTOKENS
 #undef TENTRY
 
 #define MK(t) make_shared<Token##t>()
-#define TI(t) CharID<Token##t>()
+#define TI(t) CharInfo<Token##t>()
 
 struct NonTermStr: public NonTerminal {
     string _str;
@@ -59,7 +59,7 @@ struct NonTermStr: public NonTerminal {
 NNONTERM
 #undef TENTRY
 
-#define NI(t) CharID<NonTerm##t>()
+#define NI(t) CharInfo<NonTerm##t>()
 
 static string c2s(dchar_t cr)
 {
@@ -173,7 +173,7 @@ protected:
                     return make_shared<NonTermSTATEMENT>(cs2s(ts));
                 } );
 
-        parser.add_start_symbol(NI(STATEMENT));
+        parser.add_start_symbol(NI(STATEMENT).id);
 
         parser.generate_table();
     }

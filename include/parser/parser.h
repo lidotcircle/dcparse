@@ -116,6 +116,7 @@ private:
     std::map<charid_t,std::vector<ruleid_t>> u_epsilon_closure;
     std::map<charid_t,std::set<charid_t>>    u_possible_next;
     void ensure_epsilon_closure();
+    std::set<std::pair<ruleid_t,size_t>> stateset_epsilon_closure(const std::set<std::pair<ruleid_t,size_t>>& st);
 
     std::set<std::pair<ruleid_t,size_t>>
     stateset_move(const std::set<std::pair<ruleid_t,size_t>>& stateset,

@@ -210,6 +210,26 @@ void DCParser::ensure_epsilon_closure()
     }
 }
 
+set<pair<ruleid_t,size_t>> 
+DCParser::stateset_epsilon_closure(const set<pair<ruleid_t,size_t>>& st)
+{
+    auto retset = st;
+
+    for (auto& s: st) {
+        auto& r = this->m_rules[s.first];
+        assert(s.second < r.m_rhs.size());
+        auto cx = r.m_rhs[s.second];
+
+        if (this->u_epsilon_closure.find(cx) != this->u_epsilon_closure.end()) {
+            for (auto t: this->u_epsilon_closure.at(cx)) {
+                retset.insert(make_pair(t, 0));
+            }
+        }
+    }
+
+    return retset;
+}
+
 set<pair<ruleid_t,size_t>> DCParser::stateset_move(const set<pair<ruleid_t,size_t>>& old, charid_t ch) const
 {
     set<pair<ruleid_t,size_t>> ret;
@@ -582,6 +602,7 @@ void DCParser::generate_table()
                 state_mapping[ch] = PushdownEntry::reduce(completed_highest_priority_rule);
                 continue;
             }
+            v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
 
             // LOOKAHEAD
             PushdownStateLookup lookahead_table;

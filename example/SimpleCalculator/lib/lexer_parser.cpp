@@ -2,7 +2,8 @@
 using namespace std;
 
 
-CalcLexerParser::CalcLexerParser()
+CalcLexerParser::CalcLexerParser(bool execute):
+    parser(execute)
 {
 }
 
@@ -28,4 +29,12 @@ void CalcLexerParser::reset()
 {
     this->lexer.reset();
     this->parser.reset();
+}
+
+std::shared_ptr<SCalcParserContext> CalcLexerParser::getContext()
+{
+    auto ctx = this->parser.getContext();
+    auto rctx = dynamic_pointer_cast<SCalcParserContext>(ctx);
+    assert(rctx);
+    return rctx;
 }

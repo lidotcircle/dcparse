@@ -11,11 +11,13 @@ private:
     CalcLexer  lexer;
 
 public:
-    CalcLexerParser();
+    CalcLexerParser(bool execute);
 
     void feed(char c);
     std::shared_ptr<ASTNode> end();
     void reset();
+
+    std::shared_ptr<SCalcParserContext> getContext();
 };
 
 #endif // _SIMPLE_CALCULATOR_LEXER_PARSER_H_

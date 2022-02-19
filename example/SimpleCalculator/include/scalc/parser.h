@@ -37,10 +37,16 @@ class SCalcParserContext: public DCParser::DCParserContext
 {
 private:
     std::shared_ptr<SCalcContext> m_execution_context;
+    bool m_execute;
+    std::ostream* m_out;
 
 public:
     SCalcParserContext() = delete;
-    SCalcParserContext(DCParser& parser);
+    SCalcParserContext(DCParser& parser, bool execute);
+
+    inline bool          execute() const { return this->m_execute; }
+    inline std::ostream* output()        { return this->m_out; }
+    inline void          set_output(std::ostream* out) { this->m_out = out; }
 
     std::shared_ptr<SCalcContext>       ExecutionContext();
     const std::shared_ptr<SCalcContext> ExecutionContext() const;
@@ -54,12 +60,13 @@ private:
     void calcunit_rules  ();
 
 public:
-    CalcParser();
+    CalcParser(bool execute);
 
     using DCParser::feed;
     using DCParser::end;
     using DCParser::parse;
     using DCParser::reset;
+    using DCParser::getContext;
 };
 
 #endif // _SIMPLE_CALCULATOR_PARSER_H_

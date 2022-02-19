@@ -7,8 +7,10 @@
 using namespace std;
 
 #define GetContext(var, node) \
-    assert(node && node->context()); \
-    auto c##var = dynamic_cast<SCalcParserContext*>(node->context()); \
+    assert(node && !node->context().expired()); \
+    auto ptr = node->context().lock(); \
+    assert(ptr); \
+    auto c##var = dynamic_pointer_cast<SCalcParserContext>(ptr); \
     assert(c##var && "get parser context failed"); \
     auto var = c##var->ExecutionContext()
 
@@ -52,7 +54,14 @@ void ASTNodeCalcUnit::push_function(shared_ptr<ASTNodeFunctionDef> func)
 void ASTNodeCalcUnit::push_statement(shared_ptr<ASTNodeStat> stat)
 {
     this->statements.push_back(stat);
-    stat->execute();
+
+    auto context = this->context();
+    auto ptr = context.lock();
+    assert(ptr);
+    auto cstat = dynamic_pointer_cast<SCalcParserContext>(ptr);
+
+    if (cstat->execute())
+        stat->execute();
 }
 
 double UnaryOperatorExpr::evaluate()
@@ -177,9 +186,14 @@ void ASTNodeBlockStat::execute()
 void ASTNodeExprStat::execute()
 {
     GetContext(context, this);
+    auto out = ccontext->output();
 
-    for (auto expr: *this->_exprlist)
-        expr->evaluate();
+    for (auto expr: *this->_exprlist) {
+        auto val = expr->evaluate();
+
+        if (out)
+            *out << to_string(expr->evaluate()) << string(" ");
+    }
 }
 
 void ASTNodeReturnStat::execute()

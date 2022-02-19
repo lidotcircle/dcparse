@@ -208,7 +208,7 @@ void SCalcContext::add_function(const string& id, shared_ptr<SCalcFunction> func
 double SCalcContext::call_function(const string& id, vector<double> parameters)
 {
     if (this->_funcs.find(id) == this->_funcs.end())
-        throw SCalcUndefinedFunction(id);
+        throw SCalcUndefinedFunction("function '" + id + "' not found");
 
     this->_stack.push_back(make_shared<ScopeContext>(make_shared<SCalcFunctionState>(), nullptr));
     auto b = this->_stack.back();

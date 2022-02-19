@@ -1,6 +1,7 @@
 #include "scalc/parser.h"
 #include "scalc/token.h"
 #include "scalc/context.h"
+#include <iostream>
 using namespace std;
 
 
@@ -18,7 +19,7 @@ parser( NI(Expr), \
             auto astleft = dynamic_pointer_cast<ASTNodeExpr>(left->astnode); \
             auto astright = dynamic_pointer_cast<ASTNodeExpr>(right->astnode); \
             auto ast = make_shared<BinaryOperatorExpr>( \
-                    &c, \
+                    c, \
                     BinaryOperatorExpr::BinaryOperatorType::op, \
                     astleft, \
                     astright); \
@@ -34,7 +35,7 @@ parser( NI(Expr), \
             assert(expr); \
             auto astexpr = dynamic_pointer_cast<ASTNodeExpr>(expr->astnode); \
             auto ast = make_shared<UnaryOperatorExpr>( \
-                    &c, \
+                    c, \
                     UnaryOperatorExpr::UnaryOperatorType::type, \
                     astexpr); \
             return make_shared<NonTermExpr>(ast); \
@@ -49,9 +50,11 @@ parser( NI(Expr), \
 using ParserChar = DCParser::ParserChar;
 
 
-SCalcParserContext::SCalcParserContext(DCParser& p):
+SCalcParserContext::SCalcParserContext(DCParser& p, bool execute):
     DCParserContext(p),
-    m_execution_context(make_shared<SCalcContext>())
+    m_execution_context(make_shared<SCalcContext>()),
+    m_execute(execute),
+    m_out(nullptr)
 {
 }
 std::shared_ptr<SCalcContext> SCalcParserContext::ExecutionContext()
@@ -74,7 +77,7 @@ void CalcParser::expression_rules()
                 pnonterm(Expr,     ASTNodeExpr,     0, func);
                 pnonterm(ExprList, ASTNodeExprList, 2, paras);
 
-                auto ast = make_shared<FunctionCallExpr>(&c, funcast, parasast);
+                auto ast = make_shared<FunctionCallExpr>(c, funcast, parasast);
                 return make_shared<NonTermExpr>(ast);
             });
 
@@ -83,8 +86,8 @@ void CalcParser::expression_rules()
                 assert(ts.size() == 3);
                 pnonterm(Expr, ASTNodeExpr, 0, func);
 
-                auto parasast = make_shared<ASTNodeExprList>(&c);
-                auto ast = make_shared<FunctionCallExpr>(&c, funcast, parasast);
+                auto parasast = make_shared<ASTNodeExprList>(c);
+                auto ast = make_shared<FunctionCallExpr>(c, funcast, parasast);
                 return make_shared<NonTermExpr>(ast);
             });
 
@@ -135,7 +138,7 @@ void CalcParser::expression_rules()
             [](auto c, auto ts) {
                 assert(ts.size() == 1);
                 auto p = dynamic_pointer_cast<TokenID>(ts[0]);
-                auto ast = make_shared<IDExpr>(&c, p->id);
+                auto ast = make_shared<IDExpr>(c, p->id);
                 return make_shared<NonTermExpr>(ast);
             });
 
@@ -143,7 +146,7 @@ void CalcParser::expression_rules()
             [](auto c, auto ts) {
                 assert(ts.size() == 1);
                 auto p = dynamic_pointer_cast<TokenNUMBER>(ts[0]);
-                auto ast = make_shared<NumberExpr>(&c, p->num);
+                auto ast = make_shared<NumberExpr>(c, p->num);
                 return make_shared<NonTermExpr>(ast);
             });
 
@@ -154,7 +157,7 @@ void CalcParser::expression_rules()
             [](auto c, auto ts) {
                 assert(ts.size() == 1);
                 pnonterm(Expr, ASTNodeExpr, 0, expr);
-                auto ast = make_shared<ASTNodeExprList>(&c); 
+                auto ast = make_shared<ASTNodeExprList>(c); 
                 ast->push_back(exprast);
                 return make_shared<NonTermExprList>(ast);
             });
@@ -179,7 +182,7 @@ void CalcParser::statement_rules()
                 assert(ts.size() == 2);
                 pnonterm(ExprList, ASTNodeExprList, 0, exprlist);
 
-                auto ast = make_shared<ASTNodeExprStat>(&c, exprlistast);
+                auto ast = make_shared<ASTNodeExprStat>(c, exprlistast);
                 return make_shared<NonTermExprStatement>(ast);
             });
 
@@ -187,8 +190,8 @@ void CalcParser::statement_rules()
             [] (auto c, auto ts) {
                 assert(ts.size() == 1);
 
-                auto exprlistast = make_shared<ASTNodeExprList>(&c);
-                auto ast = make_shared<ASTNodeExprStat>(&c, exprlistast);
+                auto exprlistast = make_shared<ASTNodeExprList>(c);
+                auto ast = make_shared<ASTNodeExprStat>(c, exprlistast);
                 return make_shared<NonTermExprStatement>(ast);
             });
 
@@ -197,7 +200,7 @@ void CalcParser::statement_rules()
                 assert(ts.size() == 1);
                 pnonterm(Statement, ASTNodeStat, 0, stat);
 
-                auto ast = make_shared<ASTNodeStatList>(&c);
+                auto ast = make_shared<ASTNodeStatList>(c);
                 ast->push_back(statast);
                 return make_shared<NonTermStatementList>(ast);
             });
@@ -216,7 +219,7 @@ void CalcParser::statement_rules()
                 assert(ts.size() == 3);
                 pnonterm(StatementList, ASTNodeStatList, 1, statlist);
 
-                auto ast = make_shared<ASTNodeBlockStat>(&c, statlistast);
+                auto ast = make_shared<ASTNodeBlockStat>(c, statlistast);
                 return make_shared<NonTermBlockStatement>(ast);
             });
 
@@ -227,7 +230,7 @@ void CalcParser::statement_rules()
                 pnonterm(Statement, ASTNodeStat, 4, truestat);
                 pnonterm(Statement, ASTNodeStat, 6, falsestat);
 
-                auto ast = make_shared<ASTNodeIFStat>(&c, condast, truestatast, falsestatast);
+                auto ast = make_shared<ASTNodeIFStat>(c, condast, truestatast, falsestatast);
                 return make_shared<NonTermIfStatement>(ast);
             }, RuleAssocitiveRight);
 
@@ -237,7 +240,7 @@ void CalcParser::statement_rules()
                 pnonterm(Expr, ASTNodeExpr, 2, cond);
                 pnonterm(Statement, ASTNodeStat, 4, truestat);
 
-                auto ast = make_shared<ASTNodeIFStat>(&c, condast, truestatast, nullptr);
+                auto ast = make_shared<ASTNodeIFStat>(c, condast, truestatast, nullptr);
                 return make_shared<NonTermIfStatement>(ast);
             }, RuleAssocitiveRight);
 
@@ -254,7 +257,7 @@ void CalcParser::statement_rules()
                 pnonterm(ExprList,  ASTNodeExprList, 6, post);
                 pnonterm(Statement, ASTNodeStat,     8, stat);
 
-                auto ast = make_shared<ASTNodeFORStat>(&c, preast, condast, postast, statast);
+                auto ast = make_shared<ASTNodeFORStat>(c, preast, condast, postast, statast);
                 return make_shared<NonTermForStatement>(ast);
             });
 
@@ -263,10 +266,10 @@ void CalcParser::statement_rules()
                 assert(ts.size() == 5);
                 pnonterm(Expr, ASTNodeExpr, 2, cond);
                 pnonterm(Statement, ASTNodeStat, 4, stat);
-                auto preast  = make_shared<ASTNodeExprList>(&c);
-                auto postast = make_shared<ASTNodeExprList>(&c);
+                auto preast  = make_shared<ASTNodeExprList>(c);
+                auto postast = make_shared<ASTNodeExprList>(c);
 
-                auto ast = make_shared<ASTNodeFORStat>(&c, preast, condast, postast, statast);
+                auto ast = make_shared<ASTNodeFORStat>(c, preast, condast, postast, statast);
                 return make_shared<NonTermWhileStatement>(ast);
             });
 
@@ -274,7 +277,7 @@ void CalcParser::statement_rules()
             [] (auto c, auto ts) {
                 assert(ts.size() == 3);
                 pnonterm(Expr, ASTNodeExpr, 1, expr);
-                auto ast = make_shared<ASTNodeReturnStat>(&c, exprast);
+                auto ast = make_shared<ASTNodeReturnStat>(c, exprast);
 
                 return make_shared<NonTermReturnStatement>(ast);
             });
@@ -308,12 +311,12 @@ void CalcParser::function_rules()
                 if (ts[3]) {
                     pnonterm(ArgList, ASTNodeArgList, 3, argsast);
                 } else {
-                    argsast = make_shared<ASTNodeArgList>(&c);
+                    argsast = make_shared<ASTNodeArgList>(c);
                 }
 
                 pnonterm(BlockStatement, ASTNodeBlockStat, 5, stat);
 
-                auto ast = make_shared<ASTNodeFunctionDef>(&c, funcast, argsast, statast);
+                auto ast = make_shared<ASTNodeFunctionDef>(c, funcast, argsast, statast);
                 return make_shared<NonTermFunctionDef>(ast);
             });
 
@@ -323,7 +326,7 @@ void CalcParser::function_rules()
 
                 auto tk = dynamic_pointer_cast<TokenID>(ts[0]);
                 assert(tk);
-                auto argsast = make_shared<ASTNodeArgList>(&c);
+                auto argsast = make_shared<ASTNodeArgList>(c);
                 argsast->push_back(tk->id);
 
                 return make_shared<NonTermArgList>(argsast);
@@ -351,7 +354,7 @@ void CalcParser::calcunit_rules()
                 assert(ts.size() == 1);
                 pnonterm(Statement, ASTNodeStat, 0, stat);
 
-                auto ast = make_shared<ASTNodeCalcUnit>(&c);
+                auto ast = make_shared<ASTNodeCalcUnit>(c);
                 ast->push_statement(statast);
 
                 return make_shared<NonTermCalcUnit>(ast);
@@ -362,7 +365,7 @@ void CalcParser::calcunit_rules()
                 assert(ts.size() == 1);
                 pnonterm(FunctionDef, ASTNodeFunctionDef, 0, func);
 
-                auto ast = make_shared<ASTNodeCalcUnit>(&c);
+                auto ast = make_shared<ASTNodeCalcUnit>(c);
                 ast->push_function(funcast);
 
                 return make_shared<NonTermCalcUnit>(ast);
@@ -389,10 +392,10 @@ void CalcParser::calcunit_rules()
             });
 }
 
-CalcParser::CalcParser()
+CalcParser::CalcParser(bool execute)
 {
     DCParser& parser = *this;
-    this->setContext(make_unique<SCalcParserContext>(parser));
+    this->setContext(make_unique<SCalcParserContext>(parser, execute));
 
     this->statement_rules();
     this->function_rules();

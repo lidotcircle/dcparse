@@ -4,22 +4,25 @@
 #include "parser/parser.h"
 #include "./token.h"
 #include <string>
+#include <memory>
 
+
+using ASTNodeParserContext = std::weak_ptr<DCParser::DCParserContext>;
 
 class ASTNode {
 private:
-    DCParser::DCParserContext* m_parser_context;
+    ASTNodeParserContext m_parser_context;
 
 public:
-    inline ASTNode(DCParser::DCParserContext* p): m_parser_context(p) {}
-    inline DCParser::DCParserContext* context() { return this->m_parser_context; }
+    inline ASTNode(ASTNodeParserContext p): m_parser_context(p) {}
+    inline ASTNodeParserContext context() { return this->m_parser_context; }
     virtual ~ASTNode() = default;
 };
 
 
 class ASTNodeExpr : public ASTNode {
 public:
-    inline ASTNodeExpr(DCParser::DCParserContext* p): ASTNode(p) {}
+    inline ASTNodeExpr(ASTNodeParserContext p): ASTNode(p) {}
 
     virtual double evaluate() = 0;
 };
@@ -37,7 +40,7 @@ private:
 
 public:
     inline UnaryOperatorExpr(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             UnaryOperatorType optype,
             std::shared_ptr<ASTNodeExpr> expr
             ):
@@ -65,7 +68,7 @@ private:
 
 public:
     inline BinaryOperatorExpr(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             BinaryOperatorType optype,
             std::shared_ptr<ASTNodeExpr> left,
             std::shared_ptr<ASTNodeExpr> right
@@ -83,7 +86,7 @@ private:
 
 public:
     inline IDExpr(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::string id): ASTNodeExpr(c), _id(id) {}
     inline const std::string& id() const { return this->_id; }
 
@@ -97,7 +100,7 @@ private:
 
 public:
     inline NumberExpr(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             double val): ASTNodeExpr(c), val(val) {}
     inline double value() const { return this->val; }
 
@@ -116,7 +119,7 @@ public:
     using const_iterator = container_t::const_iterator;
 
     inline ASTNodeExprList(
-            DCParser::DCParserContext* c): ASTNode(c) {}
+            ASTNodeParserContext c): ASTNode(c) {}
 
     using container_t::begin;
     using container_t::end;
@@ -133,7 +136,7 @@ private:
 
 public:
     inline FunctionCallExpr(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> func,
             std::shared_ptr<ASTNodeExprList> parameters):
         ASTNodeExpr(c), _func(func), _parameters(parameters) {}
@@ -150,7 +153,7 @@ public:
 class ASTNodeStat: public ASTNode
 {
 public:
-    inline ASTNodeStat(DCParser::DCParserContext* c): ASTNode(c) {}
+    inline ASTNodeStat(ASTNodeParserContext c): ASTNode(c) {}
 
     virtual void execute() = 0;
 };
@@ -167,7 +170,7 @@ public:
     using const_iterator = container_t::const_iterator;
 
     inline ASTNodeStatList(
-            DCParser::DCParserContext* c): ASTNode(c) {}
+            ASTNodeParserContext c): ASTNode(c) {}
 
     using container_t::begin;
     using container_t::end;
@@ -184,7 +187,7 @@ private:
 
 public:
     inline ASTNodeBlockStat(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeStatList> statlist):
         ASTNodeStat(c), _statlist(statlist) {}
 
@@ -201,7 +204,7 @@ private:
 
 public:
     inline ASTNodeExprStat(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExprList> el): ASTNodeStat(c), _exprlist(el) {}
 
     inline       std::shared_ptr<ASTNodeExprList> exprList()       { return this->_exprlist; }
@@ -217,7 +220,7 @@ private:
 
 public:
     inline ASTNodeReturnStat(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> expr): ASTNodeStat(c), _expr(expr) {}
 
     inline       std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
@@ -234,7 +237,7 @@ private:
 
 public:
     inline ASTNodeIFStat(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> condition,
             std::shared_ptr<ASTNodeStat> truestat,
             std::shared_ptr<ASTNodeStat> falsestat):
@@ -257,7 +260,7 @@ private:
 
 public:
     inline ASTNodeFORStat(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExprList> pre,
             std::shared_ptr<ASTNodeExpr> condition,
             std::shared_ptr<ASTNodeExprList> post,
@@ -282,7 +285,7 @@ private:
 
 public:
     inline ASTNodeWHILEStat(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExprStat> stat,
             std::shared_ptr<ASTNodeExpr> condition):
         ASTNodeStat(c), _cond(condition),
@@ -299,7 +302,7 @@ private:
     using container_t = std::vector<std::string>;
 
 public:
-    inline ASTNodeArgList(DCParser::DCParserContext* c): ASTNode(c) {}
+    inline ASTNodeArgList(ASTNodeParserContext c): ASTNode(c) {}
 
     using container_t::begin;
     using container_t::end;
@@ -318,7 +321,7 @@ private:
 
 public:
     inline ASTNodeFunctionDef(
-            DCParser::DCParserContext* c,
+            ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> func,
             std::shared_ptr<ASTNodeArgList> args,
             std::shared_ptr<ASTNodeBlockStat> stat):
@@ -338,7 +341,7 @@ private:
     std::vector<std::shared_ptr<ASTNodeStat>> statements;
 
 public:
-    inline ASTNodeCalcUnit(DCParser::DCParserContext* c): ASTNode(c) {}
+    inline ASTNodeCalcUnit(ASTNodeParserContext c): ASTNode(c) {}
 
     void push_function(std::shared_ptr<ASTNodeFunctionDef> func) ;
     void push_statement(std::shared_ptr<ASTNodeStat> stat);

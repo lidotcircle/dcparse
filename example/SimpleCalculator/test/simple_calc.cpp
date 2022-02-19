@@ -21,7 +21,7 @@ TEST(SimpleCalculator, AcceptText) {
         "function f1(a, b) { { c =a + b; return a + b; } }",
     };
 
-    CalcLexerParser lp;
+    CalcLexerParser lp(false);
     for (auto& t: test_cases) {
         for (auto c: t) lp.feed(c);
 

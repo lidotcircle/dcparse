@@ -592,24 +592,21 @@ optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
         assert(cid == c->charid());
     }
 
-    auto s = rule.m_reduce_callback(*this->m_context, rhs_tokens_with_optional);
-    if (s == nullptr)
+    auto nonterm = rule.m_reduce_callback(this->m_context, rhs_tokens_with_optional);
+    if (nonterm == nullptr)
         throw ParserError("expect a valid token, but get nullptr");
 
-    if (s->charid() != rule.m_lhs)
+    if (nonterm->charid() != rule.m_lhs)
         throw ParserError("expect a valid token, but get a token with different charid");
 
-    auto nonterm = dynamic_pointer_cast<NonTerminal>(s);
-    assert(nonterm != nullptr);
-
-    if (s->charid() == this->m_real_start_symbol.value()) {
-        this->p_char_stack.push_back(s);
+    if (nonterm->charid() == this->m_real_start_symbol.value()) {
+        this->p_char_stack.push_back(nonterm);
         return nullopt;
     } else {
-        return s;
+        return nonterm;
     }
 
-    return s;
+    return nonterm;
 }
 
 optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)

@@ -36,6 +36,9 @@ public:
         DCParserContext() = delete;
         inline DCParserContext(DCParser& parser): m_parser(&parser) {}
 
+        DCParserContext& operator=(const DCParserContext&) = delete;
+        DCParserContext(const DCParserContext&) = delete;
+
         inline DCParser* parser() { return this->m_parser; }
 
         virtual ~DCParserContext() = default;
@@ -44,8 +47,8 @@ public:
     using charid_t = size_t;
     using ruleid_t = size_t;
     using state_t  = size_t;
-    using context_t = std::unique_ptr<DCParserContext>;
-    using reduce_callback_t = std::function<dnonterm_t(DCParserContext& context, std::vector<dchar_t>& children)>;
+    using context_t = std::shared_ptr<DCParserContext>;
+    using reduce_callback_t = std::function<dnonterm_t(std::weak_ptr<DCParserContext> context, std::vector<dchar_t>& children)>;
 
     class ParserChar {
     private:
@@ -124,9 +127,9 @@ public:
     void dec_priority();
     inline void __________() { this->dec_priority(); }
 
-    inline void setContext(context_t context)        { this->m_context = std::move(context); }
-    inline DCParserContext& getContext()             { return *this->m_context; }
-    inline const DCParserContext& getContext() const { return *this->m_context; }
+    inline void setContext(context_t context)        { this->m_context = context; }
+    inline context_t getContext()             { return this->m_context; }
+    inline const context_t getContext() const { return this->m_context; }
 
     void add_rule(charid_t leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);

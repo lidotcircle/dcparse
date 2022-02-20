@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "scalc/lexer_parser.h"
+#include <sstream>
 #include <string>
 using namespace std;
 
@@ -32,3 +33,31 @@ TEST(SimpleCalculator, AcceptText) {
     }
 }
 
+TEST(SimpleCalculator, OutputTest) {
+    vector<pair<string,string>> test_cases = {
+        { "a, b = 22 + 33;", "0, 55" },
+        { "b + 33;", "88" },
+        { "function add(a,b) { return a + b; }", "" },
+        { "add(11,22);", "33" },
+        { "{ }", "" },
+        { "{ h10 = 10; } h10;", "0" },
+    };
+
+    CalcLexerParser lp(true);
+
+    auto ctx = lp.getContext();
+
+    for (auto& t: test_cases) {
+        ostringstream oss;
+        ctx->set_output(&oss);
+
+        auto& in = t.first;
+        auto& expected_out = t.second;
+        for (auto c: in) lp.feed(c);
+
+        lp.end();
+
+        EXPECT_EQ(oss.str(), expected_out);
+        lp.reset();
+    }
+}

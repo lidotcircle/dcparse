@@ -44,8 +44,8 @@ public:
     SCalcParserContext() = delete;
     SCalcParserContext(DCParser& parser, bool execute);
 
-    inline bool          execute() const { return this->m_execute; }
-    inline std::ostream* output()        { return this->m_out; }
+    inline bool          executable() const { return this->m_execute; }
+    inline std::ostream* output()           { return this->m_out; }
     inline void          set_output(std::ostream* out) { this->m_out = out; }
 
     std::shared_ptr<SCalcContext>       ExecutionContext();

@@ -46,6 +46,9 @@ public:
     bool executingLoopStatFinished(); // => breaked
 
     bool stoped() const;
+    bool in_outest_scope() const;
+
+    void reset();
 };
 
 #endif // _SIMPLE_CALCULATOR_CONTEXT_H_

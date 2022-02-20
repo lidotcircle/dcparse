@@ -214,10 +214,15 @@ void CalcParser::statement_rules()
                 return statlist;
             });
 
-    parser( NI(BlockStatement), { TI(LBRACE), NI(StatementList), TI(RBRACE) },
+    parser( NI(BlockStatement), { TI(LBRACE), ParserChar::beOptional(NI(StatementList)), TI(RBRACE) },
             [] (auto c, auto ts) {
                 assert(ts.size() == 3);
-                pnonterm(StatementList, ASTNodeStatList, 1, statlist);
+
+                auto statlistast = make_shared<ASTNodeStatList>(c);
+                if (ts[1]) {
+                    pnonterm(StatementList, ASTNodeStatList, 1, statlistx);
+                    statlistast = statlistxast;
+                }
 
                 auto ast = make_shared<ASTNodeBlockStat>(c, statlistast);
                 return make_shared<NonTermBlockStatement>(ast);
@@ -309,7 +314,8 @@ void CalcParser::function_rules()
 
                 std::shared_ptr<ASTNodeArgList> argsast;
                 if (ts[3]) {
-                    pnonterm(ArgList, ASTNodeArgList, 3, argsast);
+                    pnonterm(ArgList, ASTNodeArgList, 3, argsx);
+                    argsast = argsxast;
                 } else {
                     argsast = make_shared<ASTNodeArgList>(c);
                 }

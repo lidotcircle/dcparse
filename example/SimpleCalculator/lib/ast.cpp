@@ -60,7 +60,7 @@ void ASTNodeCalcUnit::push_statement(shared_ptr<ASTNodeStat> stat)
     assert(ptr);
     auto cstat = dynamic_pointer_cast<SCalcParserContext>(ptr);
 
-    if (cstat->execute())
+    if (cstat->executable())
         stat->execute();
 }
 
@@ -187,12 +187,19 @@ void ASTNodeExprStat::execute()
 {
     GetContext(context, this);
     auto out = ccontext->output();
+    const auto isoutest = context->in_outest_scope();
 
-    for (auto expr: *this->_exprlist) {
+    const auto exprlistlen = this->_exprlist->size();
+    for (size_t i=0;i<exprlistlen;i++) {
+        auto expr = (*this->_exprlist)[i];
         auto val = expr->evaluate();
 
-        if (out)
-            *out << to_string(expr->evaluate()) << string(" ");
+        if (out && isoutest) {
+            *out << val;
+
+            if (i != exprlistlen - 1)
+                *out << ", ";
+        }
     }
 }
 
@@ -242,4 +249,6 @@ void ASTNodeFunctionDef::call(vector<double> parameters)
         auto id = list->operator[](i);
         context->set_argument(id, parameters[i]);
     }
+
+    this->blockStat()->execute();
 }

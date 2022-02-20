@@ -280,3 +280,15 @@ bool SCalcContext::stoped() const
     auto back = this->_stack.back();
     return back->stoped();
 }
+
+bool SCalcContext::in_outest_scope() const
+{
+    return this->_stack.size() == 1;
+}
+
+void SCalcContext::reset()
+{
+    this->_funcs.clear();
+    this->_stack.clear();
+    _stack.push_back(make_shared<ScopeContext>(nullptr, nullptr));
+}

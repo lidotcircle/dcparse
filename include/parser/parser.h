@@ -3,6 +3,7 @@
 
 #include "../lexer/token.h"
 #include "../lexer/simple_lexer.hpp"
+#include <ostream>
 #include <vector>
 #include <memory>
 #include <tuple>
@@ -94,6 +95,7 @@ private:
     std::optional<state_t> m_start_state;
     std::vector<std::set<std::pair<ruleid_t,size_t>>> h_state2set;
     std::map<charid_t,DCharInfo> h_charinfo;
+    std::ostream* h_debug_stream;
     void      see_dchar(DCharInfo char_);
     DCharInfo get_dchar(charid_t id) const;
     std::string help_rule2str(ruleid_t rule, size_t pos) const;
@@ -139,6 +141,8 @@ public:
     inline void setContext(context_t context)        { this->m_context = context; }
     inline context_t getContext()             { return this->m_context; }
     inline const context_t getContext() const { return this->m_context; }
+
+    inline void setDebugStream(std::ostream& stream) { this->h_debug_stream = &stream; }
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);

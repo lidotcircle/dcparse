@@ -18,6 +18,7 @@ public:
     void reset();
 
     std::shared_ptr<SCalcParserContext> getContext();
+    inline void setDebugStream(std::ostream& out) { this->parser.setDebugStream(out); }
 };
 
 #endif // _SIMPLE_CALCULATOR_LEXER_PARSER_H_

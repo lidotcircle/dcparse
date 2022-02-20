@@ -282,7 +282,12 @@ set<pair<ruleid_t,size_t>> DCParser::startState() const {
 }
 
 
-DCParser::DCParser(): m_priority(0), m_context(make_unique<DCParserContext>(*this)) { }
+DCParser::DCParser():
+    m_priority(0), 
+    m_context(make_unique<DCParserContext>(*this)),
+    h_debug_stream(nullptr)
+{
+}
 
 void DCParser::dec_priority() { this->m_priority++; }
 
@@ -642,6 +647,17 @@ void DCParser::do_shift(state_t state, dchar_t char_)
 {
     this->p_state_stack.push_back(state);
     this->p_char_stack.push_back(char_);
+    if (this->h_debug_stream) {
+        *this->h_debug_stream 
+            << "    do_shift, newstate = " << state <<  endl
+            << "      stateset:" << endl;
+
+        for (auto& s: this->h_state2set[state]) {
+            *this->h_debug_stream
+                << "            "
+                << this->help_rule2str(s.first, s.second) << endl;
+        }
+    }
 }
 
 optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
@@ -688,6 +704,12 @@ optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
     if (nonterm->charid() != rule.m_lhs)
         throw ParserError("expect a valid token, but get a token with different charid");
 
+    if (this->h_debug_stream != nullptr) {
+        *this->h_debug_stream << "    do_reduce: "
+                              << this->help_rule2str(ruleid, -1)
+                              << endl;
+    }
+
     if (nonterm->charid() == this->m_real_start_symbol.value()) {
         this->p_char_stack.push_back(nonterm);
         return nullopt;
@@ -706,6 +728,13 @@ optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)
     const auto cstate = this->p_state_stack.back();
     auto ptoken = this->p_not_finished.value();
     auto& mapping = this->m_pds_mapping->val;
+
+    if (this->h_debug_stream) {
+        *this->h_debug_stream << "  handle_lookahead [ "
+                              << ptoken->charname()
+                              << ", ahead token is " << token->charname()
+                              << " ]" << endl;
+    }
 
     assert(mapping.size() > cstate);
     const auto& lookup = mapping[cstate];
@@ -737,6 +766,12 @@ void DCParser::feed_internal(dchar_t char_)
 {
     assert(!this->p_not_finished.has_value());
     assert(!this->p_state_stack.empty());
+    
+    if (this->h_debug_stream) {
+        *this->h_debug_stream << "  feed_internal: "
+                              << char_->charname()
+                              << endl;
+    }
 
     const auto cstate = this->p_state_stack.back();
     auto& mapping = this->m_pds_mapping->val;
@@ -760,6 +795,9 @@ void DCParser::feed_internal(dchar_t char_)
          }  break;
         case PushdownEntry::STATE_TYPE_LOOKAHEAD:
             this->p_not_finished = char_;
+            if (this->h_debug_stream) {
+                *this->h_debug_stream << "    require lookahead" << endl;
+            }
             break;
         case PushdownEntry::STATE_TYPE_REJECT:
             throw ParserSyntaxError(this->help_when_reject_at(cstate, char_->charid()));
@@ -774,8 +812,28 @@ void DCParser::feed(dctoken_t token)
     assert(this->m_pds_mapping);
     assert(this->m_start_state.has_value());
 
-    if (this->p_state_stack.empty())
+    if (this->p_state_stack.empty()) {
         this->p_state_stack.push_back(this->m_start_state.value());
+
+        if (this->h_debug_stream) {
+            *this->h_debug_stream
+                << "number of states = " << this->h_state2set.size() << endl
+                << "start_state = " << this->m_start_state.value() << endl
+                << "      stateset: " << endl;
+
+            for (auto& s: this->h_state2set[this->m_start_state.value()]) {
+                *this->h_debug_stream
+                    << "        "
+                    << this->help_rule2str(s.first, s.second)
+                    << endl;
+            }
+        }
+    }
+
+    if (this->h_debug_stream) {
+        *this->h_debug_stream << endl;
+        *this->h_debug_stream << "feed: " << token->charname() << endl;
+    }
 
     while (this->p_not_finished.has_value()) {
         auto v = this->handle_lookahead(token);

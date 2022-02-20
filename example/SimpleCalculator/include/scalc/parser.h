@@ -67,6 +67,7 @@ public:
     using DCParser::parse;
     using DCParser::reset;
     using DCParser::getContext;
+    using DCParser::setDebugStream;
 };
 
 #endif // _SIMPLE_CALCULATOR_PARSER_H_

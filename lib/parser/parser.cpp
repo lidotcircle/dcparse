@@ -456,6 +456,7 @@ void DCParser::setup_real_start_symbol()
     assert(!this->m_real_start_symbol.has_value());
     const auto start_sym = CharInfo<RealStartSymbol>();
 
+    this->dec_priority();
     for (auto sym: this->m_start_symbols) {
         auto info = this->get_dchar(sym);
         this->add_rule( start_sym, { info }, 
@@ -607,7 +608,8 @@ void DCParser::generate_table()
                 state_mapping[ch] = PushdownEntry::reduce(completed_highest_priority_rule);
                 continue;
             }
-            v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
+            // TODO should this be a closure of the original set ?
+            // v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
 
             // LOOKAHEAD
             PushdownStateLookup lookahead_table;

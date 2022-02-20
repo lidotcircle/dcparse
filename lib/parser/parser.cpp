@@ -1,6 +1,7 @@
 #include "parser/parser.h"
 #include "parser/parser_error.h"
-#include "assert.h"
+#include "algo.hpp"
+#include <assert.h>
 #include <sstream>
 #include <map>
 #include <queue>
@@ -157,10 +158,10 @@ void DCParser::ensure_epsilon_closure()
 {
     assert(this->m_real_start_symbol.has_value());
 
-    if (!this->u_epsilon_closure.empty())
+    if (!this->u_nonterm_epsilon_closure.empty())
         return;
 
-    assert(this->u_possible_next.empty());
+    assert(this->u_nonterm_possible_next.empty());
 
     std::map<charid_t,std::set<ruleid_t>> pvpv;
     for (size_t i=0;i<this->m_rules.size();i++) {
@@ -198,13 +199,13 @@ void DCParser::ensure_epsilon_closure()
         auto& rx = rs.second;
 
         for (auto r: rx) {
-            this->u_epsilon_closure[cr].push_back(r);
+            this->u_nonterm_epsilon_closure[cr].push_back(r);
             assert(r < this->m_rules.size());
             auto& rr = this->m_rules[r];
 
             if (rr.m_rhs.size() > 0) {
                 auto cx = rr.m_rhs[0];
-                this->u_possible_next[cr].insert(cx);
+                this->u_nonterm_possible_next[cr].insert(cx);
             }
         }
     }
@@ -220,8 +221,8 @@ DCParser::stateset_epsilon_closure(const set<pair<ruleid_t,size_t>>& st)
         assert(s.second < r.m_rhs.size());
         auto cx = r.m_rhs[s.second];
 
-        if (this->u_epsilon_closure.find(cx) != this->u_epsilon_closure.end()) {
-            for (auto t: this->u_epsilon_closure.at(cx)) {
+        if (this->u_nonterm_epsilon_closure.find(cx) != this->u_nonterm_epsilon_closure.end()) {
+            for (auto t: this->u_nonterm_epsilon_closure.at(cx)) {
                 retset.insert(make_pair(t, 0));
             }
         }
@@ -247,8 +248,8 @@ set<pair<ruleid_t,size_t>> DCParser::stateset_move(const set<pair<ruleid_t,size_
 
             if (pos + 1 < r.m_rhs.size()) {
                 auto cx = r.m_rhs[pos + 1];
-                if (this->u_epsilon_closure.find(cx) != this->u_epsilon_closure.end()) {
-                    for (auto rr: this->u_epsilon_closure.at(cx)) {
+                if (this->u_nonterm_epsilon_closure.find(cx) != this->u_nonterm_epsilon_closure.end()) {
+                    for (auto rr: this->u_nonterm_epsilon_closure.at(cx)) {
                         ret.insert(make_pair(rr, 0));
                     }
                 }
@@ -272,8 +273,8 @@ set<pair<ruleid_t,size_t>> DCParser::startState() const {
 
     assert(!this->m_start_symbols.empty() && "must add at least one start symbol");
     const auto ssym = this->m_real_start_symbol.value();
-    assert(this->u_epsilon_closure.find(ssym) != this->u_epsilon_closure.end());
-    const auto& start_rules = _this->u_epsilon_closure.at(ssym);
+    assert(this->u_nonterm_epsilon_closure.find(ssym) != this->u_nonterm_epsilon_closure.end());
+    const auto& start_rules = _this->u_nonterm_epsilon_closure.at(ssym);
     for (auto& start_rule: start_rules) {
         ret.insert(make_pair(start_rule, 0));
     }
@@ -285,7 +286,8 @@ set<pair<ruleid_t,size_t>> DCParser::startState() const {
 DCParser::DCParser():
     m_priority(0), 
     m_context(make_unique<DCParserContext>(*this)),
-    h_debug_stream(nullptr)
+    h_debug_stream(nullptr),
+    u_possible_prev_next_computed(false)
 {
 }
 
@@ -673,6 +675,139 @@ void DCParser::generate_table()
     this->h_state2set.resize(allocated_state);
     for (auto& s: state_map)
         this->h_state2set[s.second] = s.first;
+}
+
+void DCParser::compute_posible_prev_next()
+{
+    // ensure transition table is computed
+    assert(this->m_real_start_symbol.has_value());
+
+    map<charid_t,set<ruleid_t>> lhschar2rules;
+    for (size_t i=0;i<this->m_rules.size();i++) {
+        auto& rule = this->m_rules[i];
+        lhschar2rules[rule.m_lhs].insert(i);
+    }
+
+    map<charid_t,set<charid_t>> last_chars_to_create_this_char;
+    map<charid_t,set<charid_t>> first_chars_to_create_this_char;
+    for (auto _char: this->m_symbols) {
+        last_chars_to_create_this_char[_char].insert(_char);
+        first_chars_to_create_this_char[_char].insert(_char);
+
+        for (auto ruleid: lhschar2rules[_char]) {
+            auto& rule = this->m_rules[ruleid];
+            auto& rhs = rule.m_rhs;
+            assert(rhs.size() > 0);
+
+            auto first_char = rhs.front();
+            auto last_char = rhs.back();
+
+            last_chars_to_create_this_char[_char].insert(last_char);
+            first_chars_to_create_this_char[_char].insert(first_char);
+        }
+    }
+    last_chars_to_create_this_char = 
+    transitive_closure(last_chars_to_create_this_char);
+    first_chars_to_create_this_char =
+    transitive_closure(first_chars_to_create_this_char);
+
+    map<charid_t,set<charid_t>> prev, next;
+    for (auto& rule: this->m_rules) {
+        auto& rhs = rule.m_rhs;
+        assert(rhs.size() > 0);
+
+        auto p = rhs.front();
+        for (size_t i=1;i<rhs.size();p=rhs[i++]) {
+            auto c = rhs[i];
+
+            for (auto cx: first_chars_to_create_this_char[c]) {
+                auto& kn = last_chars_to_create_this_char[p];
+                prev[cx].insert(kn.begin(), kn.end());
+            }
+
+            for (auto bx: last_chars_to_create_this_char[p]) {
+                auto& kn = first_chars_to_create_this_char[c];
+                next[bx].insert(kn.begin(), kn.end());
+            }
+        }
+    }
+
+    assert(this->u_next_possible_token_of.empty());
+    assert(this->u_prev_possible_token_of.empty());
+
+    for (auto& tx: prev) {
+        if (this->is_nonterm(tx.first))
+            continue;
+
+        for (auto& nx: tx.second) {
+            if (this->is_nonterm(nx))
+                continue;
+
+            this->u_prev_possible_token_of[tx.first].insert(nx);
+        }
+    }
+
+    for (auto& tx: next) {
+        if (this->is_nonterm(tx.first))
+            continue;
+
+        for (auto& nx: tx.second) {
+            if (this->is_nonterm(nx))
+                continue;
+
+            this->u_next_possible_token_of[tx.first].insert(nx);
+        }
+    }
+}
+
+set<charid_t> DCParser::next_possible_token_of(charid_t cid) const
+{
+    if (this->m_symbols.find(cid) == this->m_symbols.end())
+        throw ParserError("unknown symbol");
+
+    if (this->u_possible_prev_next_computed) {
+        if (this->u_next_possible_token_of.find(cid) != this->u_next_possible_token_of.end())
+            return this->u_next_possible_token_of.at(cid);
+        else
+            return set<charid_t>();
+    }
+
+    auto _this= const_cast<DCParser*>(this);
+    _this->compute_posible_prev_next();
+
+    if (this->u_next_possible_token_of.find(cid) != this->u_next_possible_token_of.end())
+        return this->u_next_possible_token_of.at(cid);
+    else
+        return set<charid_t>();
+}
+
+set<charid_t> DCParser::prev_possible_token_of(charid_t cid) const
+{
+    if (this->m_symbols.find(cid) == this->m_symbols.end())
+        throw ParserError("unknown symbol");
+
+    if (this->u_possible_prev_next_computed) {
+        if (this->u_prev_possible_token_of.find(cid) != this->u_prev_possible_token_of.end())
+            return this->u_prev_possible_token_of.at(cid);
+        else
+            return set<charid_t>();
+    }
+
+    auto _this= const_cast<DCParser*>(this);
+    _this->compute_posible_prev_next();
+
+    if (this->u_prev_possible_token_of.find(cid) != this->u_prev_possible_token_of.end())
+        return this->u_prev_possible_token_of.at(cid);
+    else
+        return set<charid_t>();
+}
+
+DCharInfo DCParser::query_charinfo(charid_t id) const
+{
+    if (this->h_charinfo.find(id) != this->h_charinfo.end())
+        return this->h_charinfo.at(id);
+
+    throw std::runtime_error("charinfo not found");
 }
 
 void DCParser::do_shift(state_t state, dchar_t char_)

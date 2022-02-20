@@ -77,6 +77,7 @@ TEST(SimpleCalculator, OutputTest) {
         { " e; ",   to_string2(M_E) },
         { " inf; ", to_string2(INFINITY) },
         { " nan; ", to_string2(NAN) },
+        { " 100+100-20;", "180" },
     };
 
     CalcLexerParser lp(true);
@@ -93,7 +94,12 @@ TEST(SimpleCalculator, OutputTest) {
 
         lp.end();
 
-        EXPECT_EQ(oss.str(), expected_out);
+        auto out = oss.str();
+        if (!out.empty()) {
+            EXPECT_EQ(out.back(), '\n');
+            out.pop_back();
+        }
+        EXPECT_EQ(out, expected_out);
         lp.reset();
     }
 }

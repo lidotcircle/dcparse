@@ -1,4 +1,5 @@
 #include "scalc/token.h"
+#include "scalc/parser.h"
 #include "lexer/lexer_rule.hpp"
 #include "lexer/lexer_rule_regex.hpp"
 #include <string>
@@ -88,6 +89,7 @@ KEYWORD_TOKEN
         })
     );
 
+
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
             s2u("[\\-+]?([0-9]*[.])?[0-9]+([eE][\\-+]?[0-9]+)?"),
@@ -96,7 +98,20 @@ KEYWORD_TOKEN
             auto val = std::stod(string(str.begin(),str.end()), &len);
             assert(len == str.size());
             return std::make_shared<TokenNUMBER>(val, info);
-        })
+        }, true, false,
+            [](auto last) {
+                static const CalcParser calcparser(false);
+                static const auto possible_prev = calcparser.prev_possible_token_of(CharID<TokenNUMBER>());
+
+                if (!last.has_value())
+                    return true;
+
+                auto last_token = last.value();
+                assert(last_token);
+                const auto id = last_token->charid();
+                return possible_prev.find(id) != possible_prev.end();
+            }
+        )
     );
 
     lexer.dec_priority_major();

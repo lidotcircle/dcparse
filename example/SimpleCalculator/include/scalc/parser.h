@@ -68,6 +68,9 @@ public:
     using DCParser::reset;
     using DCParser::getContext;
     using DCParser::setDebugStream;
+    using DCParser::prev_possible_token_of;
+    using DCParser::next_possible_token_of;
+    using DCParser::query_charinfo;
 };
 
 #endif // _SIMPLE_CALCULATOR_PARSER_H_

@@ -116,10 +116,17 @@ private:
     void feed_internal(dchar_t char_);
 
 private:
-    std::map<charid_t,std::vector<ruleid_t>> u_epsilon_closure;
-    std::map<charid_t,std::set<charid_t>>    u_possible_next;
+    // Rules for creating that non-terminal
+    std::map<charid_t,std::vector<ruleid_t>> u_nonterm_epsilon_closure;
+    // no pratical use
+    std::map<charid_t,std::set<charid_t>>    u_nonterm_possible_next;
     void ensure_epsilon_closure();
     std::set<std::pair<ruleid_t,size_t>> stateset_epsilon_closure(const std::set<std::pair<ruleid_t,size_t>>& st);
+
+    bool u_possible_prev_next_computed;
+    void compute_posible_prev_next();
+    std::map<charid_t,std::set<charid_t>> u_prev_possible_token_of;
+    std::map<charid_t,std::set<charid_t>> u_next_possible_token_of;
 
     std::set<std::pair<ruleid_t,size_t>>
     stateset_move(const std::set<std::pair<ruleid_t,size_t>>& stateset,
@@ -154,6 +161,10 @@ public:
     void add_start_symbol(charid_t start);
 
     void generate_table();
+
+    std::set<charid_t> prev_possible_token_of(charid_t id) const;
+    std::set<charid_t> next_possible_token_of(charid_t id) const;
+    DCharInfo query_charinfo(charid_t id) const;
 
     void feed(dctoken_t token);
     dnonterm_t end();

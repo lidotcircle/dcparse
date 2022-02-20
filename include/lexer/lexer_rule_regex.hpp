@@ -13,6 +13,7 @@ class LexerRuleRegex: public LexerRule<T> {
 public:
     using CharType = T;
     using TokenInfo = LexerToken::TokenInfo;
+    using DeterType = std::function<bool(std::optional<std::shared_ptr<LexerToken>>)>;
 
 private:
     using string_t = std::vector<CharType>;
@@ -21,6 +22,7 @@ private:
     string_t m_string;
     SimpleRegExp<CharType> m_regex;
     token_factory_t m_token_factory;
+    DeterType m_deter;
 
     bool _opt_compile, _opt_first_match;
     bool match_dead;
@@ -39,24 +41,29 @@ public:
     template<typename Iterator>
     LexerRuleRegex(
             Iterator begin, Iterator end, token_factory_t factory,
-            bool compile = true, bool first_match = false): 
-        m_regex(begin, end), m_token_factory(factory)
+            bool compile = true, bool first_match = false,
+            DeterType deter = nullptr): 
+        m_regex(begin, end), m_token_factory(factory), m_deter(deter)
     {
         this->apply_options(compile, first_match);
     }
 
     LexerRuleRegex(
             const std::basic_string<CharType>& regex, token_factory_t factory,
-            bool compile = true, bool first_match = false): 
-        m_regex(std::vector<CharType>(regex.begin(), regex.end())), m_token_factory(factory)
+            bool compile = true, bool first_match = false,
+            DeterType deter = nullptr): 
+        m_regex(std::vector<CharType>(regex.begin(), regex.end())), m_token_factory(factory),
+        m_deter(deter)
     {
         this->apply_options(compile, first_match);
     }
 
     LexerRuleRegex(
             const std::vector<CharType>& regex, token_factory_t factory,
-            bool compile = true, bool first_match = false): 
-        m_regex(std::vector<CharType>(regex.begin(), regex.end())), m_token_factory(factory)
+            bool compile = true, bool first_match = false,
+            DeterType deter = nullptr): 
+        m_regex(std::vector<CharType>(regex.begin(), regex.end())), m_token_factory(factory),
+        m_deter(deter)
     {
         this->apply_options(compile, first_match);
     }
@@ -78,13 +85,19 @@ public:
         return !this->match_dead && this->m_regex.match();
     };
 
-    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn) override {
+    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
+                       std::optional<std::shared_ptr<LexerToken>> last) override
+    {
         this->m_info.line_num = ln;
         this->m_info.column_num = cn;
         this->m_info.pos = pos;
         this->m_info.filename = fn;
         this->m_regex.reset();
         this->m_string.clear();
+        this->match_dead = false;
+
+        if (this->m_deter && !this->m_deter(last))
+            this->match_dead = true;
     }
 
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) override {

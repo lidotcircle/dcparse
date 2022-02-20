@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
 
 
 template<typename T>
@@ -17,7 +18,8 @@ public:
     virtual bool dead() = 0;
     virtual bool match() = 0;
 
-    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn) = 0;
+    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
+                       std::optional<std::shared_ptr<LexerToken>> last_token) = 0;
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) = 0;
 
     virtual ~LexerRule() = default;

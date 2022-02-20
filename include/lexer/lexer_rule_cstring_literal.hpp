@@ -76,14 +76,16 @@ public:
             this->_state = MATCH_STATE_DEAD;
         }
     }
-    virtual bool dead() {
+    virtual bool dead() override {
         return this->_state == MATCH_STATE_DEAD;
     }
-    virtual bool match() {
+    virtual bool match() override {
         return this->_state == MATCH_STATE_END;
     }
 
-    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn) {
+    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
+                       std::optional<std::shared_ptr<LexerToken>> last) override
+    {
         this->_state = MATCH_STATE_NONE;
         this->_literal.clear();
         this->_token_info.line_num = ln;
@@ -92,7 +94,8 @@ public:
         this->_token_info.filename = fn;
     }
 
-    virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) {
+    virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) override
+    {
         this->_token_info.len = str.size();
         return this->_token_factory(
                 std::vector<CharType>(

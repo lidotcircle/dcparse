@@ -27,9 +27,10 @@ private:
         RuleInfo(std::unique_ptr<LexerRule<CharType>> rule)
             : rule(std::move(rule)), feed_len(0), match_len(0) {}
 
-        void reset(size_t ln, size_t cn, size_t pos, const std::string& fn)
+        void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
+                   std::optional<std::shared_ptr<LexerToken>> last)
         {
-            this->rule->reset(ln, cn, pos, fn);
+            this->rule->reset(ln, cn, pos, fn, last);
             this->match_len = 0;
             this->feed_len = 0;
         }
@@ -82,7 +83,7 @@ private:
                     tokens.push_back(val);
 
                 const auto& lp = *(this->m_cache.begin() + (len - 1));
-                this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename);
+                this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename, val);
                 this->m_cache.erase(this->m_cache.begin(),
                                     this->m_cache.begin() + len);
                 cache_pos = 0;
@@ -233,11 +234,17 @@ private:
         return std::make_pair(rule.token(str), std::get<0>(f1));
     }
 
-    void reset_rules(size_t ln, size_t cl, size_t pos, const std::string& fn) {
+    std::optional<std::shared_ptr<LexerToken>> m_notnull_last_token;
+    void reset_rules(size_t ln, size_t cl, size_t pos, const std::string& fn,
+                     std::optional<std::shared_ptr<LexerToken>> last)
+    {
+        if (last.has_value() && last.value() != nullptr)
+            this->m_notnull_last_token = last;
+
         for (auto& r1: this->m_rules) {
             for (auto& r2: r1) {
                 for (auto& ri: r2) {
-                    ri.reset(ln, cl, pos, fn);
+                    ri.reset(ln, cl, pos, fn, this->m_notnull_last_token);
                 }
             }
         }
@@ -287,7 +294,7 @@ public:
         this->line_num = 1;
         this->col_num = 0;
         this->pos = 0;
-        this->reset_rules(1, 0, 0, fn);
+        this->reset_rules(1, 0, 0, fn, std::nullopt);
     }
 
     void reset()
@@ -364,7 +371,7 @@ public:
                     tokens.push_back(val);
 
                 auto& lp = *(this->m_cache.begin() + (len - 1));
-                this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename);
+                this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename, val);
                 this->m_cache.erase(this->m_cache.begin(),
                                     this->m_cache.begin() + len);
                 

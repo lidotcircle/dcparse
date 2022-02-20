@@ -201,6 +201,9 @@ void ASTNodeExprStat::execute()
                 *out << ", ";
         }
     }
+
+    if (out && isoutest && exprlistlen > 0)
+        *out << endl;
 }
 
 void ASTNodeReturnStat::execute()

@@ -100,6 +100,7 @@ private:
     DCharInfo get_dchar(charid_t id) const;
     std::string help_rule2str(ruleid_t rule, size_t pos) const;
     std::string help_when_reject_at(state_t state, charid_t token) const;
+    std::string help_print_state(state_t state, size_t count, char paddingchar) const;
 
     std::vector<state_t> p_state_stack;
     std::vector<dchar_t> p_char_stack;

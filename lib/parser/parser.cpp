@@ -361,6 +361,36 @@ string DCParser::help_rule2str(ruleid_t rule, size_t pos) const
     return oss.str();
 }
 
+string DCParser::help_print_state(state_t state, size_t count, char paddingchar) const
+{
+    ostringstream oss;
+    assert(state < this->h_state2set.size());
+    const auto& ss = this->h_state2set[state];
+
+    assert(ss.size() > 0);
+    auto prev_priority = this->m_rules[ss.begin()->first].m_rule_option->priority;
+    for (auto& s: ss) {
+        assert(this->m_rules.size() > s.first);
+        auto& rule = this->m_rules[s.first];
+
+        const auto priority = rule.m_rule_option->priority;
+        const auto rulestr = this->help_rule2str(s.first, s.second);
+        assert(prev_priority <= priority);
+        if (priority != prev_priority) {
+            *this->h_debug_stream 
+                << string(count, paddingchar)
+                << string(rulestr.size(), '-') << endl;;
+            prev_priority = priority;
+        }
+
+        *this->h_debug_stream
+            << string(count, paddingchar)
+            << rulestr << endl;
+    }
+
+    return oss.str();
+}
+
 string DCParser::help_when_reject_at(state_t state, charid_t char_) const
 {
     ostringstream oss;
@@ -650,15 +680,12 @@ void DCParser::do_shift(state_t state, dchar_t char_)
     this->p_state_stack.push_back(state);
     this->p_char_stack.push_back(char_);
     if (this->h_debug_stream) {
+        assert(this->h_state2set.size() > state);
+        auto& ss = this->h_state2set[state];
         *this->h_debug_stream 
             << "    do_shift, newstate = " << state <<  endl
-            << "      stateset:" << endl;
-
-        for (auto& s: this->h_state2set[state]) {
-            *this->h_debug_stream
-                << "            "
-                << this->help_rule2str(s.first, s.second) << endl;
-        }
+            << "      stateset(" << ss.size() << "):" << endl
+            << this->help_print_state(state, 8, ' ');
     }
 }
 
@@ -818,17 +845,14 @@ void DCParser::feed(dctoken_t token)
         this->p_state_stack.push_back(this->m_start_state.value());
 
         if (this->h_debug_stream) {
+            const auto startstate = this->m_start_state.value();
+            const auto& ss = this->h_state2set[startstate];
             *this->h_debug_stream
                 << "number of states = " << this->h_state2set.size() << endl
-                << "start_state = " << this->m_start_state.value() << endl
-                << "      stateset: " << endl;
-
-            for (auto& s: this->h_state2set[this->m_start_state.value()]) {
-                *this->h_debug_stream
-                    << "        "
-                    << this->help_rule2str(s.first, s.second)
-                    << endl;
-            }
+                << "start_state = " << startstate << endl
+                << "      stateset(" << ss.size() << "): " << endl;
+            *this->h_debug_stream
+                << this->help_print_state(startstate, 8, ' ') << endl;
         }
     }
 

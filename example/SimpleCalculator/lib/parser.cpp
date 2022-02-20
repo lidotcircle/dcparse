@@ -71,22 +71,17 @@ void CalcParser::expression_rules()
 {
     DCParser& parser = *this;
 
-    parser( NI(Expr), { NI(Expr), TI(LPAREN), NI(ExprList), TI(RPAREN) },
+    parser( NI(Expr), { NI(Expr), TI(LPAREN), ParserChar::beOptional(NI(ExprList)), TI(RPAREN) },
             [](auto c, auto ts) {
                 assert(ts.size() == 4);
                 pnonterm(Expr,     ASTNodeExpr,     0, func);
-                pnonterm(ExprList, ASTNodeExprList, 2, paras);
-
-                auto ast = make_shared<FunctionCallExpr>(c, funcast, parasast);
-                return make_shared<NonTermExpr>(ast);
-            });
-
-    parser( NI(Expr), { NI(Expr), TI(LPAREN), TI(RPAREN) },
-            [](auto c, auto ts) {
-                assert(ts.size() == 3);
-                pnonterm(Expr, ASTNodeExpr, 0, func);
 
                 auto parasast = make_shared<ASTNodeExprList>(c);
+                if (ts[2]) {
+                    pnonterm(ExprList, ASTNodeExprList, 2, parasx);
+                    parasast = parasxast;
+                }
+
                 auto ast = make_shared<FunctionCallExpr>(c, funcast, parasast);
                 return make_shared<NonTermExpr>(ast);
             });

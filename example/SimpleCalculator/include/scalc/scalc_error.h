@@ -15,7 +15,8 @@ public:
     EEntry(SCalcBadFunctionArgumentCount) \
     EEntry(SCalcUndefinedFunction) \
     EEntry(SCalcBadFunctionNameExpression) \
-    EEntry(SCalcExpectAnLValue)
+    EEntry(SCalcExpectAnLValue) \
+    EEntry(SCalcAssertionFailed)
 
 #define EEntry(cname) \
     class cname: public SCalcError \

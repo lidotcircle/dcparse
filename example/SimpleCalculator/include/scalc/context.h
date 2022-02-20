@@ -21,6 +21,7 @@ class SCalcContext
 private:
     std::vector<std::shared_ptr<ScopeContext>> _stack;
     std::map<std::string,std::shared_ptr<SCalcFunction>> _funcs;
+    void setup_builtin_functions_and_constants();
 
 public:
     SCalcContext();

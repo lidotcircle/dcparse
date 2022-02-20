@@ -2,6 +2,7 @@
 #include "scalc/lexer_parser.h"
 #include <sstream>
 #include <string>
+#include <math.h>
 using namespace std;
 
 
@@ -33,14 +34,49 @@ TEST(SimpleCalculator, AcceptText) {
     }
 }
 
+string to_string2(double d) {
+    stringstream ss;
+    ss << d;
+    return ss.str();
+}
+
 TEST(SimpleCalculator, OutputTest) {
     vector<pair<string,string>> test_cases = {
         { "a, b = 22 + 33;", "0, 55" },
         { "b + 33;", "88" },
         { "function add(a,b) { return a + b; }", "" },
         { "add(11,22);", "33" },
-        { "{ }", "" },
+        { "{ sin(10); }", "" },
         { "{ h10 = 10; } h10;", "0" },
+        { " sin(20); ",   to_string2(sin(20)) },
+        { " cos(20); ",   to_string2(cos(20)) },
+        { " tan(20); ",   to_string2(tan(20)) },
+        { " asin(0.5); ", to_string2(asin(0.5)) },
+        { " acos(0.5); ", to_string2(acos(0.5)) },
+        { " atan(0.5); ", to_string2(atan(0.5)) },
+        { " sqrt(4); ",   to_string2(sqrt(4)) },
+        { " abs(-4); ",   to_string2(abs(-4)) },
+        { " log(10); ",   to_string2(log(10)) },
+        { " log10(10); ", to_string2(log10(10)) },
+        { " exp(10); ",   to_string2(exp(10)) },
+        { " sum(); ",     to_string2(0) },
+        { " sum(10); ",   to_string2(10) },
+        { " function above_10(val) { if (val > 10) return 1; else return 0; }", "" }, 
+        { " above_10(10); ", "0" },
+        { " above_10(11); ", "1" },
+        { " above_10(12); ", "1" },
+        { " function fibonacci(n) { if (n < 2) return n; else return fibonacci(n- 1) * n; }", "" },
+        { " fibonacci(1); ", to_string2(1) },
+        { " fibonacci(2); ", to_string2(2) },
+        { " fibonacci(3); ", to_string2(6) },
+        { " function fibonacci2(n) { ret = 1; for(i=2;i<=n;i++) ret = ret * i; return ret; }", "" },
+        { " fibonacci2(1); ", to_string2(1) },
+        { " fibonacci2(2); ", to_string2(2) },
+        { " fibonacci2(3); ", to_string2(6) },
+        { " pi; ",  to_string2(M_PI) },
+        { " e; ",   to_string2(M_E) },
+        { " inf; ", to_string2(INFINITY) },
+        { " nan; ", to_string2(NAN) },
     };
 
     CalcLexerParser lp(true);

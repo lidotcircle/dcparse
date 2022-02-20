@@ -4,6 +4,9 @@
 #include "scalc/defer.hpp"
 #include <assert.h>
 #include <optional>
+#include <functional>
+#include <iostream>
+#include <math.h>
 using namespace std;
 
 
@@ -134,9 +137,151 @@ public:
 SCalcContext::SCalcContext(): 
     _stack({ make_shared<ScopeContext>(nullptr, nullptr) })
 {
+    this->setup_builtin_functions_and_constants();
 }
 
 SCalcContext::~SCalcContext() {}
+
+class SCalcBuiltinFunction: public SCalcFunction
+{
+private:
+    function<double(const vector<double>&)> _func;
+
+public:
+    SCalcBuiltinFunction(std::function<double(const vector<double>&)> func):
+        _func(func)
+    {
+    }
+
+    virtual double call(std::vector<double> parameters) const
+    {
+        return this->_func(parameters);
+    }
+};
+#define C_MATH_DOUBLE2DOUBLE_FUNC_LIST \
+    CMENTRY(sin) \
+    CMENTRY(cos) \
+    CMENTRY(tan) \
+    CMENTRY(asin) \
+    CMENTRY(acos) \
+    CMENTRY(atan) \
+    CMENTRY(sinh) \
+    CMENTRY(cosh) \
+    CMENTRY(tanh) \
+    CMENTRY(exp) \
+    CMENTRY(log) \
+    CMENTRY(log10) \
+    CMENTRY(sqrt) \
+    CMENTRY(ceil) \
+    CMENTRY(floor) \
+    CMENTRY(abs) \
+    CMENTRY(fabs)
+
+void SCalcContext::setup_builtin_functions_and_constants()
+{
+#define CMENTRY(func) \
+    this->_funcs[#func] = make_shared<SCalcBuiltinFunction>( \
+        [](const vector<double>& params) { \
+            if (params.size() != 1) \
+                throw SCalcBadFunctionArgumentCount(); \
+            return ::func(params[0]); \
+        });
+C_MATH_DOUBLE2DOUBLE_FUNC_LIST
+#undef CMENTRY
+
+    this->_funcs["sum"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            double ret = 0;
+            for (auto& p: params)
+                ret += p;
+            return ret;
+        });
+
+    this->_funcs["is_int"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 1)
+                throw SCalcBadFunctionArgumentCount();
+            return params[0] == floor(params[0]);
+        });
+
+    this->_funcs["assert"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 1)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] == 0)
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["assert_eq"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] != params[1])
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["assert_ne"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] == params[1])
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["assert_ge"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] < params[1])
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["assert_gt"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] <= params[1])
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["assert_le"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] > params[1])
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["assert_lt"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            if (params[0] >= params[1])
+                throw SCalcAssertionFailed();
+            return 0;
+        });
+
+    this->_funcs["print"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            for (const auto& param: params)
+                cout << param << " ";
+            cout << endl;
+            return 0;
+        });
+
+    assert(this->_stack.size() == 1);
+    auto& outest = this->_stack.back();
+    outest->set_id("pi", M_PI);
+    outest->set_id("e", M_E);
+    outest->set_id("inf", INFINITY);
+    outest->set_id("nan", NAN);
+}
 
 double SCalcContext::get_id(const string& id) const
 {
@@ -291,4 +436,5 @@ void SCalcContext::reset()
     this->_funcs.clear();
     this->_stack.clear();
     _stack.push_back(make_shared<ScopeContext>(nullptr, nullptr));
+    this->setup_builtin_functions_and_constants();
 }

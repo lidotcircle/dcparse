@@ -6,6 +6,8 @@
 #include <optional>
 #include <functional>
 #include <iostream>
+
+#define _USE_MATH_DEFINES
 #include <math.h>
 using namespace std;
 

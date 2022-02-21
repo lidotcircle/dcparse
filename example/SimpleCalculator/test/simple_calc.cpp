@@ -2,6 +2,8 @@
 #include "scalc/lexer_parser.h"
 #include <sstream>
 #include <string>
+
+#define _USE_MATH_DEFINES
 #include <math.h>
 using namespace std;
 

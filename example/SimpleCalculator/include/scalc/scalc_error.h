@@ -6,6 +6,7 @@
 class SCalcError : public std::runtime_error {
 public:
     SCalcError(const std::string& what);
+    SCalcError(const char* what);
 };
 
 #define SCalcErrorList \

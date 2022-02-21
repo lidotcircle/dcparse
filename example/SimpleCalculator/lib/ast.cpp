@@ -124,7 +124,7 @@ double BinaryOperatorExpr::evaluate()
     case BinaryOperatorType::REMAINDER:
         return (long)l % (long)r;
     case BinaryOperatorType::CARET:
-        return std::pow(l, r);
+        return ::pow(l, r);
     case BinaryOperatorType::LESSTHAN:
         return (l < r) ? 1 : 0;
     case BinaryOperatorType::GREATERTHAN:
@@ -140,6 +140,7 @@ double BinaryOperatorExpr::evaluate()
     default:
         assert(false);
     }
+    return 0;
 }
 
 double IDExpr::evaluate()

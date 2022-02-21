@@ -3,6 +3,7 @@ using namespace std;
 
 
 SCalcError::SCalcError(const string& what): runtime_error(what) {}
+SCalcError::SCalcError(const char*   what): runtime_error(what) {}
 
 
 #define EEntry(cname) \

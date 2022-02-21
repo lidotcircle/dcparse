@@ -44,7 +44,7 @@ public:
         return "";
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const override
     {
         NodeNFA<CharT> retval(NodeNFATransitionTable(), starts, finals);;
         retval.add_link(starts, { finals }, traits::EMPTY_CHAR, traits::EMPTY_CHAR);
@@ -72,7 +72,7 @@ public:
         return "(" + this->_next->to_string() + ")";
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const override
     {
         auto nfa = this->_next->to_nfa(allocator, starts, finals);
         if (!this->_complemented)
@@ -118,7 +118,7 @@ public:
             return char_to_string(this->_min) + "-" + char_to_string(this->_max);
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const override
     {
         NodeNFA<CharT> retval(NodeNFATransitionTable(), starts, finals);
         retval.add_link(starts, { finals }, this->min(), this->max());
@@ -156,7 +156,7 @@ public:
         return result;
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const override
     {
         assert(this->size() > 0);
         if (this->size() == 1)
@@ -222,7 +222,7 @@ public:
         return result;
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const override
     {
         assert(this->size() > 0);
         if (this->size() == 1)
@@ -268,7 +268,7 @@ public:
         return this->_next->to_string() + "*";
     }
 
-    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const
+    virtual NodeNFA<CharT> to_nfa(StateAllocator<>& allocator, NFAState_t starts, NFAState_t finals) const override
     {
         auto retval = this->next()->to_nfa(allocator, starts, finals);
         retval.add_link(starts, { finals }, traits::EMPTY_CHAR, traits::EMPTY_CHAR);

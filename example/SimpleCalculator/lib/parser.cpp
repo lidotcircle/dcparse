@@ -88,6 +88,16 @@ void CalcParser::expression_rules()
 
     parser.__________();
 
+    parser( NI(Expr), { TI(LPAREN), NI(Expr), TI(RPAREN) },
+            [](auto c, auto ts) {
+                assert(ts.size() == 3);
+                pnonterm(Expr, ASTNodeExpr, 1, expr);
+
+                return make_shared<NonTermExpr>(exprast);
+            });
+
+    parser.__________();
+
     add_unary_rule( NI(Expr), TI(PLUSPLUS),   true, POS_INC, RuleAssocitiveLeft );
     add_unary_rule( NI(Expr), TI(MINUSMINUS), true, POS_DEC, RuleAssocitiveLeft );
 

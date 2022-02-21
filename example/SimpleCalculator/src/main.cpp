@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
 
             exec.end();
             return 0;
-        } catch  (const SCalcError& e) {
+        } catch  (const runtime_error& e) {
             cerr << "Error: " << e.what() << endl;
             return 1;
         }

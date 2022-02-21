@@ -191,6 +191,13 @@ void SCalcContext::setup_builtin_functions_and_constants()
 C_MATH_DOUBLE2DOUBLE_FUNC_LIST
 #undef CMENTRY
 
+    this->_funcs["fmod"] = make_shared<SCalcBuiltinFunction>(
+        [](const vector<double>& params) {
+            if (params.size() != 2)
+                throw SCalcBadFunctionArgumentCount();
+            return ::fmod(params[0], params[1]);
+        });
+
     this->_funcs["sum"] = make_shared<SCalcBuiltinFunction>(
         [](const vector<double>& params) {
             double ret = 0;

@@ -122,7 +122,7 @@ double BinaryOperatorExpr::evaluate()
     case BinaryOperatorType::DIVISION:
         return l / r;
     case BinaryOperatorType::REMAINDER:
-        return (long)l % (long)r;
+        return ::fmod(l, r);
     case BinaryOperatorType::CARET:
         return ::pow(l, r);
     case BinaryOperatorType::LESSTHAN:

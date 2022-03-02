@@ -52,13 +52,13 @@ private:
                 auto& bg2 = sm->high >= bg->high ? sm : bg;
                 result.push_back(NodeNFAEntry(sm2->low, sm2->high, std::move(sm2->state)));
                 result.back().state.insert(bg2->state.begin(), bg2->state.end());
-                sm2++;
 
                 if (sm2->high + 1 <= bg2->high) {
                     bg2->low = (char_type)(sm->high + 1);
                 } else {
                     bg2++;
                 }
+                sm2++;
             }
         }
 
@@ -114,10 +114,9 @@ public:
             auto& entries = m.second;
             auto& new_entries = transitions[state];
             for (auto& entry : entries) {
-                auto& new_entry = new_entries.emplace_back();
-                new_entry.state = query_state_set(entry.state);
-                new_entry.low = entry.low;
-                new_entry.high = entry.high;
+                assert(entry.low <= entry.high);
+                auto new_state = query_state_set(entry.state);
+                new_entries.emplace_back(entry.low, entry.high, new_state);
             }
         }
 
@@ -167,6 +166,7 @@ public:
 
     void add_link(NFAState_t from, std::set<NFAState_t> to, char_type low, char_type high)
     {
+        assert(low <= high);
         this->merge_with(from, { NodeNFAEntry(low, high, to) });
     }
 

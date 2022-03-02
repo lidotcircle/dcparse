@@ -36,11 +36,8 @@ NodeNFA<CharT> RegexDFA<CharT>::toNodeNFA() const
             if (this->m_dead_states.find(e.state) != this->m_dead_states.end())
                 continue;
 
-            NodeNFAEntry ne;
-            ne.state = { e.state };
-            ne.low = e.low;
-            ne.high = e.high;
-            table[s].push_back(ne);
+            NodeNFAEntry ne(e.low, e.high, {e.state});
+            table[s].push_back(std::move(ne));
         }
     }
 

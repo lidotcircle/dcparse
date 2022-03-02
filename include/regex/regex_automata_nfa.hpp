@@ -24,11 +24,16 @@ public:
         char_type low, high;
         std::set<NFAState_t> state;
 
-        NFAEntry() = default;
-        NFAEntry(char_type low, char_type high): low(low), high(high) {}
+        NFAEntry() = delete;
+        NFAEntry(char_type low, char_type high): low(low), high(high)
+        {
+            assert(low <= high);
+        }
         NFAEntry(char_type low, char_type high, std::set<NFAState_t> states):
             low(low), high(high), state(std::move(states))
-        {}
+        {
+            assert(low <= high);
+        }
     };
     using NFATransitionTable = std::vector<std::vector<NFAEntry>>;
 

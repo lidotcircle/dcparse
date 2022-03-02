@@ -13,6 +13,7 @@ set_property(TARGET dcparse PROPERTY CXX_STANDARD 17)
 target_include_directories(dcparse PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
 
 add_subdirectory("example")
+add_subdirectory("cparser")
 
 # testing
 enable_testing()

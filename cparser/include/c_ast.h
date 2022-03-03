@@ -52,38 +52,38 @@ public:
 
 class ASTNodeExprIdentifier: public ASTNodeExpr {
 private:
-    TokenID m_id;
+    std::shared_ptr<TokenID> m_id;
 
 public:
-    inline ASTNodeExprIdentifier(ASTNodeParserContext p, TokenID id): ASTNodeExpr(p), m_id(id) {}
-    inline TokenID id() { return this->m_id; }
+    inline ASTNodeExprIdentifier(ASTNodeParserContext p, std::shared_ptr<TokenID> id): ASTNodeExpr(p), m_id(id) {}
+    inline std::shared_ptr<TokenID> id() { return this->m_id; }
 };
 
 class ASTNodeExprString: public ASTNodeExpr {
 private:
-    TokenStringLiteral m_token;
+    std::shared_ptr<TokenStringLiteral> m_token;
 
 public:
-    inline ASTNodeExprString(ASTNodeParserContext p, TokenStringLiteral str): ASTNodeExpr(p), m_token(str) {}
-    inline TokenStringLiteral token() { return this->m_token; }
+    inline ASTNodeExprString(ASTNodeParserContext p, std::shared_ptr<TokenStringLiteral> str): ASTNodeExpr(p), m_token(str) {}
+    inline std::shared_ptr<TokenStringLiteral> token() { return this->m_token; }
 };
 
 class ASTNodeExprInteger: public ASTNodeExpr {
 private:
-    TokenConstantInteger m_token;
+    std::shared_ptr<TokenConstantInteger> m_token;
 
 public:
-    inline ASTNodeExprInteger(ASTNodeParserContext p, TokenConstantInteger val): ASTNodeExpr(p), m_token(val) {}
-    inline TokenConstantInteger token() { return this->m_token; }
+    inline ASTNodeExprInteger(ASTNodeParserContext p, std::shared_ptr<TokenConstantInteger> val): ASTNodeExpr(p), m_token(val) {}
+    inline std::shared_ptr<TokenConstantInteger> token() { return this->m_token; }
 };
 
 class ASTNodeExprFloat: public ASTNodeExpr {
 private:
-    TokenConstantFloat m_token;
+    std::shared_ptr<TokenConstantFloat> m_token;
 
 public:
-    inline ASTNodeExprFloat(ASTNodeParserContext p, TokenConstantFloat val): ASTNodeExpr(p), m_token(val) {}
-    inline TokenConstantFloat token() { return this->m_token; }
+    inline ASTNodeExprFloat(ASTNodeParserContext p, std::shared_ptr<TokenConstantFloat> val): ASTNodeExpr(p), m_token(val) {}
+    inline std::shared_ptr<TokenConstantFloat> token() { return this->m_token; }
 };
 
 class ASTNodeExprIndexing: public ASTNodeExpr {
@@ -135,29 +135,29 @@ public:
 class ASTNodeExprMemberAccess: public ASTNodeExpr {
 private:
     std::shared_ptr<ASTNodeExpr> m_obj;
-    TokenID m_member;
+    std::shared_ptr<TokenID> m_member;
 
 public:
     inline ASTNodeExprMemberAccess(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> obj,
-            TokenID member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
+            std::shared_ptr<TokenID> member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
     inline std::shared_ptr<ASTNodeExpr> obj() { return this->m_obj; }
-    inline TokenID member() { return this->m_member; }
+    inline std::shared_ptr<TokenID> member() { return this->m_member; }
 };
 
 class ASTNodeExprPointerMemberAccess: public ASTNodeExpr {
 private:
     std::shared_ptr<ASTNodeExpr> m_obj;
-    TokenID m_member;
+    std::shared_ptr<TokenID> m_member;
 
 public:
     inline ASTNodeExprPointerMemberAccess(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> obj,
-            TokenID member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
+            std::shared_ptr<TokenID> member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
     inline std::shared_ptr<ASTNodeExpr> obj() { return this->m_obj; }
-    inline TokenID member() { return this->m_member; }
+    inline std::shared_ptr<TokenID> member() { return this->m_member; }
 };
 
 class ASTNodeExprInitializer: public ASTNodeExpr {
@@ -462,13 +462,13 @@ public:
 
 class ASTNodeTypeSpecifierBuiltin: public ASTNodeTypeSpecifier {
 private:
-    TokenID m_type;
+    std::shared_ptr<TokenID> m_type;
 
 public:
     inline ASTNodeTypeSpecifierBuiltin(
             ASTNodeParserContext c,
-            TokenID type): ASTNodeTypeSpecifier(c), m_type(type) {}
-    inline TokenID type() { return this->m_type; }
+            std::shared_ptr<TokenID> type): ASTNodeTypeSpecifier(c), m_type(type) {}
+    inline std::shared_ptr<TokenID> type() { return this->m_type; }
 };
 
 class ASTNodeTypeSpecifierStruct: public ASTNodeTypeSpecifier {
@@ -529,13 +529,13 @@ public:
 
 class ASTNodeStatLabel: public ASTNodeStat {
 private:
-    TokenID m_label;
+    std::shared_ptr<TokenID> m_label;
     std::shared_ptr<ASTNodeStat> m_stat;
 
 public:
     ASTNodeStatLabel(
             ASTNodeParserContext c,
-            TokenID label,
+            std::shared_ptr<TokenID> label,
             std::shared_ptr<ASTNodeStat> stat):
         ASTNodeStat(c), m_label(label), m_stat(stat) {}
 };
@@ -714,12 +714,12 @@ public:
 class ASTNodeStatGoto: public ASTNodeStat
 {
 private:
-    TokenID _label;
+    std::shared_ptr<TokenID> _label;
 
 public:
     inline ASTNodeStatGoto(
             ASTNodeParserContext c,
-            TokenID label):
+            std::shared_ptr<TokenID> label):
         ASTNodeStat(c), _label(label) {}
 };
 

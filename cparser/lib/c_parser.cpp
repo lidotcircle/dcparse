@@ -203,10 +203,14 @@ void CParser::expression_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 4);
             auto expr = dynamic_pointer_cast<NonTermEXPRESSION>(ts[0]);
-            assert(expr);
+            assert(expr && expr->astnode);
+            auto exprast = dynamic_pointer_cast<ASTNodeExpr>(expr->astnode);
+            assert(exprast);
             auto index = dynamic_pointer_cast<NonTermEXPRESSION>(ts[2]);
-            assert(index);
-            auto ast = make_shared<ASTNodeExprIndexing>(c, expr, index);
+            assert(index && index->astnode);
+            auto indexast = dynamic_pointer_cast<ASTNodeExpr>(index->astnode);
+            assert(indexast);
+            auto ast = make_shared<ASTNodeExprIndexing>(c, exprast, indexast);
             return make_shared<NonTermEXPRESSION>(ast);
         }, RuleAssocitiveLeft);
 
@@ -215,15 +219,17 @@ void CParser::expression_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 4);
             auto func = dynamic_pointer_cast<NonTermEXPRESSION>(ts[0]);
-            assert(func);
+            assert(func && func->astnode);
+            auto funcast = dynamic_pointer_cast<ASTNodeExpr>(func->astnode);
+            assert(funcast);
             auto args = dynamic_pointer_cast<NonTermARGUMENT_EXPRESSION_LIST>(ts[2]);
-            auto argsast = make_shared<ASTNodeArgList>(c, args);
+            auto argsast = make_shared<ASTNodeArgList>(c);
             if (args) {
                 auto ax = dynamic_pointer_cast<ASTNodeArgList>(args->astnode);
                 assert(ax);
                 argsast = ax;
             }
-            auto ast = make_shared<ASTNodeExprFunctionCall>(c, func, argsast);
+            auto ast = make_shared<ASTNodeExprFunctionCall>(c, funcast, argsast);
             return make_shared<NonTermEXPRESSION>(ast);
         }, RuleAssocitiveLeft);
 
@@ -232,10 +238,12 @@ void CParser::expression_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             auto expr = dynamic_pointer_cast<NonTermEXPRESSION>(ts[0]);
-            assert(expr);
+            assert(expr && expr->astnode);
+            auto exprast = dynamic_pointer_cast<ASTNodeExpr>(expr->astnode);
+            assert(exprast);
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
-            auto ast = make_shared<ASTNodeExprMemberAccess>(c, expr, id);
+            auto ast = make_shared<ASTNodeExprMemberAccess>(c, exprast, id);
             return make_shared<NonTermEXPRESSION>(ast);
         }, RuleAssocitiveLeft);
 
@@ -244,10 +252,12 @@ void CParser::expression_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             auto expr = dynamic_pointer_cast<NonTermEXPRESSION>(ts[0]);
-            assert(expr);
+            assert(expr && expr->astnode);
+            auto exprast = dynamic_pointer_cast<ASTNodeExpr>(expr->astnode);
+            assert(exprast);
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
-            auto ast = make_shared<ASTNodeExprPointerMemberAccess>(c, expr, id);
+            auto ast = make_shared<ASTNodeExprPointerMemberAccess>(c, exprast, id);
             return make_shared<NonTermEXPRESSION>(ast);
         }, RuleAssocitiveLeft);
 

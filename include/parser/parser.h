@@ -45,6 +45,13 @@ public:
         virtual ~DCParserContext() = default;
     };
 
+    class RuleDecision {
+    public:
+        virtual bool decide(DCParserContext& context, const std::vector<dnonterm_t>&, const dctoken_t& token) = 0;
+        virtual ~RuleDecision() = default;
+    };
+    using decision_t = std::shared_ptr<RuleDecision>;
+
     using charid_t = size_t;
     using ruleid_t = size_t;
     using state_t  = size_t;
@@ -90,6 +97,33 @@ private:
     std::set<charid_t> m_symbols;
     std::set<charid_t> m_start_symbols;
     size_t m_priority;
+
+    class StateAllocator {
+    private:
+        state_t m_next_state;
+        std::map<std::set<state_t>,state_t> m_state_map;
+
+    public:
+        StateAllocator(): m_next_state(0) {}
+
+        StateAllocator(const StateAllocator&) = delete;
+        StateAllocator& operator=(const StateAllocator&) = delete;
+        StateAllocator(StateAllocator&&) = delete;
+        StateAllocator& operator=(StateAllocator&&) = delete;
+
+        inline state_t query(const std::set<state_t>& states)
+        {
+            auto it = this->m_state_map.find(states);
+            if (it != this->m_state_map.end()) {
+                return it->second;
+            }
+            auto new_state = this->m_next_state++;
+            this->m_state_map[states] = new_state;
+            return new_state;
+        }
+
+        inline size_t max_state() const { return this->m_next_state; }
+    };
 
     std::shared_ptr<PushdownStateMapping> m_pds_mapping;
     std::optional<state_t> m_start_state;
@@ -137,7 +171,8 @@ private:
 
     int  add_rule_internal(charid_t leftside, 
                            std::vector<charid_t> rightside, std::vector<bool> optional,
-                           reduce_callback_t reduce_cb, RuleAssocitive associative);
+                           reduce_callback_t reduce_cb, RuleAssocitive associative,
+                           decision_t decision);
 
 public:
     DCParser();
@@ -153,7 +188,9 @@ public:
     inline void setDebugStream(std::ostream& stream) { this->h_debug_stream = &stream; }
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
-                  reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
+                  reduce_callback_t reduce_cb,
+                  RuleAssocitive associative = RuleAssocitiveLeft,
+                  decision_t decision = nullptr);
 
     DCParser& operator()(DCharInfo leftside, std::vector<ParserChar> rightside,
                          reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);

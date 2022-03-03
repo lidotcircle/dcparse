@@ -12,6 +12,7 @@ using charid_t = DCParser::charid_t;
 using ruleid_t = DCParser::ruleid_t;
 using state_t  = DCParser::state_t;
 using reduce_callback_t = DCParser::reduce_callback_t;
+using decision_t = DCParser::decision_t;
 
 struct EOFChar: public LexerToken {
     EOFChar(): LexerToken(TokenInfo()) {}
@@ -26,8 +27,9 @@ struct RealStartSymbol: public NonTerminal {
 };
 
 struct RuleOption {
-    size_t            priority;
-    RuleAssocitive    associtive;
+    size_t         priority;
+    RuleAssocitive associtive;
+    decision_t     decision;
 };
 
 struct PushdownEntry;
@@ -296,7 +298,8 @@ void DCParser::dec_priority() { this->m_priority++; }
 int DCParser::add_rule_internal(
         charid_t lh, vector<charid_t> rh, vector<bool> rhop,
         reduce_callback_t cb,
-        RuleAssocitive associtive)
+        RuleAssocitive associtive,
+        decision_t decision)
 {
     assert(!this->m_real_start_symbol.has_value());
 
@@ -327,6 +330,7 @@ int DCParser::add_rule_internal(
 
     ri.m_rule_option->associtive = associtive;
     ri.m_rule_option->priority = this->m_priority;
+    ri.m_rule_option->decision = decision;
 
     this->m_rules.push_back(ri);
     return this->m_rules.size() - 1;
@@ -421,7 +425,8 @@ string DCParser::help_when_reject_at(state_t state, charid_t char_) const
 
 void DCParser::add_rule(
         DCharInfo leftside, std::vector<ParserChar> rightside,
-        reduce_callback_t reduce_cb, RuleAssocitive associative)
+        reduce_callback_t reduce_cb, RuleAssocitive associative,
+        decision_t decision)
 {
     this->see_dchar(leftside);
     for (auto& rh: rightside)
@@ -457,7 +462,11 @@ void DCParser::add_rule(
     }
 
     for (auto& rset: rightsides)
-        this->add_rule_internal(leftside.id, rset.first, rset.second, reduce_cb, associative);
+    {
+        this->add_rule_internal(
+                leftside.id, rset.first, rset.second,
+                reduce_cb, associative, decision);
+    }
 }
 
 

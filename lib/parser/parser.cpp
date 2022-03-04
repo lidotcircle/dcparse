@@ -26,10 +26,14 @@ struct RealStartSymbol: public NonTerminal {
     RealStartSymbol(shared_ptr<NonTerminal> sym): sym(sym) {}
 };
 
+bool DCParser::RuleDecision::decide_on_pos(size_t pos) const { return false; }
+bool DCParser::RuleDecision::decide_on_end() const { return true; }
+
 struct RuleOption {
     size_t         priority;
     RuleAssocitive associtive;
     decision_t     decision;
+    set<size_t>    decision_pos;
 };
 
 struct PushdownEntry;
@@ -52,6 +56,12 @@ public:
         STATE_TYPE_REDUCE,
         STATE_TYPE_LOOKAHEAD,
         STATE_TYPE_REJECT,
+        STATE_TYPE_DECISION,
+    };
+
+    struct decision_info_t {
+        vector<pair<ruleid_t,size_t>> evals;
+        map<set<pair<ruleid_t,size_t>>,shared_ptr<PushdownEntry>> action;
     };
 
 private:
@@ -60,6 +70,7 @@ private:
         state_t state;
         ruleid_t rule;
         shared_ptr<PushdownStateLookup> next;
+        shared_ptr<decision_info_t> decision_info;
 
         MM(): state(0) {}
         ~MM() {}
@@ -74,6 +85,11 @@ private:
         : _type(STATE_TYPE_LOOKAHEAD)
     {
         new(&_u.next) shared_ptr<PushdownStateLookup>(next);
+    }
+    PushdownEntry(shared_ptr<decision_info_t> decision_info)
+        : _type(STATE_TYPE_DECISION)
+    {
+        new(&_u.decision_info) shared_ptr<decision_info_t>(decision_info);
     }
 
 
@@ -96,6 +112,9 @@ public:
             break;
         case STATE_TYPE_REJECT:
             break;
+        case STATE_TYPE_DECISION:
+            new(&this->_u.decision_info) shared_ptr<decision_info_t>(other._u.decision_info);
+            break;
         }
     }
 
@@ -103,6 +122,8 @@ public:
     {
         if (this->type() == STATE_TYPE_LOOKAHEAD) {
             this->_u.next.~shared_ptr<PushdownStateLookup>();
+        } else if (this->type() == STATE_TYPE_DECISION) {
+            this->_u.decision_info.~shared_ptr<decision_info_t>();
         }
 
         this->_type = other._type;
@@ -117,6 +138,9 @@ public:
             new(&this->_u.next) shared_ptr<PushdownStateLookup>(other._u.next);
             break;
         case STATE_TYPE_REJECT:
+            break;
+        case STATE_TYPE_DECISION:
+            new(&this->_u.decision_info) shared_ptr<decision_info_t>(other._u.decision_info);
             break;
         }
 
@@ -143,6 +167,16 @@ public:
         return this->_u.next;
     }
 
+    const shared_ptr<decision_info_t> decision() const {
+        assert(this->type() == STATE_TYPE_DECISION);
+        return this->_u.decision_info;
+    }
+
+    shared_ptr<decision_info_t> decision() {
+        assert(this->type() == STATE_TYPE_DECISION);
+        return this->_u.decision_info;
+    }
+
     static shared_ptr<PushdownEntry> shift(state_t state)
     {
         return shared_ptr<PushdownEntry>(new PushdownEntry(state, StateTypeH()));
@@ -159,11 +193,17 @@ public:
     {
         return shared_ptr<PushdownEntry>(new PushdownEntry());
     }
+    static shared_ptr<PushdownEntry> decide(decision_info_t decision_info)
+    {
+        return shared_ptr<PushdownEntry>(new PushdownEntry(make_shared<decision_info_t>(move(decision_info))));
+    }
 
     ~PushdownEntry()
     {
         if (this->type() == STATE_TYPE_LOOKAHEAD) {
             this->_u.next.~shared_ptr<PushdownStateLookup>();
+        } else if (this->type() == STATE_TYPE_DECISION) {
+            this->_u.decision_info.~shared_ptr<decision_info_t>();
         }
     }
 };
@@ -311,7 +351,7 @@ int DCParser::add_rule_internal(
         charid_t lh, vector<charid_t> rh, vector<bool> rhop,
         reduce_callback_t cb,
         RuleAssocitive associtive,
-        decision_t decision)
+        decision_t decision, set<size_t> positions)
 {
     assert(!this->m_real_start_symbol.has_value());
 
@@ -343,6 +383,7 @@ int DCParser::add_rule_internal(
     ri.m_rule_option->associtive = associtive;
     ri.m_rule_option->priority = this->m_priority;
     ri.m_rule_option->decision = decision;
+    ri.m_rule_option->decision_pos = move(positions);
 
     this->m_rules.push_back(ri);
     return this->m_rules.size() - 1;
@@ -444,49 +485,82 @@ void DCParser::add_rule(
     for (auto& rh: rightside)
         this->see_dchar(rh.info());
 
-    vector<pair<vector<charid_t>,vector<bool>>> rightsides = { { {}, {} } };
+    vector<pair<vector<charid_t>,vector<bool>>> _rightsides = { { {}, {} } };
     const auto doubleit = [&]() {
-        const auto size =rightsides.size();
+        const auto size =_rightsides.size();
 
         for (size_t i=0;i<size;i++)
-            rightsides.push_back(rightsides[i]);
+            _rightsides.push_back(_rightsides[i]);
     };
 
     for (auto& rt: rightside) {
         if (rt.optional()) {
             doubleit();
-            assert(rightsides.size() % 2 == 0);
+            assert(_rightsides.size() % 2 == 0);
 
-            const auto half = rightsides.size() / 2;
+            const auto half = _rightsides.size() / 2;
             for (size_t i=0;i<half;i++) {
-                rightsides[i].first.push_back(rt.cid());
-                rightsides[i].second.push_back(false);
+                _rightsides[i].first.push_back(rt.cid());
+                _rightsides[i].second.push_back(false);
             }
-            for (size_t i=half;i<rightsides.size();i++) {
-                rightsides[i].second.push_back(true);
+            for (size_t i=half;i<_rightsides.size();i++) {
+                _rightsides[i].second.push_back(true);
             }
         } else {
-            for (auto& rset: rightsides) {
+            for (auto& rset: _rightsides) {
                 rset.first.push_back(rt.cid());
                 rset.second.push_back(false);
             }
         }
     }
 
-    for (auto& rset: rightsides)
+    set<size_t> pos;
+    if (decision) {
+        for (size_t i=0;i<rightside.size();i++) {
+            if (decision->decide_on_pos(i))
+                pos.insert(i);
+        }
+
+        if (decision->decide_on_end())
+            pos.insert(rightside.size());
+    }
+
+    for (auto& rset: _rightsides)
     {
+        set<size_t> lpos;
+
+        for (auto& p: pos) {
+            if (p == 0) {
+                lpos.insert(p);
+                continue;
+            }
+
+            assert(p <= rset.second.size());
+            if (rset.second[p-1])
+                continue;
+
+            size_t u = 0;
+            for (size_t i=0;i<p;i++) {
+                if (!rset.second[i])
+                    u++;
+            }
+            assert(u > 0);
+            lpos.insert(u);
+        }
+
         this->add_rule_internal(
                 leftside.id, rset.first, rset.second,
-                reduce_cb, associative, decision);
+                reduce_cb, associative, decision, lpos);
     }
 }
 
 
 DCParser& DCParser::operator()(DCharInfo lh, vector<ParserChar> rh,
                                reduce_callback_t cb,
-                               RuleAssocitive associtive)
+                               RuleAssocitive associtive,
+                               decision_t decision)
 {
-    this->add_rule(lh, rh, cb, associtive);
+    this->add_rule(lh, rh, cb, associtive, decision);
     return *this;
 }
 
@@ -518,7 +592,7 @@ void DCParser::setup_real_start_symbol()
                             auto val = dynamic_pointer_cast<NonTerminal>(rn[0]);
                             assert(val);
                             return make_shared<RealStartSymbol>(val);
-                        });
+                        }, RuleAssocitiveLeft, nullptr);
     }
 
     this->m_real_start_symbol = start_sym.id;
@@ -549,7 +623,8 @@ void DCParser::generate_table()
 
         for (auto ch: this->m_symbols) {
             set<set<pair<ruleid_t,size_t>>> next_states;
-            auto action = this->state_action(s, ch, sallocator, next_states);
+            auto s_next = this->stateset_move(s, ch);
+            auto action = this->state_action(s_next, true, sallocator, next_states);
             assert(action);
             state_mapping[ch] = move(*action);
 
@@ -574,12 +649,45 @@ void DCParser::generate_table()
 }
 
 shared_ptr<PushdownEntry> 
-DCParser::state_action(set<pair<ruleid_t,size_t>> s, charid_t ch,
+DCParser::state_action(set<pair<ruleid_t,size_t>> s_next,
+                       bool evaluate_decision,
                        SetStateAllocator<pair<ruleid_t,size_t>>& sallocator,
                        set<set<pair<ruleid_t,size_t>>>& next_states)
 {
     assert(next_states.empty());
-    auto s_next = this->stateset_move(s, ch);
+    vector<pair<ruleid_t,size_t>> require_eval;
+    for (const auto& s: s_next) {
+        const auto& rule = this->m_rules[s.first];
+        const auto& pos = rule.m_rule_option->decision_pos;
+        if (pos.find(s.second) != pos.end())
+            require_eval.push_back(s);
+    }
+
+    // Eval Action
+    if (evaluate_decision && !require_eval.empty())
+    {
+        assert(require_eval.size() <= 12 && "too many conditions to evaluate");
+        PushdownEntry::decision_info_t decision_info;
+        decision_info.evals = require_eval;
+        auto& eval_action = decision_info.action;
+
+        SubsetOf<pair<ruleid_t,size_t>> 
+            e_require_eval(set<pair<ruleid_t,size_t>>(require_eval.begin(), require_eval.end()));
+
+        for (auto s=e_require_eval();s.has_value();s=e_require_eval())
+        {
+            auto snn = s_next;
+            for (auto& r: s.value())
+                snn.erase(r);
+
+            set<set<pair<ruleid_t,size_t>>> nx;
+            auto action = this->state_action(snn, false, sallocator, nx);
+            next_states.insert(nx.begin(), nx.end());
+            eval_action[s.value()] = action;
+        }
+
+        return PushdownEntry::decide(move(decision_info));
+    }
 
     // REJECT
     if (s_next.empty())
@@ -884,10 +992,13 @@ optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
 
     auto nonterm = rule.m_reduce_callback(this->m_context, rhs_tokens_with_optional);
     if (nonterm == nullptr)
-        throw ParserError("expect a valid token, but get nullptr");
+        throw ParserError("ReduceCallback: expect a valid token, but get nullptr");
 
-    if (nonterm->charid() != rule.m_lhs)
-        throw ParserError("expect a valid token, but get a token with different charid");
+    if (nonterm->charid() != rule.m_lhs) {
+        const string get = this->get_dchar(nonterm->charid()).name;
+        const string expect = this->get_dchar(rule.m_lhs).name;
+        throw ParserError("ReduceCallback: expect a valid token, but get a token with different charid, get: " + get + ", expect: " + expect);
+    }
 
     if (this->h_debug_stream != nullptr) {
         *this->h_debug_stream << "    do_reduce: "
@@ -911,7 +1022,10 @@ optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)
     assert(!this->p_state_stack.empty());
 
     const auto cstate = this->p_state_stack.back();
-    auto ptoken = this->p_not_finished.value();
+    auto nf = this->p_not_finished.value();
+    auto ptoken = nf.first;
+    const auto& entry = *nf.second;
+    assert(entry.type() == PushdownEntry::STATE_TYPE_LOOKAHEAD);
     auto& mapping = this->m_pds_mapping->val;
 
     if (this->h_debug_stream) {
@@ -926,9 +1040,6 @@ optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)
     const auto charid = ptoken->charid();
     if (lookup.find(charid) == lookup.end())
         throw ParserUnknownToken("handle_lookahead(): unknown char: " + string(ptoken->charname()));
-
-    const auto& entry = lookup.at(charid);
-    assert(entry.type() == PushdownEntry::STATE_TYPE_LOOKAHEAD);
 
     const auto& state_lookup = entry.lookup();
     if (state_lookup->find(token->charid()) == state_lookup->end())
@@ -967,8 +1078,58 @@ void DCParser::feed_internal(dchar_t char_)
     if (lookup.find(charid) == lookup.end())
         throw ParserUnknownToken("feed_internal(): unknown char: " + string(char_->charname()));
 
-    const auto& entry = lookup.at(charid);
+    const auto& _entry = lookup.at(charid);
+    const PushdownEntry* ptrentry = &_entry;
 
+    if (_entry.type() == PushdownEntry::STATE_TYPE_DECISION)
+    {
+        auto decision = _entry.decision();
+        set<pair<ruleid_t,size_t>> eliminated_rules;
+
+        for (auto& ev: decision->evals) {
+            assert(ev.first < this->m_rules.size());
+            auto& rule = this->m_rules[ev.first];
+            assert(ev.second <= rule.m_rhs.size());
+            assert(rule.m_rule_option->decision_pos.find(ev.second) != 
+                   rule.m_rule_option->decision_pos.end());
+
+            vector<dchar_t> rhs_tokens;
+            assert(this->p_char_stack.size() + 1 >= ev.second);
+            if (ev.second > 1) {
+                rhs_tokens.resize(ev.second - 1);
+                std::copy(this->p_char_stack.end() - (ev.second - 1),
+                          this->p_char_stack.end(),
+                          rhs_tokens.begin());
+            }
+            if (ev.second > 0)
+                rhs_tokens.push_back(char_);
+
+            vector<dchar_t> rhs_tokens_with_optional;
+            size_t vn = 0;
+            for (size_t vn=0,vo=0; vn<rhs_tokens.size(); ++vo) {
+                assert(vo < rule.m_rhs_optional.size());
+                const auto opt = rule.m_rhs_optional[vo];
+
+                if (opt) {
+                    rhs_tokens_with_optional.push_back(nullptr);
+                } else {
+                    rhs_tokens_with_optional.push_back(rhs_tokens[vn++]);
+                }
+            }
+
+            auto decision = rule.m_rule_option->decision;
+            assert(decision);
+
+            if (!decision->decide(*this->getContext(), rhs_tokens_with_optional))
+                eliminated_rules.insert(ev);
+        }
+
+        const auto& action = decision->action;
+        assert(action.find(eliminated_rules) != action.end());
+        ptrentry = action.at(eliminated_rules).get();
+    }
+
+    const auto& entry = *ptrentry;
     switch (entry.type()) {
         case PushdownEntry::STATE_TYPE_SHIFT:
             this->do_shift(entry.state(), char_);
@@ -979,7 +1140,7 @@ void DCParser::feed_internal(dchar_t char_)
                 this->feed_internal(nc.value());
          }  break;
         case PushdownEntry::STATE_TYPE_LOOKAHEAD:
-            this->p_not_finished = char_;
+            this->p_not_finished = make_pair(char_,&entry);
             if (this->h_debug_stream) {
                 *this->h_debug_stream << "    require lookahead" << endl;
             }
@@ -1073,4 +1234,21 @@ void DCParser::reset()
     this->p_char_stack.clear();
     this->p_state_stack.clear();
     this->p_not_finished = nullopt;
+}
+
+
+RuleDecisionFunction::RuleDecisionFunction(decider_t decider, std::set<size_t> positions, bool on_end):
+    m_decider(decider), m_positions(positions), m_on_end(on_end)
+{
+}
+
+bool RuleDecisionFunction::decide_on_pos(size_t pos) const {
+    return this->m_positions.find(pos) != this->m_positions.end();
+}
+bool RuleDecisionFunction::decide_on_end() const {
+    return this->m_on_end;
+}
+bool RuleDecisionFunction::decide(DCParserContext& ctx, const vector<dchar_t>& cx)
+{
+    return this->m_decider(ctx, cx);
 }

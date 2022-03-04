@@ -48,7 +48,9 @@ public:
 
     class RuleDecision {
     public:
-        virtual bool decide(DCParserContext& context, const std::vector<dnonterm_t>&, const dctoken_t& token) = 0;
+        virtual bool decide_on_pos(size_t pos) const;
+        virtual bool decide_on_end() const;
+        virtual bool decide(DCParserContext& context, const std::vector<dchar_t>& vx) = 0;
         virtual ~RuleDecision() = default;
     };
     using decision_t = std::shared_ptr<RuleDecision>;
@@ -140,7 +142,8 @@ private:
     };
 
     std::shared_ptr<PushdownEntry>
-        state_action(std::set<std::pair<ruleid_t,size_t>> state, charid_t cid,
+        state_action(std::set<std::pair<ruleid_t,size_t>> state,
+                     bool evaluate_decision,
                      SetStateAllocator<std::pair<ruleid_t,size_t>>& state_allocator,
                      std::set<std::set<std::pair<ruleid_t,size_t>>>& new_state_set);
 
@@ -157,7 +160,7 @@ private:
 
     std::vector<state_t> p_state_stack;
     std::vector<dchar_t> p_char_stack;
-    std::optional<dchar_t> p_not_finished;
+    std::optional<std::pair<dchar_t,const PushdownEntry*>> p_not_finished;
 
     std::optional<charid_t> m_real_start_symbol;
     void setup_real_start_symbol();
@@ -191,7 +194,7 @@ private:
     int  add_rule_internal(charid_t leftside, 
                            std::vector<charid_t> rightside, std::vector<bool> optional,
                            reduce_callback_t reduce_cb, RuleAssocitive associative,
-                           decision_t decision);
+                           decision_t decision, std::set<size_t> positions);
 
 public:
     DCParser();
@@ -208,11 +211,12 @@ public:
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb,
-                  RuleAssocitive associative = RuleAssocitiveLeft,
-                  decision_t decision = nullptr);
+                  RuleAssocitive associative,
+                  decision_t decision);
 
     DCParser& operator()(DCharInfo leftside, std::vector<ParserChar> rightside,
-                         reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft);
+                         reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft,
+                         decision_t decision = nullptr);
 
     void add_start_symbol(charid_t start);
 
@@ -242,5 +246,24 @@ public:
 };
 
 using ParserChar = DCParser::ParserChar;
+
+class RuleDecisionFunction : public DCParser::RuleDecision 
+{
+public:
+    using DCParserContext = typename DCParser::DCParserContext;
+    using decider_t = std::function<bool(DCParserContext& context, const std::vector<dchar_t>& vx)>;
+
+private:
+    decider_t m_decider;
+    std::set<size_t> m_positions;
+    bool m_on_end;
+
+public:
+    RuleDecisionFunction(decider_t decider, std::set<size_t> positions = {}, bool on_end = true);
+
+    virtual bool decide_on_pos(size_t pos) const override;
+    virtual bool decide_on_end() const override;
+    virtual bool decide(DCParserContext& context, const std::vector<dchar_t>& vx) override;
+};
 
 #endif // _DC_PARSER_HPP_

@@ -26,6 +26,7 @@ enum RuleAssocitive {
     RuleAssocitiveRight,
 };
 struct PushdownStateMapping;
+struct PushdownEntry;
 
 class DCParser {
 public:
@@ -98,20 +99,28 @@ private:
     std::set<charid_t> m_start_symbols;
     size_t m_priority;
 
-    class StateAllocator {
+    template<typename T>
+    class SetStateAllocator {
     private:
+        using setelem = T;
         state_t m_next_state;
-        std::map<std::set<state_t>,state_t> m_state_map;
+        std::map<std::set<setelem>,state_t> m_state_map;
 
     public:
-        StateAllocator(): m_next_state(0) {}
+        SetStateAllocator(): m_next_state(0) {}
 
-        StateAllocator(const StateAllocator&) = delete;
-        StateAllocator& operator=(const StateAllocator&) = delete;
-        StateAllocator(StateAllocator&&) = delete;
-        StateAllocator& operator=(StateAllocator&&) = delete;
+        SetStateAllocator(const SetStateAllocator&) = delete;
 
-        inline state_t query(const std::set<state_t>& states)
+        SetStateAllocator& operator=(const SetStateAllocator&) = delete;
+        SetStateAllocator(SetStateAllocator&&) = delete;
+        SetStateAllocator& operator=(SetStateAllocator&&) = delete;
+
+        const std::map<std::set<setelem>,state_t>& themap() const
+        {
+            return this->m_state_map; 
+        }
+
+        state_t query(const std::set<setelem>& states)
         {
             auto it = this->m_state_map.find(states);
             if (it != this->m_state_map.end()) {
@@ -122,8 +131,18 @@ private:
             return new_state;
         }
 
-        inline size_t max_state() const { return this->m_next_state; }
+        state_t operator()(const std::set<setelem>& states)
+        {
+            return this->query(states);
+        }
+
+        size_t max_state() const { return this->m_next_state; }
     };
+
+    std::shared_ptr<PushdownEntry>
+        state_action(std::set<std::pair<ruleid_t,size_t>> state, charid_t cid,
+                     SetStateAllocator<std::pair<ruleid_t,size_t>>& state_allocator,
+                     std::set<std::set<std::pair<ruleid_t,size_t>>>& new_state_set);
 
     std::shared_ptr<PushdownStateMapping> m_pds_mapping;
     std::optional<state_t> m_start_state;

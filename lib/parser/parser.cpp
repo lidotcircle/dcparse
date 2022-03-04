@@ -143,10 +143,22 @@ public:
         return this->_u.next;
     }
 
-    static PushdownEntry shift(state_t state) { return PushdownEntry(state, StateTypeH()); }
-    static PushdownEntry reduce(ruleid_t rule) { return PushdownEntry(rule, RuleTypeH()); }
-    static PushdownEntry lookahead(shared_ptr<PushdownStateLookup> next) { return PushdownEntry(next); }
-    static PushdownEntry reject() { return PushdownEntry(); }
+    static shared_ptr<PushdownEntry> shift(state_t state)
+    {
+        return shared_ptr<PushdownEntry>(new PushdownEntry(state, StateTypeH()));
+    }
+    static shared_ptr<PushdownEntry> reduce(ruleid_t rule)
+    {
+        return shared_ptr<PushdownEntry>(new PushdownEntry(rule, RuleTypeH()));
+    }
+    static shared_ptr<PushdownEntry> lookahead(shared_ptr<PushdownStateLookup> next)
+    {
+        return shared_ptr<PushdownEntry>(new PushdownEntry(next));
+    }
+    static shared_ptr<PushdownEntry> reject()
+    {
+        return shared_ptr<PushdownEntry>(new PushdownEntry());
+    }
 
     ~PushdownEntry()
     {
@@ -516,19 +528,10 @@ void DCParser::generate_table()
 {
     this->setup_real_start_symbol();
 
-    state_t allocated_state = 0;
-    map<set<pair<ruleid_t,size_t>>,state_t> state_map;
-    const auto query_state = [&](set<pair<ruleid_t,size_t>> s)
-    {
-        if (state_map.find(s) == state_map.end())
-            state_map[s] = allocated_state++;
-
-        return state_map[s];
-    };
-
+    SetStateAllocator<pair<ruleid_t,size_t>> sallocator;
     const auto s_start_state = this->startState();
 
-    const auto start_state = query_state(s_start_state);
+    const auto start_state = sallocator(s_start_state);
     PushdownStateMappingTX mapping;
 
     queue<set<pair<ruleid_t,size_t>>> q;
@@ -539,151 +542,160 @@ void DCParser::generate_table()
         auto s = q.front();
         q.pop();
 
-        auto state = query_state(s);
+        auto state = sallocator(s);
         if (mapping.size() <= state)
             mapping.resize(state+1);
         auto& state_mapping = mapping[state];
 
         for (auto ch: this->m_symbols) {
-            auto s_next = this->stateset_move(s, ch);
+            set<set<pair<ruleid_t,size_t>>> next_states;
+            auto action = this->state_action(s, ch, sallocator, next_states);
+            assert(action);
+            state_mapping[ch] = move(*action);
 
-            // REJECT
-            if (s_next.empty()) {
-                state_mapping[ch] = PushdownEntry::reject();
-                continue;
-            }
-
-            set<ruleid_t> completed_rules;
-            for (auto& s: s_next) {
-                const auto ruleid  = s.first;
-                const auto rulepos = s.second;
-                assert(this->m_rules.size() > ruleid);
-                const auto& rule = this->m_rules[ruleid];
-
-                if (rule.m_rhs.size() == rulepos)
-                    completed_rules.insert(ruleid);
-            }
-
-            // SHIFT
-            if (completed_rules.empty()) {
-                auto next_state = query_state(s_next);
-                state_mapping[ch] = PushdownEntry::shift(next_state);
-
-                if (visited.find(s_next) == visited.end()) {
-                    q.push(s_next);
-                    visited.insert(s_next);
-                }
-                continue;
-            }
-
-            // ----- PRIORITY -----
-            // 1. IF THERE ARE MULTIPLE RULES WITH HIGHEST PRIORITY ( IN COMPLETED CANDIATE SET ) ARE COMPLETED,
-            //    THEN REPORT A GRAMMAR ERROR. THE REASON OF THAT IS IF WE CONTINUE BY LOOKAHEAD, IT'S HIGHLY 
-            //    POSSIBLE TO GET AT LEAST ONE REDUCE, WHICH IS AN GRAMMAR ERROR, SO WE SIMPLIFIED THIS PROCESS.
-            //    BECAUSE OF THAT IN FOLLOWING ANALYSIS, WE CAN ASSERT THERE IS ONE AND ONLY ONE COMPLETED RULE 
-            //    WHICH PRIORITIZE OTHER COMPLETED RULES.
-            // 2. IF THE HIGHEST PRIORITY COMPLETED RULE IS HIGHEST PRIORITY (CONSIDER PRIORITY AND ASSOCIATIVE)
-            //    IN CANDIDATE LIST, THEN JUST REDUCE
-            // 3. OTHERWISE, LOOKAHEAD TABLE IS REQUIRED.
-
-
-            // ----- ASSOCIATIVE ------
-            // a + b + c;  => (a + b) + c
-            // LEFT LEFT   => reduce
-            //
-            // a = b = c   => a = (b = c);
-            // RIGHT RIGHT => shift
-            //
-            // LEFT RIGHT  => ?
-            // RIGHT LEFT  => ?
-            // shold be resolve be priority, so these two cases are not
-            // considered, if which presents raising a grammar error.
-
-            // ----- LOOKAHEAD -----
-            // COMPUTE THE SET OF CANDIDATES WHICH PRIORITIZE HIGHEST PRIORITY COMPLETED RULE,
-            // THEN FOREACH SYMBOL WE CAN DO A STATE TRANSITION ON THE SET.
-            // IF THE STATE SET OF RESULT IS NOT EMPTY THEN SHIFT, OTHERWISE REDUCE.
-
-            vector<ruleid_t> v_completed_candidates(
-                    completed_rules.begin(), completed_rules.end());
-            std::sort(v_completed_candidates.begin(), v_completed_candidates.end(),
-                      [this](ruleid_t a, ruleid_t b) {
-                          assert(this->m_rules.size() > a);
-                          assert(this->m_rules.size() > b);
-                          return this->m_rules[a].m_rule_option->priority <
-                                 this->m_rules[b].m_rule_option->priority;
-                      });
-
-            const auto completed_highest_priority_rule = v_completed_candidates.front();
-            const auto completed_highest_priority = 
-                this->m_rules[completed_highest_priority_rule].m_rule_option->priority;
-            const auto completed_highest_associtive = 
-                this->m_rules[completed_highest_priority_rule].m_rule_option->associtive;
-
-            if (v_completed_candidates.size() > 1) {
-                auto  second_pri = v_completed_candidates[1];
-                auto& second_pri_rule = this->m_rules[second_pri];
-
-                if (second_pri_rule.m_rule_option->priority == completed_highest_priority) {
-                    throw ParserGrammarError("conflict rule");
+            for (auto& s: next_states) {
+                if (visited.find(s) == visited.end()) {
+                    q.push(s);
+                    visited.insert(s);
                 }
             }
-
-            set<pair<ruleid_t,size_t>> v_incompleted_candidates;
-            for (auto& r: s_next) {
-                assert(this->m_rules.size() > r.first);
-                auto& rule = this->m_rules[r.first];
-                // TODO
-                if (rule.m_rhs.size() > r.second && 
-                    (rule.m_rule_option->priority < completed_highest_priority || 
-                     (rule.m_rule_option->priority == completed_highest_priority &&
-                      completed_highest_associtive == RuleAssocitiveRight &&
-                      rule.m_rule_option->associtive == RuleAssocitiveRight)))
-                {
-                    v_incompleted_candidates.insert(r);
-                }
-            }
-
-            // REDUCE
-            if (v_incompleted_candidates.empty()) {
-                state_mapping[ch] = PushdownEntry::reduce(completed_highest_priority_rule);
-                continue;
-            }
-            // TODO should this be a closure of the original set ?
-            // v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
-
-            // LOOKAHEAD
-            PushdownStateLookup lookahead_table;
-            lookahead_table[GetEOFChar()] = PushdownEntry::reduce(completed_highest_priority_rule);
-            for (auto& s: this->m_terms) {
-                auto s_next = this->stateset_move(v_incompleted_candidates, s);
-                
-                if (s_next.empty()) {
-                    // REDUCE
-                    lookahead_table[s] = PushdownEntry::reduce(completed_highest_priority_rule);
-                } else {
-                    // SHIFT
-                    const auto lookahead_shift_state = query_state(v_incompleted_candidates);
-                    lookahead_table[s] = PushdownEntry::shift(lookahead_shift_state);
-                    if (visited.find(v_incompleted_candidates) == visited.end()) {
-                        q.push(v_incompleted_candidates);
-                        visited.insert(v_incompleted_candidates);
-                    }
-                }
-            }
-            state_mapping[ch] = PushdownEntry::lookahead(std::make_shared<PushdownStateLookup>(move(lookahead_table)));
         }
     }
 
-    assert(mapping.size() == allocated_state);
+    assert(mapping.size() == sallocator.max_state());
 
     this->m_start_state = start_state;
     this->m_pds_mapping = std::make_shared<PushdownStateMapping>(move(mapping));
 
     this->h_state2set.clear();
-    this->h_state2set.resize(allocated_state);
-    for (auto& s: state_map)
+    this->h_state2set.resize(sallocator.max_state());
+    for (auto& s: sallocator.themap())
         this->h_state2set[s.second] = s.first;
+}
+
+shared_ptr<PushdownEntry> 
+DCParser::state_action(set<pair<ruleid_t,size_t>> s, charid_t ch,
+                       SetStateAllocator<pair<ruleid_t,size_t>>& sallocator,
+                       set<set<pair<ruleid_t,size_t>>>& next_states)
+{
+    assert(next_states.empty());
+    auto s_next = this->stateset_move(s, ch);
+
+    // REJECT
+    if (s_next.empty())
+        return PushdownEntry::reject();
+
+    set<ruleid_t> completed_rules;
+    for (auto& s: s_next) {
+        const auto ruleid  = s.first;
+        const auto rulepos = s.second;
+        assert(this->m_rules.size() > ruleid);
+        const auto& rule = this->m_rules[ruleid];
+
+        if (rule.m_rhs.size() == rulepos)
+            completed_rules.insert(ruleid);
+    }
+
+    // SHIFT
+    if (completed_rules.empty()) {
+        auto next_state = sallocator(s_next);
+        next_states.insert(s_next);
+        return PushdownEntry::shift(next_state);
+    }
+
+    // ----- PRIORITY -----
+    // 1. IF THERE ARE MULTIPLE RULES WITH HIGHEST PRIORITY ( IN COMPLETED CANDIATE SET ) ARE COMPLETED,
+    //    THEN REPORT A GRAMMAR ERROR. THE REASON OF THAT IS IF WE CONTINUE BY LOOKAHEAD, IT'S HIGHLY 
+    //    POSSIBLE TO GET AT LEAST ONE REDUCE, WHICH IS AN GRAMMAR ERROR, SO WE SIMPLIFIED THIS PROCESS.
+    //    BECAUSE OF THAT IN FOLLOWING ANALYSIS, WE CAN ASSERT THERE IS ONE AND ONLY ONE COMPLETED RULE 
+    //    WHICH PRIORITIZE OTHER COMPLETED RULES.
+    // 2. IF THE HIGHEST PRIORITY COMPLETED RULE IS HIGHEST PRIORITY (CONSIDER PRIORITY AND ASSOCIATIVE)
+    //    IN CANDIDATE LIST, THEN JUST REDUCE
+    // 3. OTHERWISE, LOOKAHEAD TABLE IS REQUIRED.
+
+
+    // ----- ASSOCIATIVE ------
+    // a + b + c;  => (a + b) + c
+    // LEFT LEFT   => reduce
+    //
+    // a = b = c   => a = (b = c);
+    // RIGHT RIGHT => shift
+    //
+    // LEFT RIGHT  => ?
+    // RIGHT LEFT  => ?
+    // shold be resolve be priority, so these two cases are not
+    // considered, if which presents raising a grammar error.
+
+    // ----- LOOKAHEAD -----
+    // COMPUTE THE SET OF CANDIDATES WHICH PRIORITIZE HIGHEST PRIORITY COMPLETED RULE,
+    // THEN FOREACH SYMBOL WE CAN DO A STATE TRANSITION ON THE SET.
+    // IF THE STATE SET OF RESULT IS NOT EMPTY THEN SHIFT, OTHERWISE REDUCE.
+
+    vector<ruleid_t> v_completed_candidates(
+            completed_rules.begin(), completed_rules.end());
+    std::sort(v_completed_candidates.begin(), v_completed_candidates.end(),
+            [this](ruleid_t a, ruleid_t b) {
+            assert(this->m_rules.size() > a);
+            assert(this->m_rules.size() > b);
+            return this->m_rules[a].m_rule_option->priority <
+            this->m_rules[b].m_rule_option->priority;
+            });
+
+    const auto completed_highest_priority_rule = v_completed_candidates.front();
+    const auto completed_highest_priority = 
+        this->m_rules[completed_highest_priority_rule].m_rule_option->priority;
+    const auto completed_highest_associtive = 
+        this->m_rules[completed_highest_priority_rule].m_rule_option->associtive;
+
+    if (v_completed_candidates.size() > 1) {
+        auto  second_pri = v_completed_candidates[1];
+        auto& second_pri_rule = this->m_rules[second_pri];
+
+        if (second_pri_rule.m_rule_option->priority == completed_highest_priority) {
+            throw ParserGrammarError("conflict rule");
+        }
+    }
+
+    set<pair<ruleid_t,size_t>> v_incompleted_candidates;
+    for (auto& r: s_next) {
+        assert(this->m_rules.size() > r.first);
+        auto& rule = this->m_rules[r.first];
+        // TODO
+        if (rule.m_rhs.size() > r.second && 
+                (rule.m_rule_option->priority < completed_highest_priority || 
+                 (rule.m_rule_option->priority == completed_highest_priority &&
+                  completed_highest_associtive == RuleAssocitiveRight &&
+                  rule.m_rule_option->associtive == RuleAssocitiveRight)))
+        {
+            v_incompleted_candidates.insert(r);
+        }
+    }
+
+    // REDUCE
+    if (v_incompleted_candidates.empty())
+        return PushdownEntry::reduce(completed_highest_priority_rule);
+
+    // TODO should this be a closure of the original set ?
+    // v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
+
+    // LOOKAHEAD
+    PushdownStateLookup lookahead_table;
+    lookahead_table[GetEOFChar()] = *PushdownEntry::reduce(completed_highest_priority_rule);
+    for (auto& s: this->m_terms) {
+        auto s_next = this->stateset_move(v_incompleted_candidates, s);
+
+        if (s_next.empty()) {
+            // REDUCE
+            lookahead_table[s] = *PushdownEntry::reduce(completed_highest_priority_rule);
+        } else {
+            // SHIFT
+            const auto lookahead_shift_state = sallocator(v_incompleted_candidates);
+            lookahead_table[s] = *PushdownEntry::shift(lookahead_shift_state);
+            next_states.insert(v_incompleted_candidates);
+        }
+    }
+
+    return PushdownEntry::lookahead(std::make_shared<PushdownStateLookup>(move(lookahead_table)));
 }
 
 void DCParser::compute_posible_prev_next()

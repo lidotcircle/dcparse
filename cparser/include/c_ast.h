@@ -24,10 +24,10 @@ public:
 
 
 // forward declaration
-class ASTNodeType;
+class ASTNodeVariableType;
 class ASTNodeDeclaration;
 class ASTNodeInitializer;
-class ASTNodeDeclarator;
+class ASTNodeInitializerList;
 
 class ASTNodeBlockItem : public ASTNode {
 public:
@@ -162,16 +162,17 @@ public:
 
 class ASTNodeExprInitializer: public ASTNodeExpr {
 private:
-    std::shared_ptr<ASTNodeInitializer> m_init;
-    std::shared_ptr<ASTNodeType> m_type;
+    std::shared_ptr<ASTNodeInitializerList> m_init;
+    std::shared_ptr<ASTNodeVariableType> m_type;
 
 public:
     inline ASTNodeExprInitializer(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeInitializer> init,
-            std::shared_ptr<ASTNodeType> type): ASTNodeExpr(c), m_init(init), m_type(type) {}
-    inline std::shared_ptr<ASTNodeInitializer> init() { return this->m_init; }
-    inline std::shared_ptr<ASTNodeType> type() { return this->m_type; }
+            std::shared_ptr<ASTNodeVariableType> type,
+            std::shared_ptr<ASTNodeInitializerList> init
+            ): ASTNodeExpr(c), m_init(init), m_type(type) {}
+    inline std::shared_ptr<ASTNodeInitializerList> init() { return this->m_init; }
+    inline std::shared_ptr<ASTNodeVariableType> type() { return this->m_type; }
 };
 
 class ASTNodeExprUnaryOp: public ASTNodeExpr {
@@ -202,25 +203,25 @@ public:
 
 class ASTNodeExprSizeof: public ASTNodeExpr {
 private:
-    std::shared_ptr<ASTNodeType> m_type;
+    std::shared_ptr<ASTNodeVariableType> m_type;
 
 public:
     inline ASTNodeExprSizeof(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeType> type
+            std::shared_ptr<ASTNodeVariableType> type
             ):
         ASTNodeExpr(c), m_type(type) {}
 };
 
 class ASTNodeExprCast: public ASTNodeExpr {
 private:
-    std::shared_ptr<ASTNodeType> m_type;
+    std::shared_ptr<ASTNodeVariableType> m_type;
     std::shared_ptr<ASTNodeExpr> m_expr;
 
 public:
     inline ASTNodeExprCast(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeType> type,
+            std::shared_ptr<ASTNodeVariableType> type,
             std::shared_ptr<ASTNodeExpr> expr
             ):
         ASTNodeExpr(c), m_type(type),
@@ -308,6 +309,88 @@ public:
 class ASTNodeTypeSpecifier: public ASTNode {
 public:
     inline ASTNodeTypeSpecifier(ASTNodeParserContext c): ASTNode(c) {}
+};
+
+class ASTNodeTypeSpecifierStruct: public ASTNodeTypeSpecifier {
+private:
+    std::shared_ptr<TokenID> m_name;
+
+public:
+    inline ASTNodeTypeSpecifierStruct(
+            ASTNodeParserContext c,
+            std::shared_ptr<TokenID> name
+            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+};
+
+class ASTNodeTypeSpecifierUnion: public ASTNodeTypeSpecifier {
+private:
+    std::shared_ptr<TokenID> m_name;
+
+public:
+    inline ASTNodeTypeSpecifierUnion(
+            ASTNodeParserContext c,
+            std::shared_ptr<TokenID> name
+            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+};
+
+class ASTNodeTypeSpecifierEnum: public ASTNodeTypeSpecifier {
+private:
+    std::shared_ptr<TokenID> m_name;
+
+public:
+    inline ASTNodeTypeSpecifierEnum(
+            ASTNodeParserContext c,
+            std::shared_ptr<TokenID> name
+            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+};
+
+class ASTNodeTypeSpecifierTypedef: public ASTNodeTypeSpecifier {
+private:
+    std::shared_ptr<TokenID> m_name;
+
+public:
+    inline ASTNodeTypeSpecifierTypedef(
+            ASTNodeParserContext c,
+            std::shared_ptr<TokenID> name
+            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+};
+
+class ASTNodeTypeSpecifierInt: public ASTNodeTypeSpecifier {
+private:
+    size_t m_byte_length;;
+    bool   m_is_unsigned;
+
+public:
+    inline ASTNodeTypeSpecifierInt(
+            ASTNodeParserContext c,
+            size_t byte_length,
+            bool is_unsigned
+            ): ASTNodeTypeSpecifier(c), m_byte_length(byte_length),
+        m_is_unsigned(is_unsigned) {}
+
+    inline size_t byte_length() { return this->m_byte_length; }
+    inline bool is_unsigned() { return this->m_is_unsigned; }
+};
+
+class ASTNodeTypeSpecifierFloat: public ASTNodeTypeSpecifier {
+private:
+    size_t m_byte_length;
+    bool m_is_double;
+
+public:
+    inline ASTNodeTypeSpecifierFloat(
+            ASTNodeParserContext c,
+            size_t byte_length,
+            bool is_double
+            ): ASTNodeTypeSpecifier(c), m_byte_length(byte_length),
+        m_is_double(is_double) {}
+
+    inline size_t byte_length() { return this->m_byte_length; }
+    inline bool is_double() { return this->m_is_double; }
 };
 
 class Qualifiable {
@@ -460,59 +543,122 @@ public:
     inline std::shared_ptr<ASTNodeVariableType>& return_type() { return this->m_return_type; }
 };
 
-class ASTNodeTypeSpecifierBuiltin: public ASTNodeTypeSpecifier {
+class ASTNodeDeclaration: public ASTNode {
 private:
-    std::shared_ptr<TokenID> m_type;
+    std::shared_ptr<TokenID> m_id;
+    std::shared_ptr<ASTNodeVariableType> m_type;
+    std::shared_ptr<ASTNodeInitializer> m_initializer;
 
 public:
-    inline ASTNodeTypeSpecifierBuiltin(
+    inline ASTNodeDeclaration(
             ASTNodeParserContext c,
-            std::shared_ptr<TokenID> type): ASTNodeTypeSpecifier(c), m_type(type) {}
-    inline std::shared_ptr<TokenID> type() { return this->m_type; }
+            std::shared_ptr<TokenID> id,
+            std::shared_ptr<ASTNodeVariableType> type,
+            std::shared_ptr<ASTNodeInitializer> initializer
+            ):
+        ASTNode(c),
+        m_id(id),
+        m_type(type),
+        m_initializer(initializer) {}
+
+    inline std::shared_ptr<TokenID>& id() { return this->m_id; }
+    inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_type; }
+    inline std::shared_ptr<ASTNodeInitializer>& initializer() { return this->m_initializer; }
 };
 
-class ASTNodeTypeSpecifierStruct: public ASTNodeTypeSpecifier {
+class ASTNodeDeclarationList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeDeclaration>>
+{
 private:
-    std::shared_ptr<TokenID> m_name;
+    using container_t = std::vector<std::shared_ptr<ASTNodeDeclaration>>;
 
 public:
-    inline ASTNodeTypeSpecifierStruct(
-            ASTNodeParserContext c,
-            std::shared_ptr<TokenID> name): ASTNodeTypeSpecifier(c), m_name(name) {}
-    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+    using reference = container_t::reference;
+    using const_reference = container_t::const_reference;
+    using iterator = container_t::iterator;
+    using const_iterator = container_t::const_iterator;
+
+    inline ASTNodeDeclarationList(ASTNodeParserContext c): ASTNode(c) {}
+
+    using container_t::begin;
+    using container_t::end;
+    using container_t::empty;
+    using container_t::size;
+    using container_t::operator[];
+    using container_t::push_back;
 };
 
-class ASTNodeTypeSpecifierUnion: public ASTNodeTypeSpecifier {
+class ASTNodeInitializer: public ASTNode {
 private:
-    std::shared_ptr<TokenID> m_name;
+    std::variant<
+        std::shared_ptr<ASTNodeExpr>,
+        std::shared_ptr<ASTNodeInitializerList>> m_value;
 
 public:
-    inline ASTNodeTypeSpecifierUnion(
-            ASTNodeParserContext c,
-            std::shared_ptr<TokenID> name): ASTNodeTypeSpecifier(c), m_name(name) {}
-    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+    ASTNodeInitializer(ASTNodeParserContext c,
+                       std::shared_ptr<ASTNodeExpr> expr): 
+        ASTNode(c), m_value(expr) {}
+
+    ASTNodeInitializer(ASTNodeParserContext c,
+                       std::shared_ptr<ASTNodeInitializerList> list):
+        ASTNode(c), m_value(list) {}
 };
 
-class ASTNodeTypeSpecifierEnum: public ASTNodeTypeSpecifier {
+class Designator {
+public:
+    struct ArrayDesignator {
+        std::shared_ptr<ASTNodeExpr> m_pos;
+        std::shared_ptr<ASTNodeInitializer> m_initializer;
+        ArrayDesignator(std::shared_ptr<ASTNodeExpr> pos, std::shared_ptr<ASTNodeInitializer> initializer):
+            m_pos(pos), m_initializer(initializer) {}
+    };
+    struct MemberDesignator {
+        std::shared_ptr<TokenID> m_member;
+        std::shared_ptr<ASTNodeInitializer> m_initializer;
+        MemberDesignator(std::shared_ptr<TokenID> member, std::shared_ptr<ASTNodeInitializer> initializer):
+            m_member(member), m_initializer(initializer) {}
+    };
+    struct NoDesignator {
+        std::shared_ptr<ASTNodeInitializer> m_initializer;
+        NoDesignator(std::shared_ptr<ASTNodeInitializer> initializer):
+            m_initializer(initializer) {}
+    };
+
 private:
-    std::shared_ptr<TokenID> m_name;
+    std::variant<
+        ArrayDesignator,
+        MemberDesignator,
+        NoDesignator> m_designator;
 
 public:
-    inline ASTNodeTypeSpecifierEnum(
-            ASTNodeParserContext c,
-            std::shared_ptr<TokenID> name): ASTNodeTypeSpecifier(c), m_name(name) {}
-    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+    Designator(std::shared_ptr<ASTNodeExpr> pos, std::shared_ptr<ASTNodeInitializer> initializer):
+        m_designator(ArrayDesignator(pos, initializer)) {}
+
+    Designator(std::shared_ptr<TokenID> member, std::shared_ptr<ASTNodeInitializer> initializer):
+        m_designator(MemberDesignator(member, initializer)) {}
+
+    Designator(std::shared_ptr<ASTNodeInitializer> initializer):
+        m_designator(NoDesignator(initializer)) {}
 };
 
-class ASTNodeTypeSpecifierTypedef: public ASTNodeTypeSpecifier {
+class ASTNodeInitializerList: public ASTNode, public std::vector<Designator>
+{
 private:
-    std::shared_ptr<TokenID> m_name;
+    using container_t = std::vector<Designator>;
 
 public:
-    inline ASTNodeTypeSpecifierTypedef(
-            ASTNodeParserContext c,
-            std::shared_ptr<TokenID> name): ASTNodeTypeSpecifier(c), m_name(name) {}
-    inline std::shared_ptr<TokenID> name() { return this->m_name; }
+    using reference = container_t::reference;
+    using const_reference = container_t::const_reference;
+    using iterator = container_t::iterator;
+    using const_iterator = container_t::const_iterator;
+
+    inline ASTNodeInitializerList(ASTNodeParserContext c): ASTNode(c) {}
+
+    using container_t::begin;
+    using container_t::end;
+    using container_t::empty;
+    using container_t::size;
+    using container_t::operator[];
+    using container_t::push_back;
 };
 
 
@@ -692,23 +838,23 @@ public:
 class ASTNodeStatForDecl: public ASTNodeStat
 {
 private:
-    std::shared_ptr<ASTNodeDeclaration> _decl;
+    std::shared_ptr<ASTNodeDeclarationList> _decls;
     std::shared_ptr<ASTNodeExpr> _cond, _post;
     std::shared_ptr<ASTNodeStat> _stat;
 
 public:
     inline ASTNodeStatForDecl(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeDeclaration> decl,
+            std::shared_ptr<ASTNodeDeclarationList> decls,
             std::shared_ptr<ASTNodeExpr> cond,
             std::shared_ptr<ASTNodeExpr> post,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), _decl(decl), _cond(cond), _post(post), _stat(stat) {}
+        ASTNodeStat(c), _decls(decls), _cond(cond), _post(post), _stat(stat) {}
 
-    inline std::shared_ptr<ASTNodeDeclaration> decl()       { return this->_decl; }
-    inline std::shared_ptr<ASTNodeExpr> cond()       { return this->_cond; }
-    inline std::shared_ptr<ASTNodeExpr> post()       { return this->_post; }
-    inline std::shared_ptr<ASTNodeStat> stat()       { return this->_stat; }
+    inline std::shared_ptr<ASTNodeDeclarationList> decls() { return this->_decls; }
+    inline std::shared_ptr<ASTNodeExpr>            cond()  { return this->_cond; }
+    inline std::shared_ptr<ASTNodeExpr>            post()  { return this->_post; }
+    inline std::shared_ptr<ASTNodeStat>            stat()  { return this->_stat; }
 };
 
 class ASTNodeStatGoto: public ASTNodeStat

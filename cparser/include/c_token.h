@@ -104,7 +104,7 @@ C_KEYWORD_LIST
     P_ENTRY(BIT_NOT, "~") \
     P_ENTRY(LOGIC_NOT, "!") \
     P_ENTRY(DIVISION, "/") \
-    P_ENTRY(REMAIDER, "%") \
+    P_ENTRY(REMAINDER, "%") \
     P_ENTRY(LEFT_SHIFT, "<<") \
     P_ENTRY(RIGHT_SHIFT, ">>") \
     P_ENTRY(LESS_THAN, "<") \
@@ -124,7 +124,7 @@ C_KEYWORD_LIST
     P_ENTRY(ASSIGN, "=") \
     P_ENTRY(MULTIPLY_ASSIGN, "\\*=") \
     P_ENTRY(DIVISION_ASSIGN, "/=") \
-    P_ENTRY(REMAIDER_ASSIGN, "%=") \
+    P_ENTRY(REMAINDER_ASSIGN, "%=") \
     P_ENTRY(PLUS_ASSIGN, "\\+=") \
     P_ENTRY(MINUS_ASSIGN, "\\-=") \
     P_ENTRY(LEFT_SHIFT_ASSIGN, "<<=") \

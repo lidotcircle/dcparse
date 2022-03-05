@@ -1,9 +1,19 @@
 #include "c_ast.h"
 #include <stdexcept>
 using namespace std;
+using data_type = cparser::ASTNodeTypeSpecifier::data_type;
 using variable_basic_type = cparser::ASTNodeVariableType::variable_basic_type;
 
 namespace cparser {
+
+data_type ASTNodeTypeSpecifierStruct::dtype()  const { return data_type::STRUCT; }
+data_type ASTNodeTypeSpecifierUnion::dtype()   const { return data_type::STRUCT; }
+data_type ASTNodeTypeSpecifierEnum::dtype()    const { return data_type::ENUM; }
+data_type ASTNodeTypeSpecifierTypedef::dtype() const { return data_type::TYPEDEF; }
+data_type ASTNodeTypeSpecifierInt::dtype()     const { return data_type::INT; }
+data_type ASTNodeTypeSpecifierFloat::dtype()   const { return data_type::INT; }
+data_type ASTNodeTypeSpecifierVoid::dtype()    const { return data_type::INT; }
+
 
 variable_basic_type ASTNodeVariableTypePlain::basic_type()
 {

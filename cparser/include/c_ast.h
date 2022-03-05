@@ -6,6 +6,7 @@
 #include <string>
 #include <memory>
 #include <variant>
+#include <optional>
 
 namespace cparser {
 
@@ -308,6 +309,9 @@ public:
 class ASTNodeTypeSpecifier: public ASTNode {
 public:
     inline ASTNodeTypeSpecifier(ASTNodeParserContext c): ASTNode(c) {}
+
+    enum data_type { STRUCT, UNION, ENUM, TYPEDEF, VOID, INT, FLOAT };
+    virtual data_type dtype() const = 0;
 };
 
 class ASTNodeTypeSpecifierStruct: public ASTNodeTypeSpecifier {
@@ -320,6 +324,8 @@ public:
             std::shared_ptr<TokenID> name
             ): ASTNodeTypeSpecifier(c), m_name(name) {}
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
+
+    virtual data_type dtype() const override;
 };
 
 class ASTNodeTypeSpecifierUnion: public ASTNodeTypeSpecifier {
@@ -332,6 +338,8 @@ public:
             std::shared_ptr<TokenID> name
             ): ASTNodeTypeSpecifier(c), m_name(name) {}
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
+
+    virtual data_type dtype() const override;
 };
 
 class ASTNodeTypeSpecifierEnum: public ASTNodeTypeSpecifier {
@@ -344,6 +352,8 @@ public:
             std::shared_ptr<TokenID> name
             ): ASTNodeTypeSpecifier(c), m_name(name) {}
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
+
+    virtual data_type dtype() const = 0;
 };
 
 class ASTNodeTypeSpecifierTypedef: public ASTNodeTypeSpecifier {
@@ -356,6 +366,17 @@ public:
             std::shared_ptr<TokenID> name
             ): ASTNodeTypeSpecifier(c), m_name(name) {}
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
+
+    virtual data_type dtype() const override;
+};
+
+class ASTNodeTypeSpecifierVoid: public ASTNodeTypeSpecifier {
+public:
+    inline ASTNodeTypeSpecifierVoid(
+            ASTNodeParserContext c
+            ): ASTNodeTypeSpecifier(c) {}
+
+    virtual data_type dtype() const override;
 };
 
 class ASTNodeTypeSpecifierInt: public ASTNodeTypeSpecifier {
@@ -373,23 +394,23 @@ public:
 
     inline size_t byte_length() { return this->m_byte_length; }
     inline bool is_unsigned() { return this->m_is_unsigned; }
+
+    virtual data_type dtype() const override;
 };
 
 class ASTNodeTypeSpecifierFloat: public ASTNodeTypeSpecifier {
 private:
     size_t m_byte_length;
-    bool m_is_double;
 
 public:
     inline ASTNodeTypeSpecifierFloat(
             ASTNodeParserContext c,
-            size_t byte_length,
-            bool is_double
-            ): ASTNodeTypeSpecifier(c), m_byte_length(byte_length),
-        m_is_double(is_double) {}
+            size_t byte_length
+            ): ASTNodeTypeSpecifier(c), m_byte_length(byte_length) {}
 
     inline size_t byte_length() { return this->m_byte_length; }
-    inline bool is_double() { return this->m_is_double; }
+
+    virtual data_type dtype() const override;
 };
 
 class Qualifiable {
@@ -454,6 +475,21 @@ public:
 };
 using ASTNodeDeclaration = ASTNodeInitDeclarator;
 
+class ASTNodeStructUnionDeclaration: public ASTNodeInitDeclarator
+{
+private:
+    using ASTNodeInitDeclarator::initializer;
+    std::optional<unsigned char> m_bit_width;
+
+public:
+    inline ASTNodeStructUnionDeclaration(
+            ASTNodeParserContext c,
+            std::shared_ptr<TokenID> id,
+            std::shared_ptr<ASTNodeVariableType> type,
+            std::optional<unsigned char> bit_width):
+        ASTNodeInitDeclarator(c, id, type, nullptr) {}
+};
+
 class ASTNodeInitDeclaratorList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeInitDeclarator>>
 {
 private:
@@ -487,6 +523,27 @@ public:
     using const_iterator = container_t::const_iterator;
 
     inline ASTNodeDeclarationList(ASTNodeParserContext c): ASTNode(c) {}
+
+    using container_t::begin;
+    using container_t::end;
+    using container_t::empty;
+    using container_t::size;
+    using container_t::operator[];
+    using container_t::push_back;
+};
+
+class ASTNodeStructUnionDeclarationList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeStructUnionDeclaration>>
+{
+private:
+    using container_t = std::vector<std::shared_ptr<ASTNodeStructUnionDeclaration>>;
+
+public:
+    using reference = container_t::reference;
+    using const_reference = container_t::const_reference;
+    using iterator = container_t::iterator;
+    using const_iterator = container_t::const_iterator;
+
+    inline ASTNodeStructUnionDeclarationList(ASTNodeParserContext c): ASTNode(c) {}
 
     using container_t::begin;
     using container_t::end;

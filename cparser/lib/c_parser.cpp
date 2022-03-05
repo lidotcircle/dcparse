@@ -31,10 +31,11 @@ using namespace std;
     TENTRY(STORAGE_CLASS_SPECIFIER) \
     TENTRY(TYPE_SPECIFIER) \
     TENTRY(STRUCT_OR_UNION_SPECIFIER) \
-    TENTRY(STRUCT_OR_UNIOIN) \
+    TENTRY(STRUCT_OR_UNION) \
     TENTRY(STRUCT_DECLARATION_LIST) \
     TENTRY(STRUCT_DECLARATION) \
     TENTRY(SPECIFIER_QUALIFIER_LIST) \
+    TENTRY(STRUCT_DECLARATOR_LIST) \
     TENTRY(STRUCT_DECLARATOR) \
     TENTRY(ENUM_SPECIFIER) \
     TENTRY(ENUMERATOR_LIST) \
@@ -458,6 +459,285 @@ void CParser::declaration_rules()
 
             return make_shared<NonTermDECLARATION>(ast);
         });
+
+    parser( NI(DECLARATION_SPECIFIERS),
+        { NI(STORAGE_CLASS_SPECIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(sspec, STORAGE_CLASS_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
+            if (ts[1]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+                if (dsast->storage_class() != ASTNodeDeclarationSpecifier::StorageClass::SC_Default) {
+                    // TODO warnning or error
+                }
+                dsast->storage_class() = sspecast->storage_class();
+                std::swap(sspecast, dsast);
+            }
+            return make_shared<NonTermDECLARATION_SPECIFIERS>(sspecast);
+        }, RuleAssocitiveLeft);
+
+    parser( NI(DECLARATION_SPECIFIERS),
+        { NI(TYPE_SPECIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
+            if (ts[1]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+                if (dsast->type_specifier() != nullptr) {
+                    // TODO mixed type, long signed ..., and warnning or error
+                }
+                dsast->type_specifier() = tspecast->type_specifier();
+                std::swap(tspecast, dsast);
+            }
+            return make_shared<NonTermDECLARATION_SPECIFIERS>(tspecast);
+        }, RuleAssocitiveLeft);
+
+    parser( NI(DECLARATION_SPECIFIERS),
+        { NI(TYPE_QUALIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 0);
+            if (ts[1]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+                dsast->const_ref() = dsast->const_ref() || tqualast->const_ref();;
+                dsast->restrict_ref() = dsast->restrict_ref() || tqualast->restrict_ref();;
+                dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
+                std::swap(tqualast, dsast);
+            }
+            return make_shared<NonTermDECLARATION_SPECIFIERS>(tqualast);
+        }, RuleAssocitiveLeft);
+
+    parser( NI(DECLARATION_SPECIFIERS),
+        { NI(FUNCTION_SPECIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(tqual, FUNCTION_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
+            if (ts[1]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+                dsast->inlined() = tqualast->inlined();;
+                std::swap(tqualast, dsast);
+            }
+            return make_shared<NonTermDECLARATION_SPECIFIERS>(tqualast);
+        }, RuleAssocitiveLeft);
+
+    parser( NI(INIT_DECLARATOR_LIST),
+        { ParserChar::beOptional(NI(INIT_DECLARATOR_LIST)), NI(INIT_DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto ast = make_shared<ASTNodeInitDeclaratorList>(c);
+            if (ts[0]) {
+                get_ast(init_decl_listx, INIT_DECLARATOR_LIST, ASTNodeInitDeclaratorList, 0);
+                ast = init_decl_listxast;
+            }
+            get_ast(init_decl, INIT_DECLARATOR, ASTNodeInitDeclarator, 1);
+            ast->push_back(init_declast);
+            return make_shared<NonTermINIT_DECLARATOR_LIST>(ast);
+        }, RuleAssocitiveLeft);
+
+    parser( NI(INIT_DECLARATOR),
+        { NI(DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 0);
+            return make_shared<NonTermINIT_DECLARATOR>(declast);
+        });
+
+    parser( NI(INIT_DECLARATOR),
+        { NI(DECLARATOR), PT(ASSIGN), NI(INITIALIZER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast(init, INITIALIZER, ASTNodeInitializer, 2);
+            declast->initializer() = initast;
+            return make_shared<NonTermINIT_DECLARATOR>(declast);
+        });
+
+#define to_storage_specifier(kw, en) \
+    parser( NI(STORAGE_CLASS_SPECIFIER), \
+        { KW(kw) }, \
+        [](auto c, auto ts) { \
+            assert(ts.size() == 1); \
+            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
+            ast->storage_class() = ASTNodeDeclarationSpecifier::StorageClass::en; \
+            return make_shared<NonTermSTORAGE_CLASS_SPECIFIER>(ast); \
+        });
+    to_storage_specifier(typedef,  SC_Typedef);
+    to_storage_specifier(extern,   SC_Extern);
+    to_storage_specifier(static,   SC_Static);
+    to_storage_specifier(auto,     SC_Auto);
+    to_storage_specifier(register, SC_Register);
+
+#define to_type_specifier(kw, en, ...) \
+    parser( NI(TYPE_SPECIFIER), \
+        { KW(kw) }, \
+        [](auto c, auto ts) { \
+            assert(ts.size() == 1); \
+            auto kast = make_shared<ASTNodeTypeSpecifier##en>(c, ##__VA_ARGS__); \
+            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
+            ast->type_specifier() = kast; \
+            return make_shared<NonTermTYPE_SPECIFIER>(ast); \
+        });
+    to_type_specifier(void,     Void);
+    to_type_specifier(char,     Int,   sizeof(char), false);
+    to_type_specifier(short,    Int,   sizeof(short), false);
+    to_type_specifier(int,      Int,   sizeof(int), false);
+    to_type_specifier(long,     Int,   sizeof(long), false);
+    to_type_specifier(float,    Float, sizeof(float));
+    to_type_specifier(double,   Float, sizeof(double));
+    to_type_specifier(signed,   Int,   sizeof(signed), false);
+    to_type_specifier(unsigned, Int,   sizeof(signed), true);
+    to_type_specifier(_Bool,    Int,   sizeof(bool), false);
+    // TODO _Complex
+
+    parser( NI(TYPE_SPECIFIER),
+        { NI(STRUCT_OR_UNION_SPECIFIER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(su, STRUCT_OR_UNION_SPECIFIER, ASTNodeTypeSpecifier, 0);
+            return make_shared<NonTermTYPE_SPECIFIER>(suast);
+        });
+
+    parser( NI(TYPE_SPECIFIER),
+        { NI(ENUM_SPECIFIER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(es, ENUM_SPECIFIER, ASTNodeTypeSpecifier, 0);
+            return make_shared<NonTermTYPE_SPECIFIER>(esast);
+        });
+
+    parser( NI(TYPE_SPECIFIER),
+        { NI(TYPEDEF_NAME) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(tn, TYPEDEF_NAME, ASTNodeTypeSpecifier, 0);
+            return make_shared<NonTermTYPE_SPECIFIER>(tnast);
+        });
+
+struct struct_pesudo: public ASTNode { struct_pesudo(ASTNodeParserContext c): ASTNode(c) {} };
+struct union_pesudo:  public ASTNode { union_pesudo (ASTNodeParserContext c): ASTNode(c) {} };
+
+static int anonymous_struct_counter = 0;
+    parser( NI(STRUCT_OR_UNION_SPECIFIER),
+        { NI(STRUCT_OR_UNION), ParserChar::beOptional(TI(ID)), PT(LBRACE), NI(STRUCT_DECLARATION_LIST), PT(RBRACE) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 5);
+            assert(ts[0]);
+            auto struct_or_union = dynamic_pointer_cast<NonTermSTRUCT_OR_UNION>(ts[0]);
+            assert(struct_or_union && struct_or_union->astnode);
+            const auto is_struct = dynamic_pointer_cast<struct_pesudo>(struct_or_union->astnode) == nullptr;
+
+            shared_ptr<TokenID> id = nullptr;
+            if (ts[1]) {
+                id = dynamic_pointer_cast<TokenID>(ts[1]);
+                assert(id);
+            } else {
+                id = make_shared<TokenID>(
+                        "anonymous_struct_" + std::to_string(++anonymous_struct_counter),
+                        LexerToken::TokenInfo());
+            }
+            get_ast(dc, STRUCT_OR_UNION_SPECIFIER, ASTNodeStructUnionDeclarationList, 3);
+            // TODO add declaration to global context
+
+            shared_ptr<ASTNodeTypeSpecifier> ast = nullptr;
+            if (is_struct) {
+                ast = make_shared<ASTNodeTypeSpecifierStruct>(c, id);
+            } else {
+                ast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
+            }
+            return make_shared<NonTermSTRUCT_OR_UNION_SPECIFIER>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(STRUCT_OR_UNION_SPECIFIER),
+        { NI(STRUCT_OR_UNION), TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            assert(ts[0]);
+            auto struct_or_union = dynamic_pointer_cast<NonTermSTRUCT_OR_UNION>(ts[0]);
+            assert(struct_or_union && struct_or_union->astnode);
+            const auto is_struct = dynamic_pointer_cast<struct_pesudo>(struct_or_union->astnode) == nullptr;
+
+            auto id = dynamic_pointer_cast<TokenID>(ts[1]);
+            assert(id);
+
+            shared_ptr<ASTNodeTypeSpecifier> ast = nullptr;
+            if (is_struct) {
+                ast = make_shared<ASTNodeTypeSpecifierStruct>(c, id);
+            } else {
+                ast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
+            }
+            return make_shared<NonTermSTRUCT_OR_UNION_SPECIFIER>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(STRUCT_OR_UNION),
+        { KW(struct) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            return make_shared<NonTermSTRUCT_OR_UNION>(make_shared<struct_pesudo>(c));
+        });
+
+    parser( NI(STRUCT_OR_UNION),
+        { KW(union) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            return make_shared<NonTermSTRUCT_OR_UNION>(make_shared<union_pesudo>(c));
+        });
+
+    parser( NI(STRUCT_DECLARATION_LIST),
+        { ParserChar::beOptional(NI(STRUCT_DECLARATION_LIST)), NI(STRUCT_DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto sdlast = make_shared<ASTNodeStructUnionDeclarationList>(c);
+            if (ts[0]) {
+                get_ast(xsdl, STRUCT_DECLARATION_LIST, ASTNodeStructUnionDeclarationList, 0);
+                sdlast = xsdlast;
+            }
+            get_ast(sd,  STRUCT_DECLARATION, ASTNodeStructUnionDeclarationList, 1);
+            std::copy(sdast->begin(), sdast->end(), sdlast->begin());
+            return make_shared<NonTermSTRUCT_DECLARATION_LIST>(sdlast);
+        });
+
+    parser( NI(STRUCT_DECLARATION),
+        { NI(SPECIFIER_QUALIFIER_LIST), NI(STRUCT_DECLARATOR_LIST), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            get_ast(sql, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            get_ast(sdl, STRUCT_DECLARATOR_LIST,  ASTNodeStructUnionDeclarationList, 1);
+
+            for (auto sd: *sdlast)
+                sd->set_declaration_specifier(sqlast);
+
+            return make_shared<NonTermSTRUCT_DECLARATION>(sdlast);
+        });
+
+    parser( NI(SPECIFIER_QUALIFIER_LIST),
+        { NI(TYPE_SPECIFIER), ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
+            if (ts[1]) {
+                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 1);
+                if (dsast->type_specifier() != nullptr) {
+                    // TODO mixed type, long signed ..., and warnning or error
+                }
+                dsast->type_specifier() = tspecast->type_specifier();
+                std::swap(tspecast, dsast);
+            }
+            return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tspecast);
+        }, RuleAssocitiveLeft);
+
+    parser( NI(SPECIFIER_QUALIFIER_LIST),
+        { NI(TYPE_QUALIFIER), ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 0);
+            if (ts[1]) {
+                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 1);
+                dsast->const_ref() = dsast->const_ref() || tqualast->const_ref();;
+                dsast->restrict_ref() = dsast->restrict_ref() || tqualast->restrict_ref();;
+                dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
+                std::swap(tqualast, dsast);
+            }
+            return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tqualast);
+        }, RuleAssocitiveLeft);
 }
 
 CParser::CParser()

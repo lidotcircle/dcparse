@@ -436,12 +436,28 @@ void CParser::declaration_rules()
 {
     DCParser& parser = *this;
 
-    struct {
-        int a, b;
-    } ctx = {
-        .a = 2,
-        .b = 3,
-    };
+
+    parser( NI(DECLARATION),
+        { NI(DECLARATION_SPECIFIERS), ParserChar::beOptional(NI(INIT_DECLARATOR_LIST)), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(decl_spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+
+            auto init_decl_list_ast = make_shared<ASTNodeInitDeclaratorList>(c);
+            if (ts[1]) {
+                get_ast(init_decl_listx, INIT_DECLARATOR_LIST, ASTNodeInitDeclaratorList, 1);
+                init_decl_list_ast = init_decl_listxast;
+            }
+
+            auto ast = make_shared<ASTNodeDeclarationList>(c);
+
+            for (auto decl: *init_decl_list_ast) {
+                decl->set_declaration_specifier(decl_specast);
+                ast->push_back(decl);
+            }
+
+            return make_shared<NonTermDECLARATION>(ast);
+        });
 }
 
 CParser::CParser()

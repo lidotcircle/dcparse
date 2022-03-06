@@ -337,7 +337,8 @@ set<pair<ruleid_t,size_t>> DCParser::startState() const {
 }
 
 
-DCParser::DCParser():
+DCParser::DCParser(bool lookahead_rule_propagation):
+    m_lookahead_rule_propagation(lookahead_rule_propagation),
     m_priority(0), 
     m_context(make_unique<DCParserContext>(*this)),
     h_debug_stream(nullptr),
@@ -783,8 +784,8 @@ DCParser::state_action(set<pair<ruleid_t,size_t>> s_next,
     if (v_incompleted_candidates.empty())
         return PushdownEntry::reduce(completed_highest_priority_rule);
 
-    // TODO should this be a closure of the original set ?
-    // v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
+    if (this->m_lookahead_rule_propagation)
+        v_incompleted_candidates = this->stateset_epsilon_closure(v_incompleted_candidates);
 
     // LOOKAHEAD
     PushdownStateLookup lookahead_table;

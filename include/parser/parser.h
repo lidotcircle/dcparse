@@ -147,6 +147,7 @@ private:
                      SetStateAllocator<std::pair<ruleid_t,size_t>>& state_allocator,
                      std::set<std::set<std::pair<ruleid_t,size_t>>>& new_state_set);
 
+    bool m_lookahead_rule_propagation;
     std::shared_ptr<PushdownStateMapping> m_pds_mapping;
     std::optional<state_t> m_start_state;
     std::vector<std::set<std::pair<ruleid_t,size_t>>> h_state2set;
@@ -197,7 +198,7 @@ private:
                            decision_t decision, std::set<size_t> positions);
 
 public:
-    DCParser();
+    DCParser(bool lookahead_rule_propagation = true);
     virtual ~DCParser() = default;
 
     void dec_priority();

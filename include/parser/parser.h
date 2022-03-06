@@ -45,12 +45,13 @@ public:
 
         virtual ~DCParserContext() = default;
     };
+    using pcontext_t = std::weak_ptr<DCParserContext>;
 
     class RuleDecision {
     public:
         virtual bool decide_on_pos(size_t pos) const;
         virtual bool decide_on_end() const;
-        virtual bool decide(DCParserContext& context, const std::vector<dchar_t>& vx) = 0;
+        virtual bool decide(pcontext_t context, const std::vector<dchar_t>& vx, const std::vector<dchar_t>& charstack) = 0;
         virtual ~RuleDecision() = default;
     };
     using decision_t = std::shared_ptr<RuleDecision>;
@@ -59,7 +60,7 @@ public:
     using ruleid_t = size_t;
     using state_t  = size_t;
     using context_t = std::shared_ptr<DCParserContext>;
-    using reduce_callback_t = std::function<dnonterm_t(std::weak_ptr<DCParserContext> context, std::vector<dchar_t>& children)>;
+    using reduce_callback_t = std::function<dnonterm_t(pcontext_t context, std::vector<dchar_t>& children)>;
 
     class ParserChar {
     private:
@@ -251,8 +252,8 @@ using ParserChar = DCParser::ParserChar;
 class RuleDecisionFunction : public DCParser::RuleDecision 
 {
 public:
-    using DCParserContext = typename DCParser::DCParserContext;
-    using decider_t = std::function<bool(DCParserContext& context, const std::vector<dchar_t>& vx)>;
+    using pcontext_t = typename DCParser::pcontext_t;
+    using decider_t = std::function<bool(pcontext_t context, const std::vector<dchar_t>& vx, const std::vector<dchar_t>& char_stack)>;
 
 private:
     decider_t m_decider;
@@ -264,7 +265,7 @@ public:
 
     virtual bool decide_on_pos(size_t pos) const override;
     virtual bool decide_on_end() const override;
-    virtual bool decide(DCParserContext& context, const std::vector<dchar_t>& vx) override;
+    virtual bool decide(pcontext_t context, const std::vector<dchar_t>& vx, const std::vector<dchar_t>& char_stack) override;
 };
 
 #endif // _DC_PARSER_HPP_

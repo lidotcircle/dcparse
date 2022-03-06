@@ -126,7 +126,7 @@ protected:
                     return make_shared<NonTermType>("t-" + cs2s(ts));
                 }, 
                 RuleAssocitiveLeft, 
-                make_shared<RuleDecisionFunction>([](auto& c, auto& v) {
+                make_shared<RuleDecisionFunction>([](auto, auto& v, auto&) {
                     EXPECT_EQ(v.size(), 1);
                     auto t = v.front();
                     auto k = dynamic_pointer_cast<TokenID>(t);
@@ -143,7 +143,7 @@ protected:
                     return make_shared<NonTermExpr>(cs2s(ts));
                 }, 
                 RuleAssocitiveRight,
-                make_shared<RuleDecisionFunction>([](auto& c, auto& v) {
+                make_shared<RuleDecisionFunction>([](auto, auto& v, auto&) {
                     EXPECT_TRUE(v.size() == 2 || v.size() == 3);
 
                     auto t = v.back();

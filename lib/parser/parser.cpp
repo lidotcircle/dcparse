@@ -1124,7 +1124,7 @@ void DCParser::feed_internal(dchar_t char_)
             auto decision = rule.m_rule_option->decision;
             assert(decision);
 
-            if (!decision->decide(*this->getContext(), rhs_tokens_with_optional))
+            if (!decision->decide(this->getContext(), rhs_tokens_with_optional, this->p_char_stack))
                 eliminated_rules.insert(ev);
         }
 
@@ -1252,7 +1252,7 @@ bool RuleDecisionFunction::decide_on_pos(size_t pos) const {
 bool RuleDecisionFunction::decide_on_end() const {
     return this->m_on_end;
 }
-bool RuleDecisionFunction::decide(DCParserContext& ctx, const vector<dchar_t>& cx)
+bool RuleDecisionFunction::decide(pcontext_t ctx, const vector<dchar_t>& cx, const vector<dchar_t>& char_stack)
 {
-    return this->m_decider(ctx, cx);
+    return this->m_decider(ctx, cx, char_stack);
 }

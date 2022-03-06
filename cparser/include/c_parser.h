@@ -14,8 +14,7 @@ private:
     void expression_rules ();
     void declaration_rules();
     void statement_rules  ();
-    void function_rules   ();
-    void translation_unit_rules();
+    void external_definitions();
 
     std::shared_ptr<ASTNodeTranslationUnit>
         get_translation_unit(std::shared_ptr<NonTerminal> node);

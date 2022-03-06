@@ -813,7 +813,10 @@ public:
 
 class ASTNodeStatLabel: public ASTNodeStat {
 private:
-    std::shared_ptr<TokenID> m_label;
+    using id_label_t = std::shared_ptr<TokenID>;
+    using case_label_t = std::shared_ptr<ASTNodeExpr>;
+    using default_label_t = std::nullptr_t;
+    std::variant<id_label_t,case_label_t,default_label_t> m_label;
     std::shared_ptr<ASTNodeStat> m_stat;
 
 public:
@@ -822,6 +825,27 @@ public:
             std::shared_ptr<TokenID> label,
             std::shared_ptr<ASTNodeStat> stat):
         ASTNodeStat(c), m_label(label), m_stat(stat) {}
+
+    ASTNodeStatLabel(
+            ASTNodeParserContext c,
+            std::shared_ptr<ASTNodeExpr> label,
+            std::shared_ptr<ASTNodeStat> stat):
+        ASTNodeStat(c), m_label(label), m_stat(stat) {}
+
+    ASTNodeStatLabel(
+            ASTNodeParserContext c,
+            std::shared_ptr<ASTNodeStat> stat):
+        ASTNodeStat(c), m_label(default_label_t(nullptr)), m_stat(stat) {}
+
+    inline std::shared_ptr<ASTNodeStat>& stat() { return this->m_stat; }
+
+    inline id_label_t id_label() const { return std::get<id_label_t>(this->m_label); }
+    inline case_label_t case_label() const { return std::get<case_label_t>(this->m_label); }
+    inline default_label_t default_label() const { return std::get<default_label_t>(this->m_label); }
+
+    inline bool is_id_label() const { return std::holds_alternative<id_label_t>(this->m_label); }
+    inline bool is_case_label() const { return std::holds_alternative<case_label_t>(this->m_label); }
+    inline bool is_default_label() const { return std::holds_alternative<default_label_t>(this->m_label); }
 };
 
 class ASTNodeStatCase: public ASTNodeStat {
@@ -976,20 +1000,20 @@ public:
 class ASTNodeStatForDecl: public ASTNodeStat
 {
 private:
-    std::shared_ptr<ASTNodeInitDeclaratorList> _decls;
+    std::shared_ptr<ASTNodeDeclarationList> _decls;
     std::shared_ptr<ASTNodeExpr> _cond, _post;
     std::shared_ptr<ASTNodeStat> _stat;
 
 public:
     inline ASTNodeStatForDecl(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeInitDeclaratorList> decls,
+            std::shared_ptr<ASTNodeDeclarationList> decls,
             std::shared_ptr<ASTNodeExpr> cond,
             std::shared_ptr<ASTNodeExpr> post,
             std::shared_ptr<ASTNodeStat> stat):
         ASTNodeStat(c), _decls(decls), _cond(cond), _post(post), _stat(stat) {}
 
-    inline std::shared_ptr<ASTNodeInitDeclaratorList> decls() { return this->_decls; }
+    inline std::shared_ptr<ASTNodeDeclarationList> decls() { return this->_decls; }
     inline std::shared_ptr<ASTNodeExpr>               cond()  { return this->_cond; }
     inline std::shared_ptr<ASTNodeExpr>               post()  { return this->_post; }
     inline std::shared_ptr<ASTNodeStat>               stat()  { return this->_stat; }

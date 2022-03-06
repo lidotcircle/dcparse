@@ -761,7 +761,10 @@ DCParser::state_action(set<pair<ruleid_t,size_t>> s_next,
         auto& second_pri_rule = this->m_rules[second_pri];
 
         if (second_pri_rule.m_rule_option->priority == completed_highest_priority) {
-            throw ParserGrammarError("conflict rule");
+            const auto c1 = this->help_rule2str(second_pri, second_pri_rule.m_rhs.size());
+            const auto& hr = this->m_rules[completed_highest_priority_rule];
+            const auto c2 = this->help_rule2str(completed_highest_priority_rule, hr.m_rhs.size());
+            throw ParserGrammarError("conflict rule: \n    " + c1 + " and \n    " + c2);
         }
     }
 

@@ -1373,6 +1373,307 @@ static size_t anonymous_enum_count = 0;
         });
 }
 
+void CParser::statement_rules()
+{
+    DCParser& parser = *this;
+
+
+#define to_statement(xt) \
+    parser( NI(STATEMENT), \
+        { NI(xt) }, \
+        [](auto c, auto ts) { \
+            assert(ts.size() == 1); \
+            get_ast(st, LABELED_STATEMENT, ASTNodeStat, 0); \
+            return make_shared<NonTermSTATEMENT>(stast); \
+        })
+
+    to_statement(LABELED_STATEMENT);
+    to_statement(COMPOUND_STATEMENT);
+    to_statement(EXPRESSION_STATEMENT);
+    to_statement(SELECTION_STATEMENT);
+    to_statement(ITERATION_STATEMENT);
+    to_statement(JUMP_STATEMENT);
+
+    parser( NI(LABELED_STATEMENT),
+        { TI(ID), PT(COLON), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
+            assert(id);
+            get_ast(st, STATEMENT, ASTNodeStat, 2);
+            return make_shared<NonTermLABELED_STATEMENT>(make_shared<ASTNodeStatLabel>(c, id, stast));
+        });
+
+    parser( NI(LABELED_STATEMENT),
+        { KW(case), NI(CONSTANT_EXPRESSION), PT(COLON), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast(ce, CONSTANT_EXPRESSION, ASTNodeExpr, 1);
+            get_ast(st, STATEMENT, ASTNodeStat, 3);
+            return make_shared<NonTermLABELED_STATEMENT>(make_shared<ASTNodeStatCase>(c, ceast, stast));
+        });
+
+    parser( NI(LABELED_STATEMENT),
+        { KW(default), PT(COLON), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(st, STATEMENT, ASTNodeStat, 2);
+            return make_shared<NonTermLABELED_STATEMENT>(make_shared<ASTNodeStatDefault>(c, stast));
+        });
+
+    parser( NI(COMPOUND_STATEMENT),
+        { PT(LBRACE), ParserChar::beOptional(NI(BLOCK_ITEM_LIST)), PT(RBRACE) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+
+            auto list = make_shared<ASTNodeBlockItemList>(c);
+            get_ast_if_presents(bl, BLOCK_ITEM_LIST, ASTNodeBlockItemList, 1);
+            if (blast) list = blast;
+
+            auto ast = make_shared<ASTNodeStatCompound>(c, list);
+            return make_shared<NonTermCOMPOUND_STATEMENT>(ast);
+        });
+
+    parser( NI(BLOCK_ITEM_LIST),
+        { ParserChar::beOptional(NI(BLOCK_ITEM_LIST)), NI(BLOCK_ITEM) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+
+            auto list = make_shared<ASTNodeBlockItemList>(c);
+            get_ast_if_presents(bl, BLOCK_ITEM_LIST, ASTNodeBlockItemList, 0);
+            if (blast) list = blast;
+            get_ast(bi, BLOCK_ITEM, ASTNodeBlockItem, 1);
+
+            list->push_back(biast);
+            return make_shared<NonTermBLOCK_ITEM_LIST>(list);
+        });
+
+    parser( NI(BLOCK_ITEM),
+        { NI(DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(d, DECLARATION, ASTNodeBlockItem, 0);
+            return make_shared<NonTermBLOCK_ITEM>(dast);
+        });
+
+    parser( NI(BLOCK_ITEM),
+        { NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(st, STATEMENT, ASTNodeBlockItem, 0);
+            return make_shared<NonTermBLOCK_ITEM>(stast);
+        });
+
+    parser( NI(EXPRESSION_STATEMENT),
+        { ParserChar::beOptional(NI(EXPRESSION)), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast_if_presents(ex, EXPRESSION, ASTNodeExpr, 0);
+
+            shared_ptr<ASTNodeExpr> expr = nullptr;
+            if (exast) expr = exast;
+
+            auto ast = make_shared<ASTNodeStatExpr>(c, expr);
+            return make_shared<NonTermEXPRESSION_STATEMENT>(ast);
+        });
+
+    parser( NI(SELECTION_STATEMENT),
+        { KW(if), PT(LPAREN), NI(EXPRESSION), PT(RPAREN), NI(STATEMENT), KW(else), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 7);
+            get_ast(cond, EXPRESSION, ASTNodeExpr, 2);
+            get_ast(truest, STATEMENT, ASTNodeStat, 4);
+            get_ast(falsest, STATEMENT, ASTNodeStat, 6);
+
+            auto ast = make_shared<ASTNodeStatIF>(c, condast, truestast, falsestast);
+            return make_shared<NonTermSELECTION_STATEMENT>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(SELECTION_STATEMENT),
+        { KW(if), PT(LPAREN), NI(EXPRESSION), PT(RPAREN), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 5);
+            get_ast(cond, EXPRESSION, ASTNodeExpr, 2);
+            get_ast(truest, STATEMENT, ASTNodeStat, 4);
+
+            auto ast = make_shared<ASTNodeStatIF>(c, condast, truestast, nullptr);
+            return make_shared<NonTermSELECTION_STATEMENT>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(SELECTION_STATEMENT),
+        { KW(switch), PT(LPAREN), NI(EXPRESSION), PT(RPAREN), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 5);
+            get_ast(cond, EXPRESSION, ASTNodeExpr, 2);
+            get_ast(st, STATEMENT, ASTNodeStat, 4);
+
+            auto ast = make_shared<ASTNodeStatSwitch>(c, condast, stast);
+            return make_shared<NonTermSELECTION_STATEMENT>(ast);
+        });
+
+    parser( NI(ITERATION_STATEMENT),
+        { KW(while), PT(LPAREN), NI(EXPRESSION), PT(RPAREN), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 5);
+            get_ast(cond, EXPRESSION, ASTNodeExpr, 2);
+            get_ast(st, STATEMENT, ASTNodeStat, 4);
+
+            auto ast = make_shared<ASTNodeStatFor>(c, nullptr, condast, nullptr, stast);
+            return make_shared<NonTermITERATION_STATEMENT>(ast);
+        });
+
+    parser( NI(ITERATION_STATEMENT),
+        { KW(do), NI(STATEMENT), KW(while), PT(LPAREN), NI(EXPRESSION), PT(RPAREN), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 7);
+            get_ast(st, STATEMENT, ASTNodeStat, 1);
+            get_ast(cond, EXPRESSION, ASTNodeExpr, 4);
+
+            auto ast = make_shared<ASTNodeStatDoWhile>(c, condast, stast);
+            return make_shared<NonTermITERATION_STATEMENT>(ast);
+        });
+
+    parser( NI(ITERATION_STATEMENT),
+        { KW(for), PT(LPAREN), 
+                   ParserChar::beOptional(NI(EXPRESSION)), PT(SEMICOLON), 
+                   ParserChar::beOptional(NI(EXPRESSION)), PT(SEMICOLON), 
+                   ParserChar::beOptional(NI(EXPRESSION)), PT(RPAREN), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 9);
+            get_ast_if_presents(init, EXPRESSION, ASTNodeExpr, 2);
+            get_ast_if_presents(cond, EXPRESSION, ASTNodeExpr, 4);
+            get_ast_if_presents(iter, EXPRESSION, ASTNodeExpr, 6);
+            get_ast(st, STATEMENT, ASTNodeStat, 8);
+
+            auto ast = make_shared<ASTNodeStatFor>(c, initast, condast, iterast, stast);
+            return make_shared<NonTermITERATION_STATEMENT>(ast);
+        });
+
+    parser( NI(ITERATION_STATEMENT),
+        { KW(for), PT(LPAREN),
+                   NI(DECLARATION),
+                   ParserChar::beOptional(NI(EXPRESSION)), PT(SEMICOLON), 
+                   ParserChar::beOptional(NI(EXPRESSION)), PT(RPAREN), NI(STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 9);
+            get_ast(decl, DECLARATION, ASTNodeDeclarationList, 2);
+            get_ast_if_presents(cond, EXPRESSION, ASTNodeExpr, 4);
+            get_ast_if_presents(iter, EXPRESSION, ASTNodeExpr, 6);
+            get_ast(st, STATEMENT, ASTNodeStat, 8);
+
+            auto ast = make_shared<ASTNodeStatForDecl>(c, declast, condast, iterast, stast);
+            return make_shared<NonTermITERATION_STATEMENT>(ast);
+        });
+
+    parser( NI(JUMP_STATEMENT),
+        { KW(goto), TI(ID), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            auto id = dynamic_pointer_cast<TokenID>(ts[1]);
+            assert(id);
+            auto ast = make_shared<ASTNodeStatGoto>(c, id);
+            return make_shared<NonTermJUMP_STATEMENT>(ast);
+        });
+
+    parser( NI(JUMP_STATEMENT),
+        { KW(continue), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto ast = make_shared<ASTNodeStatContinue>(c);
+            return make_shared<NonTermJUMP_STATEMENT>(ast);
+        });
+
+    parser( NI(JUMP_STATEMENT),
+        { KW(break), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto ast = make_shared<ASTNodeStatBreak>(c);
+            return make_shared<NonTermJUMP_STATEMENT>(ast);
+        });
+
+    parser( NI(JUMP_STATEMENT),
+        { KW(return), ParserChar::beOptional(NI(EXPRESSION)), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast_if_presents(expr, EXPRESSION, ASTNodeExpr, 1);
+            auto ast = make_shared<ASTNodeStatReturn>(c, exprast);
+            return make_shared<NonTermJUMP_STATEMENT>(ast);
+        });
+}
+
+void CParser::external_definitions()
+{
+    auto& parser = *this;
+
+
+    parser( NI(TRANSLATION_UNIT),
+        { ParserChar::beOptional(NI(TRANSLATION_UNIT)), NI(EXTERNAL_DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast_if_presents(prev, TRANSLATION_UNIT, ASTNodeTranslationUnit, 0);
+            get_ast(cur, EXTERNAL_DECLARATION, ASTNodeExternalDeclaration, 1);
+
+            if (prevast == nullptr)
+                prevast = make_shared<ASTNodeTranslationUnit>(c);
+
+            prevast->push_back(curast);
+            return make_shared<NonTermTRANSLATION_UNIT>(prevast);
+        });
+
+    parser( NI(EXTERNAL_DECLARATION),
+        { NI(FUNCTION_DEFINITION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(cur, FUNCTION_DEFINITION, ASTNodeFunctionDefinition, 0);
+            return make_shared<NonTermEXTERNAL_DECLARATION>(curast);
+        });
+
+    parser( NI(EXTERNAL_DECLARATION),
+        { NI(DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(cur, DECLARATION, ASTNodeDeclarationList, 0);
+            return make_shared<NonTermEXTERNAL_DECLARATION>(curast);
+        });
+
+    parser( NI(FUNCTION_DEFINITION),
+        { NI(DECLARATION_SPECIFIERS), NI(DECLARATOR), ParserChar::beOptional(NI(DECLARATION_LIST)), NI(COMPOUND_STATEMENT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast(spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 1);
+            declast->set_leaf_type(make_shared<ASTNodeVariableTypePlain>(c, specast));
+
+            auto functype = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(declast->type());
+            assert(functype);
+            get_ast(st, COMPOUND_STATEMENT, ASTNodeStatCompound, 3);
+
+            get_ast_if_presents(decltx, DECLARATION_LIST, ASTNodeDeclarationList, 2);
+            if (decltxast != nullptr) {
+                // TODO old style C parameter declaration
+            }
+
+            auto ast = make_shared<ASTNodeFunctionDefinition>(c, functype, stast);
+            return make_shared<NonTermFUNCTION_DEFINITION>(ast);
+        });
+
+    parser( NI(DECLARATION_LIST),
+        { ParserChar::beOptional(NI(DECLARATION_LIST)), NI(DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast_if_presents(dll, DECLARATION_LIST, ASTNodeDeclarationList, 0);
+            get_ast(dl, DECLARATION, ASTNodeDeclarationList, 1);
+
+            if (dllast == nullptr)
+                dllast = make_shared<ASTNodeDeclarationList>(c);
+
+            for (auto& d : *dlast)
+                dllast->push_back(d);
+
+            return make_shared<NonTermDECLARATION_LIST>(dllast);
+        });
+}
+
 
 CParser::CParser()
 {
@@ -1382,9 +1683,7 @@ CParser::CParser()
     this->__________();
     this->statement_rules  ();
     this->__________();
-    this->function_rules   ();
-    this->__________();
-    this->translation_unit_rules();
+    this->external_definitions();
 
     this->add_start_symbol(NI(TRANSLATION_UNIT).id);
 

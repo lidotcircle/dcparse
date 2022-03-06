@@ -608,6 +608,7 @@ public:
 
     inline ASTNodeVariableType(ASTNodeParserContext c): ASTNode(c) {}
 
+    virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const = 0;
     virtual variable_basic_type basic_type() = 0;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) = 0;
     // virtual bool convert_to_type(std::shared_ptr<ASTNodeVariableType>& type) = 0;
@@ -625,6 +626,7 @@ public:
         ASTNodeVariableType(c),
         m_declaration_specifier(std::move(declaration_specifier)) {}
 
+    virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
 };
@@ -642,6 +644,7 @@ public:
         ASTNodeVariableType(c),
         m_type(std::move(type)) {}
 
+    virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
 };
@@ -667,6 +670,7 @@ public:
         m_static(static_),
         m_unspecified_size_vla(false) {}
 
+    virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
     bool& unspecified_size_vla() { return this->m_unspecified_size_vla; }
@@ -734,6 +738,7 @@ public:
     inline std::shared_ptr<ASTNodeParameterDeclarationList>& parameter_declaration_list() { return this->m_parameter_declaration_list; }
     inline std::shared_ptr<ASTNodeVariableType>& return_type() { return this->m_return_type; }
 
+    virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
 };

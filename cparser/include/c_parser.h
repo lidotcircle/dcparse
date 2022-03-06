@@ -3,6 +3,8 @@
 
 #include "parser/parser.h"
 #include "./c_ast.h"
+#include <set>
+#include <string>
 
 
 namespace cparser {
@@ -11,10 +13,13 @@ namespace cparser {
 class CParser: private DCParser
 {
 private:
+    void typedef_rule();
     void expression_rules ();
     void declaration_rules();
     void statement_rules  ();
     void external_definitions();
+
+    std::set<std::string> m_typedefs;
 
     std::shared_ptr<ASTNodeTranslationUnit>
         get_translation_unit(std::shared_ptr<NonTerminal> node);

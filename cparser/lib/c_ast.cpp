@@ -15,6 +15,12 @@ data_type ASTNodeTypeSpecifierFloat::dtype()   const { return data_type::INT; }
 data_type ASTNodeTypeSpecifierVoid::dtype()    const { return data_type::INT; }
 
 
+const shared_ptr<ASTNodeDeclarationSpecifier> ASTNodeVariableTypePlain::declspec() const
+{
+    assert(this->m_declaration_specifier);
+    return this->m_declaration_specifier;
+}
+
 variable_basic_type ASTNodeVariableTypePlain::basic_type()
 {
     return variable_basic_type::PLAIN;
@@ -25,6 +31,12 @@ void ASTNodeVariableTypePlain::set_leaf_type(shared_ptr<ASTNodeVariableType> typ
     throw runtime_error("unexpected calling ASTNodeVariableTypePlain::set_declaration_specifier()");
 }
 
+
+const shared_ptr<ASTNodeDeclarationSpecifier> ASTNodeVariableTypeArray::declspec() const
+{
+    assert(this->m_type);
+    return this->m_type->declspec();
+}
 
 variable_basic_type ASTNodeVariableTypeArray::basic_type()
 {
@@ -44,6 +56,12 @@ void ASTNodeVariableTypeArray::set_leaf_type(shared_ptr<ASTNodeVariableType> typ
 }
 
 
+const shared_ptr<ASTNodeDeclarationSpecifier> ASTNodeVariableTypePointer::declspec() const
+{
+    assert(this->m_type);
+    return this->m_type->declspec();
+}
+
 variable_basic_type ASTNodeVariableTypePointer::basic_type()
 {
     return variable_basic_type::POINTER;
@@ -61,6 +79,12 @@ void ASTNodeVariableTypePointer::set_leaf_type(shared_ptr<ASTNodeVariableType> t
     this->m_type->set_leaf_type(type);
 }
 
+
+const shared_ptr<ASTNodeDeclarationSpecifier> ASTNodeVariableTypeFunction::declspec() const
+{
+    assert(this->m_return_type);
+    return this->m_return_type->declspec();
+}
 
 variable_basic_type ASTNodeVariableTypeFunction::basic_type()
 {

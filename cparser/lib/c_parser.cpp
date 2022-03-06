@@ -152,6 +152,43 @@ using ParserChar = DCParser::ParserChar;
 namespace cparser {
 
 
+void CParser::typedef_rule()
+{
+    auto& parser = *this;
+
+
+    parser( NI(TYPEDEF_NAME),
+        { TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
+            assert(id);
+            return make_shared<NonTermTYPEDEF_NAME>(make_shared<ASTNodeTypeSpecifierTypedef>(c, id));
+        }, RuleAssocitiveLeft, 
+        make_shared<RuleDecisionFunction>([](auto ctx, auto& rhs, auto& stack) {
+            assert(rhs.size() == 1);
+            auto id = dynamic_pointer_cast<TokenID>(rhs[0]);
+            assert(id);
+            auto _id = id->id;
+            auto sctx = ctx.lock();
+            auto _parser_ = sctx->parser();
+            auto _parser = dynamic_cast<CParser*>(_parser_);
+            assert(_parser);
+            auto& typedefs = _parser->m_typedefs;
+
+            if (typedefs.find(_id) == typedefs.end())
+                return false;
+
+            if (stack.size() > 0) {
+                auto& b = stack.back();
+                const auto m = dynamic_pointer_cast<NonTermTYPE_SPECIFIER>(b);
+                if (m) return false;
+            }
+
+            return true;
+        }));
+}
+
 #define expr_reduce(to, from) \
     parser( NI(to), \
         { NI(from) }, \
@@ -296,15 +333,15 @@ void CParser::expression_rules()
 
 
     expr_reduce(UNARY_EXPRESSION, POSTFIX_EXPRESSION);
-    add_prefix_unary_rule(UNARY_EXPRESSION, UNARY_EXPRESSION, PLUSPLUS, REFERENCE, RuleAssocitiveRight);
-    add_prefix_unary_rule(UNARY_EXPRESSION, UNARY_EXPRESSION, PLUSPLUS, REFERENCE, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, UNARY_EXPRESSION, PLUSPLUS, PREFIX_INC, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, UNARY_EXPRESSION, MINUSMINUS, PREFIX_DEC, RuleAssocitiveRight);
 
     add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  REF, REFERENCE, RuleAssocitiveRight);
-    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  MULTIPLY, REFERENCE, RuleAssocitiveRight);
-    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  PLUS, REFERENCE, RuleAssocitiveRight);
-    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  MINUS, REFERENCE, RuleAssocitiveRight);
-    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  BIT_NOT, REFERENCE, RuleAssocitiveRight);
-    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  LOGIC_NOT, REFERENCE, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  MULTIPLY, DEREFERENCE, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  PLUS, PLUS, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  MINUS, MINUS, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  BIT_NOT, BITWISE_NOT, RuleAssocitiveRight);
+    add_prefix_unary_rule(UNARY_EXPRESSION, CAST_EXPRESSION,  LOGIC_NOT, LOGICAL_NOT, RuleAssocitiveRight);
 
     parser( NI(UNARY_EXPRESSION),
         { KW(sizeof), NI(UNARY_EXPRESSION) },
@@ -451,6 +488,9 @@ void CParser::declaration_rules()
         { NI(DECLARATION_SPECIFIERS), ParserChar::beOptional(NI(INIT_DECLARATOR_LIST)), PT(SEMICOLON) },
         [](auto c, auto ts) {
             assert(ts.size() == 3);
+            auto ctx = c.lock();
+            auto __p = ctx->parser();
+            auto _p = dynamic_cast<CParser*>(__p);
             get_ast(decl_spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
 
             auto init_decl_list_ast = make_shared<ASTNodeInitDeclaratorList>(c);
@@ -464,6 +504,14 @@ void CParser::declaration_rules()
             for (auto decl: *init_decl_list_ast) {
                 decl->set_leaf_type(make_shared<ASTNodeVariableTypePlain>(c, decl_specast));
                 ast->push_back(decl);
+
+                auto type = decl->type();
+                auto spec = type->declspec();
+                if (spec->storage_class() == ASTNodeDeclarationSpecifier::StorageClass::SC_Typedef) {
+                    auto typedefid = decl->id();
+                    assert(typedefid && !typedefid->id.empty());
+                    _p->m_typedefs.insert(typedefid->id);
+                }
             }
 
             return make_shared<NonTermDECLARATION>(ast);
@@ -1282,15 +1330,7 @@ static size_t anonymous_enum_count = 0;
             return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
         });
 
-    // TODO higher priority with context sensitive determiner
-    parser( NI(TYPEDEF_NAME),
-        { TI(ID) },
-        [](auto c, auto ts) {
-            assert(ts.size() == 1);
-            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
-            assert(id);
-            return make_shared<NonTermTYPEDEF_NAME>(make_shared<ASTNodeTypeSpecifierTypedef>(c, id));
-        });
+    // TYPEDEF_NAME typedef_rule()
 
     parser( NI(INITIALIZER),
         { NI(ASSIGNMENT_EXPRESSION) },
@@ -1677,6 +1717,8 @@ void CParser::external_definitions()
 
 CParser::CParser()
 {
+    this->typedef_rule();
+    this->__________();
     this->expression_rules();
     this->__________();
     this->declaration_rules();
@@ -1688,6 +1730,15 @@ CParser::CParser()
     this->add_start_symbol(NI(TRANSLATION_UNIT).id);
 
     this->generate_table();
+}
+
+shared_ptr<ASTNodeTranslationUnit> CParser::get_translation_unit(shared_ptr<NonTerminal> node)
+{
+    auto unit = dynamic_pointer_cast<NonTermTRANSLATION_UNIT>(node);
+    assert(unit);
+    auto nunit = dynamic_pointer_cast<ASTNodeTranslationUnit>(unit->astnode);
+    assert(nunit);
+    return nunit;
 }
 
 }

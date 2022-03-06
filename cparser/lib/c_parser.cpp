@@ -40,6 +40,7 @@ using namespace std;
     TENTRY(ENUM_SPECIFIER) \
     TENTRY(ENUMERATOR_LIST) \
     TENTRY(ENUMERATOR) \
+    TENTRY(ENUMERATION_CONSTANT) \
     TENTRY(TYPE_QUALIFIER) \
     TENTRY(FUNCTION_SPECIFIER) \
     TENTRY(DECLARATOR) \
@@ -95,6 +96,14 @@ using ParserChar = DCParser::ParserChar;
     auto varn##ast = dynamic_pointer_cast<nodetype>(varn->astnode); \
     assert(varn##ast);
 
+#define get_ast_if_presents(varn, nonterm, nodetype, idx) \
+    auto varn = dynamic_pointer_cast<NonTerm##nonterm>(ts[idx]); \
+    std::shared_ptr<nodetype> varn##ast = nullptr; \
+    if (varn) {\
+        assert(varn->astnode); \
+        varn##ast = dynamic_pointer_cast<nodetype>(varn->astnode); \
+        assert(varn##ast);\
+    }
 
 #define add_binary_rule(nonterm, leftnonterm, rightnonterm, op, astop, assoc) \
     parser( NI(nonterm), \
@@ -453,7 +462,7 @@ void CParser::declaration_rules()
             auto ast = make_shared<ASTNodeDeclarationList>(c);
 
             for (auto decl: *init_decl_list_ast) {
-                decl->set_declaration_specifier(decl_specast);
+                decl->set_leaf_type(make_shared<ASTNodeVariableTypePlain>(c, decl_specast));
                 ast->push_back(decl);
             }
 
@@ -616,7 +625,7 @@ void CParser::declaration_rules()
 struct struct_pesudo: public ASTNode { struct_pesudo(ASTNodeParserContext c): ASTNode(c) {} };
 struct union_pesudo:  public ASTNode { union_pesudo (ASTNodeParserContext c): ASTNode(c) {} };
 
-static int anonymous_struct_counter = 0;
+static int anonymous_struct_union_counter = 0;
     parser( NI(STRUCT_OR_UNION_SPECIFIER),
         { NI(STRUCT_OR_UNION), ParserChar::beOptional(TI(ID)), PT(LBRACE), NI(STRUCT_DECLARATION_LIST), PT(RBRACE) },
         [](auto c, auto ts) {
@@ -632,7 +641,7 @@ static int anonymous_struct_counter = 0;
                 assert(id);
             } else {
                 id = make_shared<TokenID>(
-                        "anonymous_struct_" + std::to_string(++anonymous_struct_counter),
+                        "#anonymous_struct_union_" + std::to_string(++anonymous_struct_union_counter),
                         LexerToken::TokenInfo());
             }
             get_ast(dc, STRUCT_OR_UNION_SPECIFIER, ASTNodeStructUnionDeclarationList, 3);
@@ -702,8 +711,9 @@ static int anonymous_struct_counter = 0;
             get_ast(sql, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
             get_ast(sdl, STRUCT_DECLARATOR_LIST,  ASTNodeStructUnionDeclarationList, 1);
 
+            auto vt = make_shared<ASTNodeVariableTypePlain>(c, sqlast);
             for (auto sd: *sdlast)
-                sd->set_declaration_specifier(sqlast);
+                sd->set_leaf_type(vt);
 
             return make_shared<NonTermSTRUCT_DECLARATION>(sdlast);
         });
@@ -738,7 +748,631 @@ static int anonymous_struct_counter = 0;
             }
             return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tqualast);
         }, RuleAssocitiveLeft);
+
+    parser( NI(STRUCT_DECLARATOR_LIST),
+        { ParserChar::beOptional(NI(STRUCT_DECLARATOR_LIST)), NI(STRUCT_DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto sdlast = make_shared<ASTNodeStructUnionDeclarationList>(c);
+            if (ts[0]) {
+                get_ast(xsdl, STRUCT_DECLARATOR_LIST, ASTNodeStructUnionDeclarationList, 0);
+                sdlast = xsdlast;
+            }
+            get_ast(sd,  STRUCT_DECLARATOR, ASTNodeStructUnionDeclaration, 1);
+            sdlast->push_back(sdast);
+            return make_shared<NonTermSTRUCT_DECLARATOR_LIST>(sdlast);
+        });
+
+    parser( NI(STRUCT_DECLARATOR),
+        { NI(DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(d, DECLARATOR, ASTNodeInitDeclarator, 0);
+            auto ast = make_shared<ASTNodeStructUnionDeclaration>(c, dast, nullptr);
+            return make_shared<NonTermSTRUCT_DECLARATOR>(ast);
+        });
+
+    parser( NI(STRUCT_DECLARATOR),
+        { ParserChar::beOptional(NI(DECLARATOR)), PT(COLON), NI(CONSTANT_EXPRESSION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            shared_ptr<ASTNodeInitDeclarator> dast = nullptr;
+            if (ts[0]) {
+                get_ast(xd, DECLARATOR, ASTNodeInitDeclarator, 0);
+                dast = xdast;
+                assert(dast);
+            }
+            get_ast(ce, CONSTANT_EXPRESSION, ASTNodeExpr, 2);
+            auto ast = make_shared<ASTNodeStructUnionDeclaration>(c, dast, ceast);
+            return make_shared<NonTermSTRUCT_DECLARATOR>(ast);
+        });
+
+static size_t anonymous_enum_count = 0;
+    parser( NI(ENUM_SPECIFIER),
+        { KW(enum), ParserChar::beOptional(TI(ID)), PT(LBRACE), NI(ENUMERATOR_LIST), ParserChar::beOptional(PT(COMMA)), PT(RBRACE) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            shared_ptr<TokenID> id = nullptr;
+
+            if (ts[1]) {
+                id = dynamic_pointer_cast<TokenID>(ts[1]);
+                assert(id);
+            } else {
+                id = make_shared<TokenID>(
+                        "anonymous_enum_" + std::to_string(++anonymous_enum_count),
+                        LexerToken::TokenInfo());
+            }
+
+            get_ast(el, ENUMERATOR_LIST, ASTNodeEnumeratorList, 3);
+            // TODO add enum specifier to context
+
+            auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
+            return make_shared<NonTermENUM_SPECIFIER>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(ENUM_SPECIFIER),
+        { KW(enum), TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto id = dynamic_pointer_cast<TokenID>(ts[1]);
+            auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
+            return make_shared<NonTermENUM_SPECIFIER>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(ENUMERATOR_LIST),
+        { ParserChar::beOptional(NI(ENUMERATOR_LIST)), NI(ENUMERATOR) },
+        [] (auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto elast = make_shared<ASTNodeEnumeratorList>(c);
+            if (ts[0]) {
+                get_ast(xel, ENUMERATOR_LIST, ASTNodeEnumeratorList, 0);
+                elast = xelast;
+            }
+            get_ast(en, ENUMERATOR, ASTNodeEnumerator, 1);
+            elast->push_back(enast);
+            return make_shared<NonTermENUMERATOR_LIST>(elast);
+        });
+
+    parser( NI(ENUMERATOR),
+        { NI(ENUMERATION_CONSTANT) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(ec, ENUMERATION_CONSTANT, ASTNodeEnumerationConstant, 0);
+            auto ast = make_shared<ASTNodeEnumerator>(c, ecast->id(), nullptr);
+            return make_shared<NonTermENUMERATOR>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(ENUMERATOR),
+        { NI(ENUMERATION_CONSTANT), PT(ASSIGN), NI(CONSTANT_EXPRESSION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(ec, ENUMERATION_CONSTANT, ASTNodeEnumerationConstant, 0);
+            get_ast(constant, CONSTANT_EXPRESSION, ASTNodeExpr, 2);
+            auto ast = make_shared<ASTNodeEnumerator>(c, ecast->id(), constantast);
+            return make_shared<NonTermENUMERATOR>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(ENUMERATION_CONSTANT),
+        { TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
+            auto ast = make_shared<ASTNodeEnumerationConstant>(c, id);
+            return make_shared<NonTermENUMERATION_CONSTANT>(ast);
+        });
+
+#define add_to_qualifier(kw) \
+    parser( NI(TYPE_QUALIFIER), \
+        { KW(kw) }, \
+        [](auto c, auto ts) { \
+            assert(ts.size() == 1); \
+            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
+            ast->kw##_ref() = true; \
+            return make_shared<NonTermTYPE_QUALIFIER>(ast); \
+        })
+    add_to_qualifier(const);
+    add_to_qualifier(restrict);
+    add_to_qualifier(volatile);
+
+#define add_to_function_specifier(kw, kw_ref) \
+    parser( NI(FUNCTION_SPECIFIER), \
+        { KW(kw) }, \
+        [](auto c, auto ts) { \
+            assert(ts.size() == 1); \
+            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
+            ast->kw_ref() = true; \
+            return make_shared<NonTermFUNCTION_SPECIFIER>(ast); \
+        });
+    add_to_function_specifier(inline, inlined);
+
+    parser( NI(DECLARATOR),
+        { ParserChar::beOptional(NI(POINTER)), NI(DIRECT_DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            shared_ptr<ASTNodeVariableTypePointer> vtype = nullptr;
+            if (ts[0]) {
+                get_ast(xv, POINTER, ASTNodeVariableTypePointer, 0);
+                vtype = xvast;
+            }
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 1);
+            if (vtype)
+                ddast->set_leaf_type(vtype);
+
+            return make_shared<NonTermDECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
+            auto ast = make_shared<ASTNodeInitDeclarator>(c, id, nullptr, nullptr);
+            return make_shared<NonTermDIRECT_DECLARATOR>(ast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { PT(RPAREN), NI(DIRECT_DECLARATOR), PT(RPAREN) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            return dynamic_pointer_cast<NonTermDIRECT_DECLARATOR>(ts[1]);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { NI(DIRECT_DECLARATOR), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), ParserChar::beOptional(NI(ASSIGNMENT_EXPRESSION)), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 5);
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { NI(DIRECT_DECLARATOR), PT(LBRACKET), KW(static), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 3);
+            get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { NI(DIRECT_DECLARATOR), PT(LBRACKET), NI(TYPE_QUALIFIER_LIST), KW(static), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { NI(DIRECT_DECLARATOR), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), PT(MULTIPLY), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
+            array->unspecified_size_vla() = true;
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { NI(DIRECT_DECLARATOR), PT(LPAREN), NI(PARAMETER_TYPE_LIST), PT(RPAREN) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast(pl, PARAMETER_TYPE_LIST, ASTNodeParameterDeclarationList, 2);
+            auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
+            ddast->set_leaf_type(func);
+
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_DECLARATOR),
+        { NI(DIRECT_DECLARATOR), PT(LPAREN), ParserChar::beOptional(NI(IDENTIFIER_LIST)), PT(RPAREN) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            auto plast = make_shared<ASTNodeParameterDeclarationList>(c);
+            get_ast_if_presents(xpl, IDENTIFIER_LIST, ASTNodeParameterDeclarationList, 2);
+            if (xplast) plast = xplast;
+            auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
+            ddast->set_leaf_type(func);
+
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(POINTER),
+        { PT(MULTIPLY), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), ParserChar::beOptional(NI(POINTER)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            auto ptr = make_shared<ASTNodeVariableTypePointer>(c, nullptr);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 1);
+            get_ast_if_presents(optr, POINTER, ASTNodeVariableTypePointer, 2);
+            if (qlast) {
+                ptr->const_ref() = qlast->const_ref();
+                ptr->restrict_ref() = qlast->restrict_ref();
+                ptr->volatile_ref() = qlast->volatile_ref();
+            }
+            if (optr) {
+                optrast->set_leaf_type(ptr);
+                std::swap(ptr, optrast);
+            }
+
+            return make_shared<NonTermPOINTER>(ptr);
+        }, RuleAssocitiveRight);
+
+    parser( NI(TYPE_QUALIFIER_LIST),
+        { ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), NI(TYPE_QUALIFIER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+
+            auto ql = make_shared<ASTNodeDeclarationSpecifier>(c);
+            get_ast_if_presents(xql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            get_ast(q, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 1);
+
+            if (xql) ql = xqlast;
+
+            ql->const_ref() = ql->const_ref() || qast->const_ref();
+            ql->restrict_ref() = ql->restrict_ref() || qast->restrict_ref();
+            ql->volatile_ref() = ql->volatile_ref() || qast->volatile_ref();
+
+            return make_shared<NonTermTYPE_QUALIFIER_LIST>(ql);
+        });
+
+    parser( NI(PARAMETER_TYPE_LIST),
+        { NI(PARAMETER_LIST) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
+            return make_shared<NonTermPARAMETER_TYPE_LIST>(plast);
+        });
+
+    parser( NI(PARAMETER_TYPE_LIST),
+        { NI(PARAMETER_LIST), PT(COMMA), PT(DOTS) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
+            plast->variadic() = true;
+            return make_shared<NonTermPARAMETER_TYPE_LIST>(plast);
+        });
+
+    parser( NI(PARAMETER_LIST),
+        { NI(PARAMETER_DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            auto pl = make_shared<ASTNodeParameterDeclarationList>(c);
+            get_ast(pd, PARAMETER_DECLARATION, ASTNodeParameterDeclaration, 0);
+            pl->push_back(pdast);
+            return make_shared<NonTermPARAMETER_LIST>(pl);
+        });
+
+    parser( NI(PARAMETER_LIST),
+        { NI(PARAMETER_LIST), PT(COMMA), NI(PARAMETER_DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
+            get_ast(pd, PARAMETER_DECLARATION, ASTNodeParameterDeclaration, 2);
+            plast->push_back(pdast);
+            return make_shared<NonTermPARAMETER_LIST>(plast);
+        });
+
+    parser( NI(PARAMETER_DECLARATION),
+        { NI(DECLARATION_SPECIFIERS), NI(DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(d, DECLARATOR, ASTNodeInitDeclarator, 1);
+            auto pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
+            dast->set_leaf_type(pd);
+            auto ast = make_shared<ASTNodeParameterDeclaration>(c, dast->id(), dast->type());
+            return make_shared<NonTermPARAMETER_DECLARATION>(ast);
+        });
+
+    parser( NI(PARAMETER_DECLARATION),
+        { NI(DECLARATION_SPECIFIERS), ParserChar::beOptional(NI(ABSTRACT_DECLARATOR)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast_if_presents(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
+            shared_ptr<ASTNodeVariableType> pd;
+            pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
+            if (dast) {
+                dast->set_leaf_type(pd);
+                pd = dast->type();
+            }
+            auto ast = make_shared<ASTNodeParameterDeclaration>(c, nullptr, pd);
+            return make_shared<NonTermPARAMETER_DECLARATION>(ast);
+        });
+
+    parser( NI(IDENTIFIER_LIST),
+        { TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            auto il = make_shared<ASTNodeParameterDeclarationList>(c);
+            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
+            assert(id);
+            il->push_back(make_shared<ASTNodeParameterDeclaration>(c, id, nullptr));
+            return make_shared<NonTermIDENTIFIER_LIST>(il);
+        });
+
+    parser( NI(IDENTIFIER_LIST),
+        { NI(IDENTIFIER_LIST), PT(COMMA), TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(il, IDENTIFIER_LIST, ASTNodeParameterDeclarationList, 0);
+            auto id = dynamic_pointer_cast<TokenID>(ts[2]);
+            assert(id);
+            ilast->push_back(make_shared<ASTNodeParameterDeclaration>(c, id, nullptr));
+            return make_shared<NonTermIDENTIFIER_LIST>(ilast);
+        });
+
+    parser( NI(TYPE_NAME),
+        { NI(SPECIFIER_QUALIFIER_LIST), ParserChar::beOptional(NI(ABSTRACT_DECLARATOR)) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(sq, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            get_ast_if_presents(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
+
+            shared_ptr<ASTNodeVariableType> kt;
+            kt = make_shared<ASTNodeVariableTypePlain>(c, sqast);
+            if (dast) {
+                dast->set_leaf_type(kt);
+                kt = dast->type();
+            }
+
+            return make_shared<NonTermTYPE_NAME>(kt);
+        });
+
+    parser( NI(ABSTRACT_DECLARATOR),
+        { NI(POINTER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(sq, POINTER, ASTNodeVariableTypePointer, 0);
+            auto ast = make_shared<ASTNodeInitDeclarator>(c, nullptr, sqast, nullptr);
+            return make_shared<NonTermABSTRACT_DECLARATOR>(ast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(ABSTRACT_DECLARATOR),
+        { ParserChar::beOptional(NI(POINTER)), NI(DIRECT_ABSTRACT_DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast_if_presents(sq, POINTER, ASTNodeVariableTypePointer, 0);
+            get_ast(d, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
+
+            if (sqast) dast->set_leaf_type(sqast);
+
+            return make_shared<NonTermABSTRACT_DECLARATOR>(dast);
+        }, RuleAssocitiveRight);
+
+    parser( NI(DIRECT_ABSTRACT_DECLARATOR),
+        { PT(LPAREN), NI(ABSTRACT_DECLARATOR), PT(RPAREN) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
+            auto ast = make_shared<ASTNodeInitDeclarator>(c, nullptr, dast->type(), nullptr);
+            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ast);
+        });
+
+    parser( NI(DIRECT_ABSTRACT_DECLARATOR),
+        { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), ParserChar::beOptional(NI(ASSIGNMENT_EXPRESSION)), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 5);
+            get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+
+            if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_ABSTRACT_DECLARATOR),
+        { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), KW(static), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 3);
+            get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+
+            if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_ABSTRACT_DECLARATOR),
+        { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), NI(TYPE_QUALIFIER_LIST), KW(static), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+
+            if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_ABSTRACT_DECLARATOR),
+        { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), PT(MULTIPLY), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 6);
+            get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
+            array->unspecified_size_vla() = true;
+            if (qlast) {
+                array->const_ref() = qlast->const_ref();
+                array->restrict_ref() = qlast->restrict_ref();
+                array->volatile_ref() = qlast->volatile_ref();
+            }
+
+            if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
+            ddast->set_leaf_type(array);
+
+            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+        });
+
+    parser( NI(DIRECT_ABSTRACT_DECLARATOR),
+        { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LPAREN), ParserChar::beOptional(NI(PARAMETER_TYPE_LIST)), PT(RPAREN) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
+            get_ast_if_presents(pl, PARAMETER_TYPE_LIST, ASTNodeParameterDeclarationList, 2);
+
+            if (!plast) plast = make_shared<ASTNodeParameterDeclarationList>(c);
+
+            auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
+            ddast->set_leaf_type(func);
+
+            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+        });
+
+    // TODO higher priority with context sensitive determiner
+    parser( NI(TYPEDEF_NAME),
+        { TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            auto id = dynamic_pointer_cast<TokenID>(ts[0]);
+            assert(id);
+            return make_shared<NonTermTYPEDEF_NAME>(make_shared<ASTNodeTypeSpecifierTypedef>(c, id));
+        });
+
+    parser( NI(INITIALIZER),
+        { NI(ASSIGNMENT_EXPRESSION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 0);
+            return make_shared<NonTermINITIALIZER>(make_shared<ASTNodeInitializer>(c, exprast));
+        });
+
+    parser( NI(INITIALIZER),
+        { PT(LBRACE), NI(INITIALIZER_LIST), ParserChar::beOptional(PT(COMMA)), PT(RBRACE) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast(il, INITIALIZER_LIST, ASTNodeInitializerList, 1);
+            return make_shared<NonTermINITIALIZER>(make_shared<ASTNodeInitializer>(c, ilast));
+        });
+
+    parser( NI(INITIALIZER_LIST),
+        { ParserChar::beOptional(NI(INITIALIZER_LIST)), ParserChar::beOptional(NI(DESIGNATION)), NI(INITIALIZER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast_if_presents(il, INITIALIZER_LIST, ASTNodeInitializerList, 0);
+            get_ast_if_presents(ds, DESIGNATION, ASTNodeDesignation, 1);
+            get_ast(init, INITIALIZER, ASTNodeInitializer, 2);
+
+            auto ax = make_shared<ASTNodeInitializerList>(c);
+            if (ilast) ax = ilast;
+            auto dx = make_shared<ASTNodeDesignation>(c);
+            if (dsast) dx = dsast;
+            dx->initializer() = initast;
+            ax->push_back(dx);
+
+            return make_shared<NonTermINITIALIZER_LIST>(ax);
+        });
+
+    parser( NI(DESIGNATION),
+        { NI(DESIGNATOR_LIST), PT(ASSIGN) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast(dl, DESIGNATOR_LIST, ASTNodeDesignation, 0);
+            return make_shared<NonTermDESIGNATION>(dlast);
+        });
+
+    parser( NI(DESIGNATOR_LIST),
+        { ParserChar::beOptional(NI(DESIGNATOR_LIST)), NI(DESIGNATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            get_ast_if_presents(dl, DESIGNATOR_LIST, ASTNodeDesignation, 0);
+            get_ast(ds, DESIGNATOR, ASTNodeDesignation, 1);
+
+            auto ax = make_shared<ASTNodeDesignation>(c);
+            if (dlast) ax = dlast;
+
+            assert(dsast->designators().size() == 1);
+            for (auto d: dsast->designators())
+                ax->add_designator(d);
+
+            return make_shared<NonTermDESIGNATOR_LIST>(ax);
+        });
+
+    parser( NI(DESIGNATOR),
+        { PT(LBRACKET), NI(CONSTANT_EXPRESSION), PT(RBRACKET) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(ce, CONSTANT_EXPRESSION, ASTNodeExpr, 1);
+
+            auto ax = make_shared<ASTNodeDesignation>(c, ceast);
+            return make_shared<NonTermDESIGNATOR>(ax);
+        });
+
+    parser( NI(DESIGNATOR),
+        { PT(DOT), TI(ID) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 2);
+            auto id = dynamic_pointer_cast<TokenID>(ts[1]);
+            assert(id);
+
+            auto ax = make_shared<ASTNodeDesignation>(c, id);
+            return make_shared<NonTermDESIGNATOR>(ax);
+        });
 }
+
 
 CParser::CParser()
 {

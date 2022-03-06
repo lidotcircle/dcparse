@@ -124,6 +124,8 @@ KEYWORD_TOKEN
             return nullptr;
         })
     );
+
+    lexer.reset();
 }
 
 vector<token_t> CalcLexer::feed(char c)

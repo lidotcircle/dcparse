@@ -4,7 +4,8 @@
 using namespace std;
 
 
-TEST(RuleTransitionTable, Basic) {
-    cparser::CParser parser;
-    parser.setDebugStream(cout);
+TEST(RuleTransitionTable, CParserBasic) {
+    EXPECT_NO_THROW(
+        cparser::CParser parser;
+    );
 }

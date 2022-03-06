@@ -120,7 +120,7 @@ C_KEYWORD_LIST
     P_ENTRY(QUESTION, "\\?") \
     P_ENTRY(COLON, ":") \
     P_ENTRY(SEMICOLON, ";") \
-    P_ENTRY(DOTS, "...") \
+    P_ENTRY(DOTS, "\\.\\.\\.") \
     P_ENTRY(ASSIGN, "=") \
     P_ENTRY(MULTIPLY_ASSIGN, "\\*=") \
     P_ENTRY(DIVISION_ASSIGN, "/=") \

@@ -375,8 +375,11 @@ public:
                 this->m_cache.erase(this->m_cache.begin(),
                                     this->m_cache.begin() + len);
                 
-                if (!this->m_cache.empty())
-                    this->push_cache_to_end(1);
+                if (!this->m_cache.empty()) {
+                    auto nx = this->push_cache_to_end(1);
+                    for (auto t: nx)
+                        tokens.push_back(t);
+                }
             }
         }
 

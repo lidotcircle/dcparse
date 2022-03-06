@@ -2,6 +2,7 @@
 #include "lexer/lexer_rule_regex.hpp"
 #include "dcutf8.h"
 #include <stdexcept>
+#include <iostream>
 #include <algorithm>
 #include <limits>
 using namespace std;
@@ -220,13 +221,13 @@ CLexer::CLexer()
             s2u("//[^\n]*"),
             [](auto str, auto info) {
                 return nullptr;
-            }, false, true)
+            })
     );
 
     // string literal
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("L?\"([^\"\n]|(!\\\"))*\""),
+            s2u("L?\"([^\\\\\"\n]|(\\\\[^\n]))*\""),
             [](auto str, auto info) {
             return std::make_shared<TokenStringLiteral>(
                     string(u2s(str)),
@@ -256,7 +257,7 @@ C_KEYWORD_LIST
     // identifier
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("([a-zA-Z_]|\\0[uU][0-9a-fA-F]{4})([a-zA-Z0-9_]|\\0[uU][0-9a-fA-F]{4})*"),
+            s2u("([a-zA-Z_]|\\\\0[uU][0-9a-fA-F]{4})([a-zA-Z0-9_]|\\\\0[uU][0-9a-fA-F]{4})*"),
             [](auto str, auto info) {
             return std::make_shared<TokenID>(
                     string(u2s(str)),
@@ -275,6 +276,7 @@ C_KEYWORD_LIST
         std::make_unique<LexerRuleRegex<int>>( \
             s2u(regex), \
             [](auto str, auto info) { \
+                cout << info.pos << endl; \
                 return std::make_shared<TokenPunc##n>(info); \
             }) \
     );
@@ -320,7 +322,7 @@ C_PUNCTUATOR_LIST
     lexer.dec_priority_minor();
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("L'([^'\\]+|\\.|\\0[0-7]*|\\x[0-9a-fA-F]+)'" INTEGER_SUFFIX_REGEX),
+            s2u("L'([^'\\]+|\\.|\\\\0[0-7]*|\\\\x[0-9a-fA-F]+)'" INTEGER_SUFFIX_REGEX),
             [](auto str, auto info) {
             return std::make_shared<TokenConstantInteger>(
                     handle_character_str(str, info));
@@ -344,6 +346,18 @@ C_PUNCTUATOR_LIST
     );
     // TODO hexadecimal-floating-constant
     // TODO preprocessor
+
+    // ignore space
+    lexer.dec_priority_major();
+    lexer(
+        std::make_unique<LexerRuleRegex<int>>(
+            s2u("[ \t\v\f]+"),
+            [](auto str, auto info) {
+                return nullptr;
+            })
+    );
+
+    lexer.reset();
 }
 
 vector<token_t> CLexer::feed(int c)
@@ -368,7 +382,7 @@ vector<token_t> CLexerUTF8::feed(char c)
     auto cx = this->m_decoder.decode(c);
 
     if (cx.presented())
-        return this->feed(cx.getval());
+        return CLexer::feed(cx.getval());
     else
         return {};
 }

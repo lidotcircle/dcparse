@@ -68,6 +68,6 @@ split_ranges_to_units(std::vector<std::pair<ValueT,ValueT>> ranges)
 }
 
 std::vector<std::set<size_t>>
-transitive_closure(std::vector<std::set<size_t>> const& graph);
+transitive_closure(std::vector<std::set<size_t>> graph);
 
 #endif // _DC_PARSER_REGEX_MISC_HPP_

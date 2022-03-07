@@ -514,7 +514,7 @@ public:
     using container_t::push_back;
 };
 
-class ASTNodeDeclarationList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeDeclaration>>
+class ASTNodeDeclarationList: public ASTNodeExternalDeclaration, private std::vector<std::shared_ptr<ASTNodeDeclaration>>
 {
 private:
     using container_t = std::vector<std::shared_ptr<ASTNodeDeclaration>>;
@@ -525,7 +525,7 @@ public:
     using iterator = container_t::iterator;
     using const_iterator = container_t::const_iterator;
 
-    inline ASTNodeDeclarationList(ASTNodeParserContext c): ASTNode(c) {}
+    inline ASTNodeDeclarationList(ASTNodeParserContext c): ASTNodeExternalDeclaration(c) {}
 
     using container_t::begin;
     using container_t::end;

@@ -14,6 +14,9 @@ void CLexerParser::feed(char c)
 
 shared_ptr<ASTNodeTranslationUnit> CLexerParser::end() 
 {
+    auto ts = lexer.end();
+    for (auto& t: ts)
+        parser.feed(t);
     return parser.end();
 }
 
@@ -21,4 +24,9 @@ void CLexerParser::reset()
 {
     this->lexer.reset();
     this->parser.reset();
+}
+
+void CLexerParser::setDebugStream(ostream& os)
+{
+    this->parser.setDebugStream(os);
 }

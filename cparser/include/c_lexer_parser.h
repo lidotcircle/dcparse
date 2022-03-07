@@ -18,6 +18,7 @@ public:
     void feed(char c);
     std::shared_ptr<ASTNodeTranslationUnit> end();
     void reset();
+    void setDebugStream(std::ostream& os);
 };
 
 }

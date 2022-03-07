@@ -196,6 +196,7 @@ void CParser::typedef_rule()
 }
 
 #define expr_reduce(to, from) \
+    parser.__________(); \
     parser( NI(to), \
         { NI(from) }, \
         [](auto c, auto ts) { \
@@ -523,13 +524,14 @@ void CParser::declaration_rules()
             return make_shared<NonTermDECLARATION>(ast);
         });
 
+    // exchage RHS order
     parser( NI(DECLARATION_SPECIFIERS),
-        { NI(STORAGE_CLASS_SPECIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(STORAGE_CLASS_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(sspec, STORAGE_CLASS_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
-            if (ts[1]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+            get_ast(sspec, STORAGE_CLASS_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            if (ts[0]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
                 if (dsast->storage_class() != ASTNodeDeclarationSpecifier::StorageClass::SC_Default) {
                     // TODO warnning or error
                 }
@@ -539,13 +541,14 @@ void CParser::declaration_rules()
             return make_shared<NonTermDECLARATION_SPECIFIERS>(sspecast);
         }, RuleAssocitiveLeft);
 
+    // exchage RHS order
     parser( NI(DECLARATION_SPECIFIERS),
-        { NI(TYPE_SPECIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
-            if (ts[1]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            if (ts[0]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
                 if (dsast->type_specifier() != nullptr) {
                     // TODO mixed type, long signed ..., and warnning or error
                 }
@@ -555,13 +558,14 @@ void CParser::declaration_rules()
             return make_shared<NonTermDECLARATION_SPECIFIERS>(tspecast);
         }, RuleAssocitiveLeft);
 
+    // exchage RHS order
     parser( NI(DECLARATION_SPECIFIERS),
-        { NI(TYPE_QUALIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(TYPE_QUALIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 0);
-            if (ts[1]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 1);
+            if (ts[0]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
                 dsast->const_ref() = dsast->const_ref() || tqualast->const_ref();;
                 dsast->restrict_ref() = dsast->restrict_ref() || tqualast->restrict_ref();;
                 dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
@@ -570,13 +574,14 @@ void CParser::declaration_rules()
             return make_shared<NonTermDECLARATION_SPECIFIERS>(tqualast);
         }, RuleAssocitiveLeft);
 
+    // exchage RHS order
     parser( NI(DECLARATION_SPECIFIERS),
-        { NI(FUNCTION_SPECIFIER), ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)) },
+        { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(FUNCTION_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tqual, FUNCTION_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
-            if (ts[1]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tqual, FUNCTION_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            if (ts[0]) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
                 dsast->inlined() = tqualast->inlined();;
                 std::swap(tqualast, dsast);
             }
@@ -603,7 +608,7 @@ void CParser::declaration_rules()
             assert(ts.size() == 1);
             get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 0);
             return make_shared<NonTermINIT_DECLARATOR>(declast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(INIT_DECLARATOR),
         { NI(DECLARATOR), PT(ASSIGN), NI(INITIALIZER) },
@@ -613,7 +618,7 @@ void CParser::declaration_rules()
             get_ast(init, INITIALIZER, ASTNodeInitializer, 2);
             declast->initializer() = initast;
             return make_shared<NonTermINIT_DECLARATOR>(declast);
-        });
+        }, RuleAssocitiveRight);
 
 #define to_storage_specifier(kw, en) \
     parser( NI(STORAGE_CLASS_SPECIFIER), \
@@ -772,13 +777,14 @@ static int anonymous_struct_union_counter = 0;
             return make_shared<NonTermSTRUCT_DECLARATION>(sdlast);
         });
 
+    // exchange RHS order
     parser( NI(SPECIFIER_QUALIFIER_LIST),
-        { NI(TYPE_SPECIFIER), ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)) },
+        { ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 0);
-            if (ts[1]) {
-                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            if (ts[0]) {
+                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
                 if (dsast->type_specifier() != nullptr) {
                     // TODO mixed type, long signed ..., and warnning or error
                 }
@@ -788,13 +794,14 @@ static int anonymous_struct_union_counter = 0;
             return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tspecast);
         }, RuleAssocitiveLeft);
 
+    // exchange RHS order
     parser( NI(SPECIFIER_QUALIFIER_LIST),
-        { NI(TYPE_QUALIFIER), ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)) },
+        { ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)), NI(TYPE_QUALIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 0);
-            if (ts[1]) {
-                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 1);
+            if (ts[0]) {
+                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
                 dsast->const_ref() = dsast->const_ref() || tqualast->const_ref();;
                 dsast->restrict_ref() = dsast->restrict_ref() || tqualast->restrict_ref();;
                 dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
@@ -953,7 +960,7 @@ static size_t anonymous_enum_count = 0;
                 ddast->set_leaf_type(vtype);
 
             return make_shared<NonTermDECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { TI(ID) },
@@ -965,11 +972,12 @@ static size_t anonymous_enum_count = 0;
         });
 
     parser( NI(DIRECT_DECLARATOR),
-        { PT(RPAREN), NI(DIRECT_DECLARATOR), PT(RPAREN) },
+        { PT(RPAREN), NI(DECLARATOR), PT(RPAREN) },
         [](auto c, auto ts) {
             assert(ts.size() == 3);
-            return dynamic_pointer_cast<NonTermDIRECT_DECLARATOR>(ts[1]);
-        });
+            get_ast(dd, DECLARATOR, ASTNodeInitDeclarator, 1);
+            return dynamic_pointer_cast<NonTermDIRECT_DECLARATOR>(ddast);
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { NI(DIRECT_DECLARATOR), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), ParserChar::beOptional(NI(ASSIGNMENT_EXPRESSION)), PT(RBRACKET) },
@@ -987,7 +995,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { NI(DIRECT_DECLARATOR), PT(LBRACKET), KW(static), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
@@ -1005,7 +1013,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { NI(DIRECT_DECLARATOR), PT(LBRACKET), NI(TYPE_QUALIFIER_LIST), KW(static), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
@@ -1023,7 +1031,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { NI(DIRECT_DECLARATOR), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), PT(MULTIPLY), PT(RBRACKET) },
@@ -1041,7 +1049,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { NI(DIRECT_DECLARATOR), PT(LPAREN), NI(PARAMETER_TYPE_LIST), PT(RPAREN) },
@@ -1053,7 +1061,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(func);
 
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
         { NI(DIRECT_DECLARATOR), PT(LPAREN), ParserChar::beOptional(NI(IDENTIFIER_LIST)), PT(RPAREN) },
@@ -1067,7 +1075,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(func);
 
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(POINTER),
         { PT(MULTIPLY), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), ParserChar::beOptional(NI(POINTER)) },
@@ -1209,7 +1217,7 @@ static size_t anonymous_enum_count = 0;
             }
 
             return make_shared<NonTermTYPE_NAME>(kt);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(ABSTRACT_DECLARATOR),
         { NI(POINTER) },
@@ -1259,7 +1267,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
         { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), KW(static), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
@@ -1279,7 +1287,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
         { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), NI(TYPE_QUALIFIER_LIST), KW(static), NI(ASSIGNMENT_EXPRESSION), PT(RBRACKET) },
@@ -1299,7 +1307,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
         { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LBRACKET), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), PT(MULTIPLY), PT(RBRACKET) },
@@ -1319,7 +1327,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(array);
 
             return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
         { ParserChar::beOptional(NI(DIRECT_ABSTRACT_DECLARATOR)), PT(LPAREN), ParserChar::beOptional(NI(PARAMETER_TYPE_LIST)), PT(RPAREN) },
@@ -1334,7 +1342,7 @@ static size_t anonymous_enum_count = 0;
             ddast->set_leaf_type(func);
 
             return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
-        });
+        }, RuleAssocitiveRight);
 
     // TYPEDEF_NAME typedef_rule()
 
@@ -1725,15 +1733,15 @@ CParser::CParser()
 {
     this->setContext(make_shared<CParserContext>(this));
 
-    this->typedef_rule();
-    this->__________();
-    this->expression_rules();
-    this->__________();
-    this->declaration_rules();
+    this->external_definitions();
     this->__________();
     this->statement_rules  ();
     this->__________();
-    this->external_definitions();
+    this->typedef_rule();
+    this->__________();
+    this->declaration_rules();
+    this->__________();
+    this->expression_rules();
 
     this->add_start_symbol(NI(TRANSLATION_UNIT).id);
 

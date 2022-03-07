@@ -3,6 +3,7 @@
 #include "algo.hpp"
 #include <assert.h>
 #include <sstream>
+#include <iomanip>
 #include <map>
 #include <queue>
 #include <stdexcept>
@@ -13,6 +14,7 @@ using ruleid_t = DCParser::ruleid_t;
 using state_t  = DCParser::state_t;
 using reduce_callback_t = DCParser::reduce_callback_t;
 using decision_t = DCParser::decision_t;
+using priority_t = DCParser::priority_t;
 
 struct EOFChar: public LexerToken {
     EOFChar(): LexerToken(TokenInfo()) {}
@@ -26,6 +28,10 @@ struct RealStartSymbol: public NonTerminal {
     RealStartSymbol(shared_ptr<NonTerminal> sym): sym(sym) {}
 };
 
+DCParser::DCParserRulePriority::DCParserRulePriority(size_t priority): m_priority(priority) {}
+DCParser::DCParserRulePriority::~DCParserRulePriority() {}
+size_t DCParser::DCParserRulePriority::priority() const { return m_priority; }
+
 bool DCParser::RuleDecision::decide_on_pos(size_t pos) const { return false; }
 bool DCParser::RuleDecision::decide_on_end() const { return true; }
 
@@ -34,6 +40,7 @@ struct RuleOption {
     RuleAssocitive associtive;
     decision_t     decision;
     set<size_t>    decision_pos;
+    bool           seen;
 };
 
 struct PushdownEntry;
@@ -350,13 +357,14 @@ DCParser::~DCParser()
 {
 }
 
-void DCParser::dec_priority() { this->m_priority++; }
+priority_t DCParser::dec_priority() { return make_shared<DCParserRulePriority>(DCParserRulePriority(++this->m_priority)); }
 
 int DCParser::add_rule_internal(
         charid_t lh, vector<charid_t> rh, vector<bool> rhop,
         reduce_callback_t cb,
         RuleAssocitive associtive,
-        decision_t decision, set<size_t> positions)
+        decision_t decision, set<size_t> positions,
+        priority_t priority)
 {
     assert(!this->m_real_start_symbol.has_value());
 
@@ -387,8 +395,10 @@ int DCParser::add_rule_internal(
 
     ri.m_rule_option->associtive = associtive;
     ri.m_rule_option->priority = this->m_priority;
+    if (priority) ri.m_rule_option->priority = priority->priority();
     ri.m_rule_option->decision = decision;
     ri.m_rule_option->decision_pos = move(positions);
+    ri.m_rule_option->seen = false;
 
     this->m_rules.push_back(ri);
     return this->m_rules.size() - 1;
@@ -421,6 +431,9 @@ string DCParser::help_rule2str(ruleid_t rule, size_t pos) const
         if (i != r.m_rhs.size() - 1)
             oss << " ";
     }
+
+    if (r.m_rule_option->decision)
+        oss << " -- " << "?";
 
     return oss.str();
 }
@@ -481,10 +494,34 @@ string DCParser::help_when_reject_at(state_t state, charid_t char_) const
     return oss.str();
 }
 
+void DCParser::help_print_unseen_rules_into_debug_stream() const
+{
+    set<size_t> unseen_rules;
+    for (size_t i=0;i<this->m_rules.size();i++) {
+        if (!this->m_rules[i].m_rule_option->seen)
+            unseen_rules.insert(i);
+    }
+    if (unseen_rules.size() > 0 && this->h_debug_stream) {
+        *this->h_debug_stream << "WARNING unseen rules("
+                              << unseen_rules.size() << "):" << endl;
+        *this->h_debug_stream << "total = " << this->m_rules.size() << endl;
+        for (auto& r: unseen_rules)
+            *this->h_debug_stream << setw(3) << std::setfill('0') << r 
+                                  <<  "    " << this->help_rule2str(r, 0) << endl;
+        *this->h_debug_stream << endl;
+    }
+}
+
+void DCParser::setDebugStream(ostream& os)
+{
+    this->h_debug_stream = &os;
+    this->help_print_unseen_rules_into_debug_stream();
+}
+
 void DCParser::add_rule(
         DCharInfo leftside, std::vector<ParserChar> rightside,
         reduce_callback_t reduce_cb, RuleAssocitive associative,
-        decision_t decision)
+        decision_t decision, priority_t priority)
 {
     this->see_dchar(leftside);
     for (auto& rh: rightside)
@@ -555,7 +592,7 @@ void DCParser::add_rule(
 
         this->add_rule_internal(
                 leftside.id, rset.first, rset.second,
-                reduce_cb, associative, decision, lpos);
+                reduce_cb, associative, decision, lpos, priority);
     }
 }
 
@@ -563,9 +600,9 @@ void DCParser::add_rule(
 DCParser& DCParser::operator()(DCharInfo lh, vector<ParserChar> rh,
                                reduce_callback_t cb,
                                RuleAssocitive associtive,
-                               decision_t decision)
+                               decision_t decision, priority_t priority)
 {
-    this->add_rule(lh, rh, cb, associtive, decision);
+    this->add_rule(lh, rh, cb, associtive, decision, priority);
     return *this;
 }
 
@@ -597,7 +634,7 @@ void DCParser::setup_real_start_symbol()
                             auto val = dynamic_pointer_cast<NonTerminal>(rn[0]);
                             assert(val);
                             return make_shared<RealStartSymbol>(val);
-                        }, RuleAssocitiveLeft, nullptr);
+                        }, RuleAssocitiveLeft, nullptr, nullptr);
     }
 
     this->m_real_start_symbol = start_sym.id;
@@ -620,6 +657,12 @@ void DCParser::generate_table()
     while(!q.empty()) {
         auto s = q.front();
         q.pop();
+
+        for (auto c: s) {
+            assert(this->m_rules.size() > c.first);
+            auto& r = this->m_rules[c.first];
+            r.m_rule_option->seen = true;
+        }
 
         auto state = sallocator(s);
         if (mapping.size() <= state)
@@ -651,6 +694,8 @@ void DCParser::generate_table()
     this->h_state2set.resize(sallocator.max_state());
     for (auto& s: sallocator.themap())
         this->h_state2set[s.second] = s.first;
+
+    this->help_print_unseen_rules_into_debug_stream();
 }
 
 shared_ptr<PushdownEntry> 

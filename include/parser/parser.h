@@ -47,6 +47,23 @@ public:
     };
     using pcontext_t = std::weak_ptr<DCParserContext>;
 
+    class DCParserRulePriority {
+    private:
+        friend class DCParser;
+        size_t m_priority;
+        DCParserRulePriority() = delete;
+        DCParserRulePriority(const DCParserRulePriority&) = delete;
+        DCParserRulePriority& operator=(const DCParserRulePriority&) = delete;
+        DCParserRulePriority& operator=(DCParserRulePriority&&) = delete;
+        DCParserRulePriority(size_t priority);
+        size_t priority() const;
+
+    public:
+        DCParserRulePriority(DCParserRulePriority&&) = default;;
+        virtual ~DCParserRulePriority();
+    };
+    using priority_t = std::shared_ptr<DCParserRulePriority>;
+
     class RuleDecision {
     public:
         virtual bool decide_on_pos(size_t pos) const;
@@ -159,6 +176,7 @@ private:
     std::string help_rule2str(ruleid_t rule, size_t pos) const;
     std::string help_when_reject_at(state_t state, charid_t token) const;
     std::string help_print_state(state_t state, size_t count, char paddingchar) const;
+    void        help_print_unseen_rules_into_debug_stream() const;
 
     std::vector<state_t> p_state_stack;
     std::vector<dchar_t> p_char_stack;
@@ -196,7 +214,7 @@ private:
     int  add_rule_internal(charid_t leftside, 
                            std::vector<charid_t> rightside, std::vector<bool> optional,
                            reduce_callback_t reduce_cb, RuleAssocitive associative,
-                           decision_t decision, std::set<size_t> positions);
+                           decision_t decision, std::set<size_t> positions, priority_t priority);
 
 public:
     DCParser(bool lookahead_rule_propagation = true);
@@ -206,23 +224,24 @@ public:
     DCParser& operator=(DCParser&&) = delete;
     virtual ~DCParser();
 
-    void dec_priority();
-    inline void __________() { this->dec_priority(); }
+    priority_t dec_priority();
+    inline priority_t __________() { return this->dec_priority(); }
 
     inline void setContext(context_t context)        { this->m_context = context; }
     inline context_t getContext()             { return this->m_context; }
     inline const context_t getContext() const { return this->m_context; }
 
-    inline void setDebugStream(std::ostream& stream) { this->h_debug_stream = &stream; }
+    void setDebugStream(std::ostream& stream);
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb,
                   RuleAssocitive associative,
-                  decision_t decision);
+                  decision_t decision,
+                  priority_t priority);
 
     DCParser& operator()(DCharInfo leftside, std::vector<ParserChar> rightside,
                          reduce_callback_t reduce_cb, RuleAssocitive associative = RuleAssocitiveLeft,
-                         decision_t decision = nullptr);
+                         decision_t decision = nullptr, priority_t priority = nullptr);
 
     void add_start_symbol(charid_t start);
 

@@ -16,10 +16,18 @@ TEST(RuleTransitionTable, CParserBasic) {
 
 TEST(should_accpet, CParserLexer) {
     CLexerParser parser;
-    parser.setDebugStream(std::cout);
+    // parser.setDebugStream(std::cout);
 
     vector<string> test_cases = {
-        "int a = 0;",
+        "int;",
+        "int a = a;",
+        "int b = 1;",
+        "int c = 1.11;",
+        "int c = ( 1.11 );",
+        "typedef int hello; hello a; hello hello;",
+        "int * const * const volatile a = 22 * 44 * 88;",
+        "static const inline a = 22 * 44 + 55;",
+        "int main();",
     };
 
     for (auto t: test_cases) {
@@ -30,7 +38,7 @@ TEST(should_accpet, CParserLexer) {
 
             auto tunit = parser.end();
             EXPECT_NE(tunit, nullptr);
-        );
+        ) << t;
 
         parser.reset();
     }
@@ -40,6 +48,7 @@ TEST(should_reject, CParserLexer) {
     CLexerParser parser;
 
     vector<string> test_cases = {
+        "",
     };
 
     for (auto t: test_cases) {

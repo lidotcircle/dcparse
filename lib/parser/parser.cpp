@@ -1243,6 +1243,9 @@ void DCParser::feed(dctoken_t token)
 
 dnonterm_t DCParser::end()
 {
+    if (this->p_state_stack.empty())
+        throw ParserError("nothing be parsed");
+
     assert(!this->p_state_stack.empty());
     assert(!this->p_char_stack.empty() || this->p_not_finished.has_value());
 

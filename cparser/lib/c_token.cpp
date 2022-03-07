@@ -341,7 +341,7 @@ C_PUNCTUATOR_LIST
     );
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("((([0-9]+)?\\.[0-9]+)|[0-9]+\\.)([eE][\\+\\-]?[0-9]+)?[flFL]?'"),
+            s2u("((([0-9]+)?\\.[0-9]+)|[0-9]+\\.)([eE][\\+\\-]?[0-9]+)?[flFL]?"),
             [](auto str, auto info) {
             const long double value = std::stold(u2s(str));
             return std::make_shared<TokenConstantFloat>(value, info);

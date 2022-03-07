@@ -1,4 +1,5 @@
 #include "c_parser.h"
+#include "c_error.h"
 #include <memory>
 using namespace std;
 
@@ -187,8 +188,13 @@ void CParser::typedef_rule()
 
             if (stack.size() > 0) {
                 auto& b = stack.back();
-                const auto m = dynamic_pointer_cast<NonTermTYPE_SPECIFIER>(b);
-                if (m) return false;
+                const auto m = dynamic_pointer_cast<NonTermDECLARATION_SPECIFIERS>(b);
+                if (!m) return true;
+
+                auto dsast = dynamic_pointer_cast<ASTNodeDeclarationSpecifier>(m->astnode);
+                assert(dsast);
+                if (dsast->type_specifier())
+                    return false;
             }
 
             return true;
@@ -546,16 +552,34 @@ void CParser::declaration_rules()
         { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeTypeSpecifier, 1);
+            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c);
+            ast->type_specifier() = tspecast;
             if (ts[0]) {
                 get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
-                if (dsast->type_specifier() != nullptr) {
-                    // TODO mixed type, long signed ..., and warnning or error
+                auto old_type = dsast->type_specifier();
+                if (old_type != nullptr) {
+                    switch (old_type->dtype()) {
+                    case ASTNodeTypeSpecifier::data_type::STRUCT:
+                    case ASTNodeTypeSpecifier::data_type::UNION:
+                    case ASTNodeTypeSpecifier::data_type::ENUM:
+                    case ASTNodeTypeSpecifier::data_type::VOID:
+                    case ASTNodeTypeSpecifier::data_type::TYPEDEF:
+                        throw CErrorparserMixedType("mixed type specifier only allowed in integer and float");
+                        break;
+                    case ASTNodeTypeSpecifier::data_type::INT:
+                    case ASTNodeTypeSpecifier::data_type::FLOAT:
+                        // TODO mixed type, long signed ..., and warnning or error
+                        break;
+                    default:
+                        assert(false && "unreachable");
+                        break;
+                    }
                 }
-                dsast->type_specifier() = tspecast->type_specifier();
-                std::swap(tspecast, dsast);
+                dsast->type_specifier() = tspecast;
+                ast = dsast;
             }
-            return make_shared<NonTermDECLARATION_SPECIFIERS>(tspecast);
+            return make_shared<NonTermDECLARATION_SPECIFIERS>(ast);
         }, RuleAssocitiveLeft);
 
     // exchage RHS order
@@ -640,9 +664,7 @@ void CParser::declaration_rules()
         { KW(kw) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
-            auto kast = make_shared<ASTNodeTypeSpecifier##en>(c, ##__VA_ARGS__); \
-            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
-            ast->type_specifier() = kast; \
+            auto ast = make_shared<ASTNodeTypeSpecifier##en>(c, ##__VA_ARGS__); \
             return make_shared<NonTermTYPE_SPECIFIER>(ast); \
         });
     to_type_specifier(void,     Void);
@@ -782,16 +804,18 @@ static int anonymous_struct_union_counter = 0;
         { ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tspec, TYPE_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeTypeSpecifier, 1);
+            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c);
+            ast->type_specifier() = tspecast;
             if (ts[0]) {
                 get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
                 if (dsast->type_specifier() != nullptr) {
                     // TODO mixed type, long signed ..., and warnning or error
                 }
-                dsast->type_specifier() = tspecast->type_specifier();
-                std::swap(tspecast, dsast);
+                dsast->type_specifier() = tspecast;
+                ast = dsast;
             }
-            return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tspecast);
+            return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(ast);
         }, RuleAssocitiveLeft);
 
     // exchange RHS order
@@ -1077,22 +1101,21 @@ static size_t anonymous_enum_count = 0;
             return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
         }, RuleAssocitiveRight);
 
+    // exchange RHS order
     parser( NI(POINTER),
-        { PT(MULTIPLY), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)), ParserChar::beOptional(NI(POINTER)) },
+        {  ParserChar::beOptional(NI(POINTER)), PT(MULTIPLY), ParserChar::beOptional(NI(TYPE_QUALIFIER_LIST)) },
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             auto ptr = make_shared<ASTNodeVariableTypePointer>(c, nullptr);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 1);
-            get_ast_if_presents(optr, POINTER, ASTNodeVariableTypePointer, 2);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(optr, POINTER, ASTNodeVariableTypePointer, 0);
             if (qlast) {
                 ptr->const_ref() = qlast->const_ref();
                 ptr->restrict_ref() = qlast->restrict_ref();
                 ptr->volatile_ref() = qlast->volatile_ref();
             }
-            if (optr) {
-                optrast->set_leaf_type(ptr);
-                std::swap(ptr, optrast);
-            }
+            if (optrast)
+                ptr->set_leaf_type(optrast);
 
             return make_shared<NonTermPOINTER>(ptr);
         }, RuleAssocitiveRight);
@@ -1113,7 +1136,7 @@ static size_t anonymous_enum_count = 0;
             ql->volatile_ref() = ql->volatile_ref() || qast->volatile_ref();
 
             return make_shared<NonTermTYPE_QUALIFIER_LIST>(ql);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_TYPE_LIST),
         { NI(PARAMETER_LIST) },

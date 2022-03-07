@@ -3,18 +3,19 @@ using namespace std;
 
 
 std::vector<std::set<size_t>>
-transitive_closure(std::vector<std::set<size_t>> const& graph)
+transitive_closure(std::vector<std::set<size_t>> graph)
 {
-    std::vector<std::set<size_t>> result(graph.size());
-    for (size_t i = 0; i < graph.size(); ++i) {
-        result[i].insert(i);
+    const auto s = graph.size();
+    for (size_t i = 0; i < s; ++i) {
+        graph[i].insert(i);
 
-        for (auto const& j: graph[i]) {
-            result[i].insert(j);
-            for (auto const& k: graph[j]) {
-                result[i].insert(k);
+        for (auto& k: graph[i]) {
+            for (auto& jset: graph) {
+                if (jset.count(i)) {
+                    jset.insert(k);
+                }
             }
         }
     }
-    return result;
+    return graph;
 }

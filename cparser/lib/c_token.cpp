@@ -2,7 +2,6 @@
 #include "lexer/lexer_rule_regex.hpp"
 #include "dcutf8.h"
 #include <stdexcept>
-#include <iostream>
 #include <algorithm>
 #include <limits>
 using namespace std;
@@ -68,10 +67,14 @@ static cparser::TokenConstantInteger handle_integer_str(string str, LexerToken::
     str = str.substr(0, str.size() - info.suffix_len);
 
     unsigned long long value = 0;
-    const bool is_hex = std::any_of(
+    const bool is_hex = 
+        string_start_with(str, "0x") 
+        || string_start_with(str, "0X")
+        || std::any_of(
             str.begin(), str.end(), 
             [](char c) { return ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F'); });
     assert(str.size() > 0);
+
     if (is_hex) 
     {
         if (string_start_with(str, "0x") ||
@@ -276,7 +279,6 @@ C_KEYWORD_LIST
         std::make_unique<LexerRuleRegex<int>>( \
             s2u(regex), \
             [](auto str, auto info) { \
-                cout << info.pos << endl; \
                 return std::make_shared<TokenPunc##n>(info); \
             }) \
     );
@@ -313,7 +315,7 @@ C_PUNCTUATOR_LIST
     lexer.dec_priority_minor();
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("(0[xX])?[0-9a-fA-f]+" INTEGER_SUFFIX_REGEX),
+            s2u("(0[xX])?[0-9a-fA-F]+" INTEGER_SUFFIX_REGEX),
             [](auto str, auto info) {
             return std::make_shared<TokenConstantInteger>(
                     handle_integer_str(str, info));
@@ -322,7 +324,7 @@ C_PUNCTUATOR_LIST
     lexer.dec_priority_minor();
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("L'([^'\\]+|\\.|\\\\0[0-7]*|\\\\x[0-9a-fA-F]+)'" INTEGER_SUFFIX_REGEX),
+            s2u("L?'([^\\\\']+|\\\\.|\\\\0[0-7]*|\\\\x[0-9a-fA-F]+)'" INTEGER_SUFFIX_REGEX),
             [](auto str, auto info) {
             return std::make_shared<TokenConstantInteger>(
                     handle_character_str(str, info));
@@ -330,7 +332,7 @@ C_PUNCTUATOR_LIST
     );
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("[0-9]+[eE][\\+\\-]?[0-9]+[flFL]?'" INTEGER_SUFFIX_REGEX),
+            s2u("[0-9]+[eE][\\+\\-]?[0-9]+[flFL]?"),
             [](auto str, auto info) {
             const long double value = std::stold(u2s(str));
             return std::make_shared<TokenConstantFloat>(value, info);
@@ -338,7 +340,7 @@ C_PUNCTUATOR_LIST
     );
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("((([0-9]+)?\\.[0-9]+)|[0-9]+\\.)([eE][\\+\\-]?[0-9]+)?[flFL]?'" INTEGER_SUFFIX_REGEX),
+            s2u("((([0-9]+)?\\.[0-9]+)|[0-9]+\\.)([eE][\\+\\-]?[0-9]+)?[flFL]?'"),
             [](auto str, auto info) {
             const long double value = std::stold(u2s(str));
             return std::make_shared<TokenConstantFloat>(value, info);
@@ -351,7 +353,7 @@ C_PUNCTUATOR_LIST
     lexer.dec_priority_major();
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("[ \t\v\f]+"),
+            s2u("[ \t\v\f\r\n]+"),
             [](auto str, auto info) {
                 return nullptr;
             })

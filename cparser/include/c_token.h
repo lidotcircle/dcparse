@@ -102,7 +102,7 @@ C_KEYWORD_LIST
     P_ENTRY(PLUS, "\\+") \
     P_ENTRY(MINUS, "\\-") \
     P_ENTRY(BIT_NOT, "~") \
-    P_ENTRY(LOGIC_NOT, "!") \
+    P_ENTRY(LOGIC_NOT, "\\!") \
     P_ENTRY(DIVISION, "/") \
     P_ENTRY(REMAINDER, "%") \
     P_ENTRY(LEFT_SHIFT, "<<") \
@@ -112,7 +112,7 @@ C_KEYWORD_LIST
     P_ENTRY(LESS_EQUAL, "<=") \
     P_ENTRY(GREATER_EQUAL, ">=") \
     P_ENTRY(EQUAL, "==") \
-    P_ENTRY(NOT_EQUAL, "!=") \
+    P_ENTRY(NOT_EQUAL, "\\!=") \
     P_ENTRY(BIT_XOR, "\\^") \
     P_ENTRY(BIT_OR, "\\|") \
     P_ENTRY(LOGIC_AND, "&&") \

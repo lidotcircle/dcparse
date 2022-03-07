@@ -18,7 +18,6 @@ TEST(should_accpet, CParserLexer) {
     CLexerParser parser;
     parser.setDebugStream(std::cout);
 
-    // TODO lexer leading ";" match multiple rule, which is unexpected
     vector<string> test_cases = {
         "int a = 0;",
     };

@@ -35,7 +35,7 @@ public:
         DCParser* m_parser;
 
     public:
-        DCParserContext() = delete;
+        inline DCParserContext(): m_parser(nullptr) {};
         inline DCParserContext(DCParser& parser): m_parser(&parser) {}
 
         DCParserContext& operator=(const DCParserContext&) = delete;
@@ -200,7 +200,11 @@ private:
 
 public:
     DCParser(bool lookahead_rule_propagation = true);
-    virtual ~DCParser() = default;
+    DCParser(const DCParser&) = delete;
+    DCParser& operator=(const DCParser&) = delete;
+    DCParser(DCParser&&) = delete;
+    DCParser& operator=(DCParser&&) = delete;
+    virtual ~DCParser();
 
     void dec_priority();
     inline void __________() { this->dec_priority(); }

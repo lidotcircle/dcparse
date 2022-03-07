@@ -208,3 +208,16 @@ TEST_F(ExprParserTest, ID_NUMBER) {
     }
 }
 
+TEST(dcast, PublicBaseParser) {
+    // public BASE class
+    // private or protected base class will not succeed
+    struct DP: public DCParser { };
+    DP dp;
+    auto p = dp.getContext();
+
+    auto px = p->parser();
+    EXPECT_NE(px, nullptr);
+
+    auto dpx = dynamic_cast<DP*>(px);
+    EXPECT_NE(dpx, nullptr);
+}

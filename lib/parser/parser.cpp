@@ -346,6 +346,10 @@ DCParser::DCParser(bool lookahead_rule_propagation):
 {
 }
 
+DCParser::~DCParser()
+{
+}
+
 void DCParser::dec_priority() { this->m_priority++; }
 
 int DCParser::add_rule_internal(

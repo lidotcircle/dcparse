@@ -152,6 +152,10 @@ using ParserChar = DCParser::ParserChar;
 namespace cparser {
 
 
+CParserContext::CParserContext(CParser* parser):
+    DCParser::DCParserContext(), m_cparser(parser) {}
+
+
 void CParser::typedef_rule()
 {
     auto& parser = *this;
@@ -171,8 +175,10 @@ void CParser::typedef_rule()
             assert(id);
             auto _id = id->id;
             auto sctx = ctx.lock();
-            auto _parser_ = sctx->parser();
-            auto _parser = dynamic_cast<CParser*>(_parser_);
+            assert(sctx);
+            auto cctx = dynamic_pointer_cast<CParserContext>(sctx);
+            assert(cctx);
+            auto _parser = cctx->cparser();
             assert(_parser);
             auto& typedefs = _parser->m_typedefs;
 
@@ -489,8 +495,8 @@ void CParser::declaration_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             auto ctx = c.lock();
-            auto __p = ctx->parser();
-            auto _p = dynamic_cast<CParser*>(__p);
+            auto cctx = dynamic_pointer_cast<CParserContext>(ctx);
+            auto _p = cctx->cparser();
             get_ast(decl_spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
 
             auto init_decl_list_ast = make_shared<ASTNodeInitDeclaratorList>(c);
@@ -1717,6 +1723,8 @@ void CParser::external_definitions()
 
 CParser::CParser()
 {
+    this->setContext(make_shared<CParserContext>(this));
+
     this->typedef_rule();
     this->__________();
     this->expression_rules();

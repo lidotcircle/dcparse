@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "c_parser.h"
+#include "c_lexer_parser.h"
 #include <iostream>
 using namespace std;
 

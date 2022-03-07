@@ -10,6 +10,22 @@
 namespace cparser {
 
 
+class CParser;
+class CParserContext: public DCParser::DCParserContext
+{
+private:
+    // Because DCParser is private base class of CParser,
+    // DCParser* can not be dynamic_casted to CParser*.
+    // This member is used to store the pointer of CParser.
+    CParser *m_cparser;
+
+public:
+    CParserContext(CParser *cparser);
+
+    inline CParser* cparser() { return this->m_cparser; }
+    inline const CParser* cparser() const { return this->m_cparser; }
+};
+
 class CParser: private DCParser
 {
 private:

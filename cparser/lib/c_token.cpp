@@ -115,7 +115,8 @@ static cparser::TokenConstantInteger handle_integer_str(string str, LexerToken::
     }
     else if (string_start_with(str, "0"))
     {
-        str = str.substr(1);
+        if (str.size() > 1)
+            str = str.substr(1);
         assert(str.size() > 0);
 
         for (auto it = str.begin();it != str.end();it++) {

@@ -329,20 +329,24 @@ void CParser::expression_rules()
         }, RuleAssocitiveLeft);
 
     parser( NI(ARGUMENT_EXPRESSION_LIST),
-        { ParserChar::beOptional(NI(ARGUMENT_EXPRESSION_LIST)), NI(ASSIGNMENT_EXPRESSION) },
+        { NI(ARGUMENT_EXPRESSION_LIST), PT(COMMA), NI(ASSIGNMENT_EXPRESSION) },
         [](auto c, auto ts) {
-            assert(ts.size() == 2);
-            auto args = dynamic_pointer_cast<NonTermARGUMENT_EXPRESSION_LIST>(ts[0]);
-            get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 1);
-            auto argsast = make_shared<ASTNodeArgList>(c);
-            if (args) {
-                auto ax = dynamic_pointer_cast<ASTNodeArgList>(args->astnode);
-                assert(ax);
-                argsast = ax;
-            }
+            assert(ts.size() == 3);
+            get_ast(args, ARGUMENT_EXPRESSION_LIST, ASTNodeArgList, 0);
+            get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 2);
             argsast->push_back(exprast);
             return make_shared<NonTermARGUMENT_EXPRESSION_LIST>(argsast);
-        }, RuleAssocitiveLeft);
+        });
+
+    parser( NI(ARGUMENT_EXPRESSION_LIST),
+        { NI(ASSIGNMENT_EXPRESSION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 0);
+            auto argsast = make_shared<ASTNodeArgList>(c);
+            argsast->push_back(exprast);
+            return make_shared<NonTermARGUMENT_EXPRESSION_LIST>(argsast);
+        });
 
 
     expr_reduce(UNARY_EXPRESSION, POSTFIX_EXPRESSION);
@@ -613,18 +617,24 @@ void CParser::declaration_rules()
         }, RuleAssocitiveLeft);
 
     parser( NI(INIT_DECLARATOR_LIST),
-        { ParserChar::beOptional(NI(INIT_DECLARATOR_LIST)), NI(INIT_DECLARATOR) },
+        { NI(INIT_DECLARATOR) },
         [](auto c, auto ts) {
-            assert(ts.size() == 2);
+            assert(ts.size() == 1);
+            get_ast(init_decl, INIT_DECLARATOR, ASTNodeInitDeclarator, 0);
             auto ast = make_shared<ASTNodeInitDeclaratorList>(c);
-            if (ts[0]) {
-                get_ast(init_decl_listx, INIT_DECLARATOR_LIST, ASTNodeInitDeclaratorList, 0);
-                ast = init_decl_listxast;
-            }
-            get_ast(init_decl, INIT_DECLARATOR, ASTNodeInitDeclarator, 1);
             ast->push_back(init_declast);
             return make_shared<NonTermINIT_DECLARATOR_LIST>(ast);
-        }, RuleAssocitiveLeft);
+        });
+
+    parser( NI(INIT_DECLARATOR_LIST),
+        { NI(INIT_DECLARATOR_LIST), PT(COMMA), NI(INIT_DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 3);
+            get_ast(ast, INIT_DECLARATOR_LIST, ASTNodeInitDeclaratorList, 0);
+            get_ast(init_decl, INIT_DECLARATOR, ASTNodeInitDeclarator, 2);
+            astast->push_back(init_declast);
+            return make_shared<NonTermINIT_DECLARATOR_LIST>(astast);
+        });
 
     parser( NI(INIT_DECLARATOR),
         { NI(DECLARATOR) },
@@ -996,11 +1006,11 @@ static size_t anonymous_enum_count = 0;
         });
 
     parser( NI(DIRECT_DECLARATOR),
-        { PT(RPAREN), NI(DECLARATOR), PT(RPAREN) },
+        { PT(LPAREN), NI(DECLARATOR), PT(RPAREN) },
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             get_ast(dd, DECLARATOR, ASTNodeInitDeclarator, 1);
-            return dynamic_pointer_cast<NonTermDIRECT_DECLARATOR>(ddast);
+            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1144,7 +1154,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1);
             get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
             return make_shared<NonTermPARAMETER_TYPE_LIST>(plast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_TYPE_LIST),
         { NI(PARAMETER_LIST), PT(COMMA), PT(DOTS) },
@@ -1153,7 +1163,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
             plast->variadic() = true;
             return make_shared<NonTermPARAMETER_TYPE_LIST>(plast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_LIST),
         { NI(PARAMETER_DECLARATION) },
@@ -1173,7 +1183,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(pd, PARAMETER_DECLARATION, ASTNodeParameterDeclaration, 2);
             plast->push_back(pdast);
             return make_shared<NonTermPARAMETER_LIST>(plast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_DECLARATION),
         { NI(DECLARATION_SPECIFIERS), NI(DECLARATOR) },

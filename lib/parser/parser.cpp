@@ -1044,12 +1044,12 @@ optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
     }
 
     auto nonterm = rule.m_reduce_callback(this->m_context, rhs_tokens_with_optional);
+    const string expect = this->get_dchar(rule.m_lhs).name;
     if (nonterm == nullptr)
-        throw ParserError("ReduceCallback: expect a valid token, but get nullptr");
+        throw ParserError("ReduceCallback: expect a valid token, but get nullptr, expect: " + expect);
 
     if (nonterm->charid() != rule.m_lhs) {
         const string get = this->get_dchar(nonterm->charid()).name;
-        const string expect = this->get_dchar(rule.m_lhs).name;
         throw ParserError("ReduceCallback: expect a valid token, but get a token with different charid, get: " + get + ", expect: " + expect);
     }
 
@@ -1199,8 +1199,17 @@ void DCParser::feed_internal(dchar_t char_)
             }
             break;
         case PushdownEntry::STATE_TYPE_REJECT:
-            throw ParserSyntaxError(this->help_when_reject_at(cstate, char_->charid()));
+        {
+            string posinfo;
+            auto pt = dynamic_pointer_cast<LexerToken>(char_);
+            if (pt) {
+                posinfo += "pos: " + to_string(pt->position());
+                posinfo += ", line:column = " + to_string(pt->line_number());
+                posinfo += ":" + to_string(pt->column_number());
+            }
+            throw ParserSyntaxError(this->help_when_reject_at(cstate, char_->charid()) + posinfo);
             break;
+        }
         default:
             assert(false && "unexpected action type");
     }

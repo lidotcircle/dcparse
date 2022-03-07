@@ -24,6 +24,11 @@ TEST(should_accpet, CParserLexer) {
         "int b = 1;",
         "int c = 1.11;",
         "int c = ( 1.11 );",
+        "int c = a[b], d = a();",
+        "int c = a[b], d = a(), a = q(a,b,c), e = a.b->d, e = f++, z = x--;",
+        "int c[], f[22], g[static const 2];",
+        "int (*c)(), (*f)(int), (*g)(int, int);",
+        "int (*c(int))();",
         "typedef int hello; hello a; hello hello;",
         "int * const * const volatile a = 22 * 44 * 88;",
         "static const inline a = 22 * 44 + 55;",
@@ -31,7 +36,7 @@ TEST(should_accpet, CParserLexer) {
     };
 
     for (auto t: test_cases) {
-        EXPECT_NO_THROW(
+        ASSERT_NO_THROW(
             for (auto c: t) {
                 parser.feed(c);
             }

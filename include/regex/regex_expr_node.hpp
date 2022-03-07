@@ -7,6 +7,7 @@
 #include <memory>
 #include <algorithm>
 #include <assert.h>
+#include <optional>
 #include "./regex_char.hpp"
 #include "./regex_expr.hpp"
 #include "./regex_automata_node_nfa.hpp"
@@ -418,12 +419,35 @@ private:
     }
     void leave_bracket_mode() {
         this->push_bracket_range();
+        this->m_bracket_state = BracketState_None;
         m_in_bracket_mode = false;
 
         std::sort(m_bracket_ranges.begin(), m_bracket_ranges.end());
         auto merged_ranges = merge_sorted_range(m_bracket_ranges);
         if (merged_ranges.empty())
             throw std::runtime_error("Regex: empty bracket");
+
+        if (this->m_bracket_reversed) {
+            std::vector<std::pair<char_type,char_type>> reversed_range;
+            std::optional<char_type> minval = traits::MIN;
+            for(auto r: merged_ranges) {
+                assert(minval <= r.first);
+                assert(minval.has_value());
+                if (minval.value() < r.first) {
+                    reversed_range.push_back(std::make_pair(minval.value(), r.first - 1));
+                }
+
+                if (r.second < traits::MAX)
+                    minval = r.second + 1;
+                else
+                    minval = std::nullopt;
+            }
+            if (minval.has_value())
+                reversed_range.push_back(std::make_pair(minval.value(), traits::MAX));
+            merged_ranges = std::move(reversed_range);
+            if(merged_ranges.empty())
+                throw std::runtime_error("Regex: empty bracket, exclude everything");
+        }
 
         if (merged_ranges.size() == 1) {
             auto node = std::make_shared<ExprNodeCharRange<char_type>>(merged_ranges[0].first, merged_ranges[0].second);
@@ -441,35 +465,15 @@ private:
         switch (this->m_bracket_state) {
             case BracketState_None:
                 break;
-            case BracketState_One: {
-               if (!this->m_bracket_reversed) {
-                    this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low, this->m_range_low));
-               } else {
-                   if (this->m_range_low > traits::MIN)
-                        this->m_bracket_ranges.push_back(std::make_pair(traits::MIN, this->m_range_low-1));
-                   if (this->m_range_low < traits::MAX)
-                        this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low+1, traits::MAX));
-               }
-            } break;
-            case BracketState_Dashed: {
-               if (!this->m_bracket_reversed) {
-                    this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low, traits::MAX));
-               } else {
-                   if (this->m_range_low > traits::MIN)
-                        this->m_bracket_ranges.push_back(std::make_pair(traits::MIN, this->m_range_low-1));
-               }
-            } break;
-            case BracketState_Two: {
-               if (!this->m_bracket_reversed) {
-                    this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low, this->m_range_up));
-               } else {
-                   if (this->m_range_low > traits::MIN)
-                        this->m_bracket_ranges.push_back(std::make_pair(traits::MIN, this->m_range_low-1));
-                   if (this->m_range_up < traits::MAX)
-                        this->m_bracket_ranges.push_back(std::make_pair(this->m_range_up+1, traits::MAX));
-               }
-               this->m_bracket_state = BracketState_None;
-            } break;
+            case BracketState_One:
+                this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low, this->m_range_low));
+                break;
+            case BracketState_Dashed:
+                this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low, traits::MAX));
+                break;
+            case BracketState_Two:
+                this->m_bracket_ranges.push_back(std::make_pair(this->m_range_low, this->m_range_up));
+                break;
             default:
                throw std::runtime_error("invalid bracket state");
         }

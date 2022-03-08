@@ -6,6 +6,8 @@
 #include <string>
 #include <assert.h>
 #include <algorithm>
+#include <functional>
+#include "position_info.h"
 #include "lexer_rule.hpp"
 #include "lexer_error.h"
 #include "regex/regex_char.hpp"
@@ -16,8 +18,65 @@ class Lexer {
 public:
     using CharType = T;
     using traits = character_traits<CharType>;
+    using encoder_t = std::function<std::string(CharType)>;
 
 private:
+    class KLexerPositionInfo: public TokenPositionInfo
+    {
+    private:
+        std::string _buffer;
+        std::string _filename;
+        std::vector<size_t> _linfo;
+        using PInfo = TokenPositionInfo::PInfo;
+
+    public:
+        KLexerPositionInfo(std::string fn): _filename(fn) , _linfo({ 0 }) {}
+        void push_str(const std::string& str) { _buffer += str; }
+        void newline() { this->_linfo.push_back(this->_buffer.size()); }
+
+        virtual const std::string& filename() const override { return _filename; }
+        virtual size_t len() const override { return _buffer.size(); }
+        virtual PInfo query(size_t pos) const override
+        {
+            if (pos >= _buffer.size())
+                throw LexerError("query position out of range");
+
+            auto up = std::upper_bound(this->_linfo.begin(), this->_linfo.end(), pos);
+            auto line = this->_linfo.size();
+            auto col = pos + 1;
+
+            if (up != this->_linfo.end()) {
+                line = std::distance(this->_linfo.begin(), up) + 1;
+                assert(up != this->_linfo.begin());
+                up--;
+            } else {
+                up = this->_linfo.end() - 1;
+            }
+
+            col = pos - *up + 1;
+            return PInfo{.line = line, .column = col};
+        }
+        virtual std::pair<size_t,size_t> line_range(size_t line) const override {
+            if (line > this->_linfo.size())
+                throw LexerError("query line out of range");
+
+            auto begin = this->_linfo[line - 1];
+            auto end = this->_buffer.size();
+            if (line < this->_linfo.size())
+                end = this->_linfo[line];
+            return std::make_pair(begin, end);
+        }
+        virtual std::string query_string(size_t from, size_t to) const override {
+            if (from > to)
+                throw LexerError("query string out of range");
+            if (to > this->_buffer.size())
+                throw LexerError("query string out of range");
+            return this->_buffer.substr(from, to - from);
+        }
+    };
+    std::shared_ptr<KLexerPositionInfo> m_posinfo;
+    encoder_t m_encoder;
+
     static constexpr auto npos = std::string::npos;
     struct RuleInfo
     {
@@ -253,13 +312,21 @@ private:
 
     virtual void update_position_info(CharType c)
     {
-        pos += 1;
+        std::string str;
+        if (this->m_encoder) {
+            str = this->m_encoder(c);
+        } else {
+            str.push_back((char)c);
+        }
+        pos += str.size();
+        this->m_posinfo->push_str(str);
 
         if (c == traits::NEWLINE) {
             line_num++;
             col_num = 1;
+            this->m_posinfo->newline();
         } else {
-            col_num++;
+            col_num += str.size();
         }
     }
 
@@ -271,12 +338,14 @@ private:
 
 
 public:
-    Lexer()
+    Lexer(encoder_t encoder = nullptr)
+        : m_encoder(encoder)
     {
         this->setup_rules_set();
         this->reset();
     }
-    Lexer(const std::string& fn)
+    Lexer(const std::string& fn, encoder_t encoder = nullptr)
+        : m_encoder(encoder)
     {
         this->setup_rules_set();
         this->reset(fn);
@@ -295,6 +364,7 @@ public:
         this->col_num = 0;
         this->pos = 0;
         this->reset_rules(1, 0, 0, fn, std::nullopt);
+        this->m_posinfo = std::make_shared<KLexerPositionInfo>(this->m_filename);
     }
 
     void reset()
@@ -385,6 +455,8 @@ public:
 
         return tokens;
     }
+
+    std::shared_ptr<TokenPositionInfo> position_info() const { return this->m_posinfo; }
 };
 
 #endif // _LEXER_LEXER_HPP_

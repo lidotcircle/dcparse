@@ -157,6 +157,7 @@ public:
     std::vector<token_t> end();
 
     void reset();
+    using Lexer<int>::position_info;
 };
 
 class CLexerUTF8: private CLexer
@@ -173,6 +174,7 @@ public:
     std::vector<token_t> feed(char c);
     using CLexer::end;
     using CLexer::reset;
+    using CLexer::position_info;
 };
 
 }

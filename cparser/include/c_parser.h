@@ -2,7 +2,9 @@
 #define _C_PARSER_PARSER_H_
 
 #include "parser/parser.h"
+#include "lexer/position_info.h"
 #include "./c_ast.h"
+#include "./c_logger.h"
 #include <set>
 #include <string>
 
@@ -11,17 +13,19 @@ namespace cparser {
 
 
 class CParser;
-class CParserContext: public DCParser::DCParserContext
+class CParserContext: public DCParser::DCParserContext, virtual public CLogger
 {
 private:
     // Because DCParser is private base class of CParser,
     // DCParser* can not be dynamic_casted to CParser*.
     // This member is used to store the pointer of CParser.
     CParser *m_cparser;
+    std::shared_ptr<TokenPositionInfo> m_posinfo;
 
 public:
     CParserContext(CParser *cparser);
 
+    inline std::shared_ptr<TokenPositionInfo>& posinfo() { return this->m_posinfo; }
     inline CParser* cparser() { return this->m_cparser; }
     inline const CParser* cparser() const { return this->m_cparser; }
 };

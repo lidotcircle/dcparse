@@ -15,9 +15,12 @@ using ASTNodeParserContext = std::weak_ptr<DCParser::DCParserContext>;
 class ASTNode {
 private:
     ASTNodeParserContext m_parser_context;
+    size_t m_start_pos, m_end_pos;
 
 public:
-    inline ASTNode(ASTNodeParserContext p): m_parser_context(p) {}
+    size_t& start_pos() { return m_start_pos; }
+    size_t& end_pos() { return m_end_pos; }
+    inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_start_pos(0), m_end_pos(0) {}
     inline ASTNodeParserContext context() { return this->m_parser_context; }
     virtual ~ASTNode() = default;
 };

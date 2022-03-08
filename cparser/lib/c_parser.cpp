@@ -76,10 +76,46 @@ using namespace std;
     TENTRY(FUNCTION_DEFINITION) \
     TENTRY(DECLARATION_LIST) \
 
+struct NonTermBasic: public NonTerminal {
+    std::shared_ptr<cparser::ASTNode> astnode;
+    inline NonTermBasic(std::shared_ptr<cparser::ASTNode> node): astnode(node) {}
+};
+
+#define MAX_AB(a, b) ((a) > (b) ? (a) : (b))
+#define MIN_AB(a, b) ((a) < (b) ? (a) : (b))
+static pair<size_t,size_t> get_position_range(const vector<shared_ptr<DChar>>& chars)
+{
+    pair<size_t,size_t> pos = {0, 0};
+    for (auto& c: chars) {
+        if (c == nullptr) continue;
+        auto c1 = dynamic_pointer_cast<NonTermBasic>(c);
+        if (c1) {
+            assert(c1->astnode);
+            pos.first = MIN_AB(pos.first, c1->astnode->start_pos());
+            pos.second = MAX_AB(pos.second, c1->astnode->end_pos());
+            continue;
+        }
+        auto c2 = dynamic_pointer_cast<LexerToken>(c);
+        if (c2) {
+            pos.first = MIN_AB(pos.first, c2->position());
+            pos.second = MAX_AB(pos.second, c2->position() + c2->length());
+        }
+    }
+
+    return pos;
+}
+static shared_ptr<cparser::ASTNode> 
+set_astnode_position_info(shared_ptr<cparser::ASTNode> node, pair<size_t,size_t> pos)
+{
+    node->start_pos() = pos.first;
+    node->end_pos() = pos.second;
+    return node;
+}
+#define makeNT(NT, node) make_shared<NonTerm##NT>(set_astnode_position_info(node, get_position_range(ts)))
+
 #define TENTRY(n) \
-    struct NonTerm##n: public NonTerminal { \
-        std::shared_ptr<cparser::ASTNode> astnode; \
-        inline NonTerm##n(std::shared_ptr<cparser::ASTNode> node): astnode(node) {} \
+    struct NonTerm##n: public NonTermBasic { \
+        inline NonTerm##n(std::shared_ptr<cparser::ASTNode> node): NonTermBasic(node) {} \
     };
 NONTERMS
 #undef TENTRY
@@ -90,6 +126,16 @@ NONTERMS
 #define PT(t) CharInfo<TokenPunc##t>()
 using ParserChar = DCParser::ParserChar;
 
+#define get_ctx(varn, ___ctx) \
+    shared_ptr<CParserContext> varn = nullptr; \
+    { \
+        auto ___sctx = ___ctx.lock(); \
+        assert(___sctx); \
+        auto ___cctx = dynamic_pointer_cast<CParserContext>(___sctx); \
+        assert(___cctx); \
+        varn = ___cctx; \
+    } \
+    assert(varn)
 
 #define get_ast(varn, nonterm, nodetype, idx) \
     auto varn = dynamic_pointer_cast<NonTerm##nonterm>(ts[idx]); \
@@ -118,7 +164,7 @@ using ParserChar = DCParser::ParserChar;
                     ASTNodeExprBinaryOp::astop, \
                     lhsast, \
                     rhsast); \
-            return make_shared<NonTerm##nonterm>(ast); \
+            return makeNT(nonterm, ast); \
         }, assoc, ##__VA_ARGS__);
 
 #define add_prefix_unary_rule(lhsnonterm, rhsnonterm, op, astop, assoc) \
@@ -131,7 +177,7 @@ using ParserChar = DCParser::ParserChar;
                     c, \
                     ASTNodeExprUnaryOp::astop, \
                     rhsast); \
-            return make_shared<NonTerm##lhsnonterm>(ast); \
+            return makeNT(lhsnonterm, ast); \
         }, \
         assoc);
 
@@ -145,7 +191,7 @@ using ParserChar = DCParser::ParserChar;
                     c, \
                     ASTNodeExprUnaryOp::astop, \
                     lhsast); \
-            return make_shared<NonTerm##rhsnonterm>(ast); \
+            return makeNT(rhsnonterm, ast); \
         }, \
         assoc);
 
@@ -168,17 +214,14 @@ void CParser::typedef_rule()
             assert(ts.size() == 1);
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             assert(id);
-            return make_shared<NonTermTYPEDEF_NAME>(make_shared<ASTNodeTypeSpecifierTypedef>(c, id));
+            return makeNT(TYPEDEF_NAME, make_shared<ASTNodeTypeSpecifierTypedef>(c, id));
         }, RuleAssocitiveLeft, 
         make_shared<RuleDecisionFunction>([](auto ctx, auto& rhs, auto& stack) {
             assert(rhs.size() == 1);
             auto id = dynamic_pointer_cast<TokenID>(rhs[0]);
             assert(id);
             auto _id = id->id;
-            auto sctx = ctx.lock();
-            assert(sctx);
-            auto cctx = dynamic_pointer_cast<CParserContext>(sctx);
-            assert(cctx);
+            get_ctx(cctx, ctx);
             auto _parser = cctx->cparser();
             assert(_parser);
             auto& typedefs = _parser->m_typedefs;
@@ -208,7 +251,7 @@ void CParser::typedef_rule()
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
             get_ast(expr, from, ASTNodeExpr, 0); \
-            return make_shared<NonTerm##to>(exprast); \
+            return makeNT(to, exprast); \
         }, ##__VA_ARGS__);
 
 void CParser::expression_rules()
@@ -223,7 +266,7 @@ void CParser::expression_rules()
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             assert(id);
             auto ast = make_shared<ASTNodeExprIdentifier>(c, id);
-            return make_shared<NonTermPRIMARY_EXPRESSION>(ast);
+            return makeNT(PRIMARY_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(PRIMARY_EXPRESSION),
@@ -233,7 +276,7 @@ void CParser::expression_rules()
             auto integer = dynamic_pointer_cast<TokenConstantInteger>(ts[0]);
             assert(integer);
             auto ast = make_shared<ASTNodeExprInteger>(c, integer);
-            return make_shared<NonTermPRIMARY_EXPRESSION>(ast);
+            return makeNT(PRIMARY_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(PRIMARY_EXPRESSION),
@@ -243,7 +286,7 @@ void CParser::expression_rules()
             auto float_ = dynamic_pointer_cast<TokenConstantFloat>(ts[0]);
             assert(float_);
             auto ast = make_shared<ASTNodeExprFloat>(c, float_);
-            return make_shared<NonTermPRIMARY_EXPRESSION>(ast);
+            return makeNT(PRIMARY_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(PRIMARY_EXPRESSION),
@@ -253,7 +296,7 @@ void CParser::expression_rules()
             auto str = dynamic_pointer_cast<TokenStringLiteral>(ts[0]);
             assert(str);
             auto ast = make_shared<ASTNodeExprString>(c, str);
-            return make_shared<NonTermPRIMARY_EXPRESSION>(ast);
+            return makeNT(PRIMARY_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(PRIMARY_EXPRESSION),
@@ -261,7 +304,7 @@ void CParser::expression_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             get_ast(expr, EXPRESSION, ASTNodeExpr, 1);
-            return make_shared<NonTermPRIMARY_EXPRESSION>(exprast);
+            return makeNT(PRIMARY_EXPRESSION, exprast);
         }, RuleAssocitiveLeft);
 
 
@@ -274,7 +317,7 @@ void CParser::expression_rules()
             get_ast(expr, POSTFIX_EXPRESSION, ASTNodeExpr, 0);
             get_ast(index, EXPRESSION, ASTNodeExpr, 2);
             auto ast = make_shared<ASTNodeExprIndexing>(c, exprast, indexast);
-            return make_shared<NonTermPOSTFIX_EXPRESSION>(ast);
+            return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(POSTFIX_EXPRESSION),
@@ -290,7 +333,7 @@ void CParser::expression_rules()
                 argsast = ax;
             }
             auto ast = make_shared<ASTNodeExprFunctionCall>(c, funcast, argsast);
-            return make_shared<NonTermPOSTFIX_EXPRESSION>(ast);
+            return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(POSTFIX_EXPRESSION),
@@ -301,7 +344,7 @@ void CParser::expression_rules()
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
             auto ast = make_shared<ASTNodeExprMemberAccess>(c, exprast, id);
-            return make_shared<NonTermPOSTFIX_EXPRESSION>(ast);
+            return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(POSTFIX_EXPRESSION),
@@ -312,7 +355,7 @@ void CParser::expression_rules()
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
             auto ast = make_shared<ASTNodeExprPointerMemberAccess>(c, exprast, id);
-            return make_shared<NonTermPOSTFIX_EXPRESSION>(ast);
+            return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     add_postfix_unary_rule(POSTFIX_EXPRESSION, POSTFIX_EXPRESSION, PLUSPLUS, POSFIX_INC, RuleAssocitiveLeft);
@@ -325,7 +368,7 @@ void CParser::expression_rules()
             get_ast(type, TYPE_NAME, ASTNodeVariableType, 1);
             get_ast(init, INITIALIZER_LIST, ASTNodeInitializerList, 4);
             auto ast = make_shared<ASTNodeExprInitializer>(c, typeast, initast);
-            return make_shared<NonTermPOSTFIX_EXPRESSION>(ast);
+            return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
     parser( NI(ARGUMENT_EXPRESSION_LIST),
@@ -335,7 +378,7 @@ void CParser::expression_rules()
             get_ast(args, ARGUMENT_EXPRESSION_LIST, ASTNodeArgList, 0);
             get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 2);
             argsast->push_back(exprast);
-            return make_shared<NonTermARGUMENT_EXPRESSION_LIST>(argsast);
+            return makeNT(ARGUMENT_EXPRESSION_LIST, argsast);
         });
 
     parser( NI(ARGUMENT_EXPRESSION_LIST),
@@ -345,7 +388,7 @@ void CParser::expression_rules()
             get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 0);
             auto argsast = make_shared<ASTNodeArgList>(c);
             argsast->push_back(exprast);
-            return make_shared<NonTermARGUMENT_EXPRESSION_LIST>(argsast);
+            return makeNT(ARGUMENT_EXPRESSION_LIST, argsast);
         });
 
 
@@ -369,7 +412,7 @@ void CParser::expression_rules()
                     c,
                     ASTNodeExprUnaryOp::SIZEOF,
                     rhsast);
-            return make_shared<NonTermUNARY_EXPRESSION>(ast);
+            return makeNT(UNARY_EXPRESSION, ast);
         },
         RuleAssocitiveLeft);
 
@@ -381,7 +424,7 @@ void CParser::expression_rules()
             auto ast = make_shared<ASTNodeExprSizeof>(
                     c,
                     rhsast);
-            return make_shared<NonTermUNARY_EXPRESSION>(ast);
+            return makeNT(UNARY_EXPRESSION, ast);
         },
         RuleAssocitiveLeft);
 
@@ -394,7 +437,7 @@ void CParser::expression_rules()
             get_ast(type, TYPE_NAME, ASTNodeVariableType, 1);
             get_ast(rhs, CAST_EXPRESSION, ASTNodeExpr, 3);
             auto ast = make_shared<ASTNodeExprCast>(c, typeast, rhsast);
-            return make_shared<NonTermCAST_EXPRESSION>(ast);
+            return makeNT(CAST_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
 
@@ -455,7 +498,7 @@ void CParser::expression_rules()
             get_ast(true_expr, EXPRESSION, ASTNodeExpr, 2);
             get_ast(false_expr, CONDITIONAL_EXPRESSION, ASTNodeExpr, 4);
             auto ast = make_shared<ASTNodeExprConditional>(c, condast, true_exprast, false_exprast);
-            return make_shared<NonTermCONDITIONAL_EXPRESSION>(ast);
+            return makeNT(CONDITIONAL_EXPRESSION, ast);
         }, RuleAssocitiveRight, nullptr, priority_LOGICAL_AND_EXPRESSION_LOGICAL_OR_EXPRESSION);
 
 
@@ -490,7 +533,7 @@ void CParser::expression_rules()
             get_ast(expr, EXPRESSION, ASTNodeExprList, 0);
             get_ast(assign_expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 2);
             exprast->push_back(assign_exprast);
-            return make_shared<NonTermEXPRESSION>(exprast);
+            return makeNT(EXPRESSION, exprast);
         }, RuleAssocitiveLeft);
 
     parser( NI(EXPRESSION),
@@ -499,7 +542,7 @@ void CParser::expression_rules()
             assert(ts.size() == 1);
             get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 0);
             auto ast = make_shared<ASTNodeExprList>(c);
-            return make_shared<NonTermEXPRESSION>(ast);
+            return makeNT(EXPRESSION, ast);
         });
 
     expr_reduce(CONSTANT_EXPRESSION, CONDITIONAL_EXPRESSION);
@@ -540,7 +583,7 @@ void CParser::declaration_rules()
                 }
             }
 
-            return make_shared<NonTermDECLARATION>(ast);
+            return makeNT(DECLARATION, ast);
         });
 
     // exchage RHS order
@@ -552,12 +595,17 @@ void CParser::declaration_rules()
             if (ts[0]) {
                 get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
                 if (dsast->storage_class() != ASTNodeDeclarationSpecifier::StorageClass::SC_Default) {
-                    // TODO warnning or error
+                    get_ctx(ctx, c);
+                    auto p = ctx->posinfo();
+                    const auto s = dsast->start_pos(), e = dsast->end_pos();
+                    ctx->warn(
+                            "redefinition of storage class, using first one at [%s]:%s", 
+                            p->queryLine(s, e).c_str(), p->query_string(s, e).c_str());
                 }
                 dsast->storage_class() = sspecast->storage_class();
                 std::swap(sspecast, dsast);
             }
-            return make_shared<NonTermDECLARATION_SPECIFIERS>(sspecast);
+            return makeNT(DECLARATION_SPECIFIERS, sspecast);
         }, RuleAssocitiveLeft);
 
     // exchage RHS order
@@ -592,7 +640,7 @@ void CParser::declaration_rules()
                 dsast->type_specifier() = tspecast;
                 ast = dsast;
             }
-            return make_shared<NonTermDECLARATION_SPECIFIERS>(ast);
+            return makeNT(DECLARATION_SPECIFIERS, ast);
         }, RuleAssocitiveLeft);
 
     // exchage RHS order
@@ -608,7 +656,7 @@ void CParser::declaration_rules()
                 dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
                 std::swap(tqualast, dsast);
             }
-            return make_shared<NonTermDECLARATION_SPECIFIERS>(tqualast);
+            return makeNT(DECLARATION_SPECIFIERS, tqualast);
         }, RuleAssocitiveLeft);
 
     // exchage RHS order
@@ -622,7 +670,7 @@ void CParser::declaration_rules()
                 dsast->inlined() = tqualast->inlined();;
                 std::swap(tqualast, dsast);
             }
-            return make_shared<NonTermDECLARATION_SPECIFIERS>(tqualast);
+            return makeNT(DECLARATION_SPECIFIERS, tqualast);
         }, RuleAssocitiveLeft);
 
     parser( NI(INIT_DECLARATOR_LIST),
@@ -632,7 +680,7 @@ void CParser::declaration_rules()
             get_ast(init_decl, INIT_DECLARATOR, ASTNodeInitDeclarator, 0);
             auto ast = make_shared<ASTNodeInitDeclaratorList>(c);
             ast->push_back(init_declast);
-            return make_shared<NonTermINIT_DECLARATOR_LIST>(ast);
+            return makeNT(INIT_DECLARATOR_LIST, ast);
         });
 
     parser( NI(INIT_DECLARATOR_LIST),
@@ -642,7 +690,7 @@ void CParser::declaration_rules()
             get_ast(ast, INIT_DECLARATOR_LIST, ASTNodeInitDeclaratorList, 0);
             get_ast(init_decl, INIT_DECLARATOR, ASTNodeInitDeclarator, 2);
             astast->push_back(init_declast);
-            return make_shared<NonTermINIT_DECLARATOR_LIST>(astast);
+            return makeNT(INIT_DECLARATOR_LIST, astast);
         });
 
     parser( NI(INIT_DECLARATOR),
@@ -650,7 +698,7 @@ void CParser::declaration_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 0);
-            return make_shared<NonTermINIT_DECLARATOR>(declast);
+            return makeNT(INIT_DECLARATOR, declast);
         }, RuleAssocitiveRight);
 
     parser( NI(INIT_DECLARATOR),
@@ -660,7 +708,7 @@ void CParser::declaration_rules()
             get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast(init, INITIALIZER, ASTNodeInitializer, 2);
             declast->initializer() = initast;
-            return make_shared<NonTermINIT_DECLARATOR>(declast);
+            return makeNT(INIT_DECLARATOR, declast);
         }, RuleAssocitiveRight);
 
 #define to_storage_specifier(kw, en) \
@@ -670,7 +718,7 @@ void CParser::declaration_rules()
             assert(ts.size() == 1); \
             auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
             ast->storage_class() = ASTNodeDeclarationSpecifier::StorageClass::en; \
-            return make_shared<NonTermSTORAGE_CLASS_SPECIFIER>(ast); \
+            return makeNT(STORAGE_CLASS_SPECIFIER, ast); \
         });
     to_storage_specifier(typedef,  SC_Typedef);
     to_storage_specifier(extern,   SC_Extern);
@@ -684,7 +732,7 @@ void CParser::declaration_rules()
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
             auto ast = make_shared<ASTNodeTypeSpecifier##en>(c, ##__VA_ARGS__); \
-            return make_shared<NonTermTYPE_SPECIFIER>(ast); \
+            return makeNT(TYPE_SPECIFIER, ast); \
         });
     to_type_specifier(void,     Void);
     to_type_specifier(char,     Int,   sizeof(char), false);
@@ -703,7 +751,7 @@ void CParser::declaration_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(su, STRUCT_OR_UNION_SPECIFIER, ASTNodeTypeSpecifier, 0);
-            return make_shared<NonTermTYPE_SPECIFIER>(suast);
+            return makeNT(TYPE_SPECIFIER, suast);
         });
 
     parser( NI(TYPE_SPECIFIER),
@@ -711,7 +759,7 @@ void CParser::declaration_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(es, ENUM_SPECIFIER, ASTNodeTypeSpecifier, 0);
-            return make_shared<NonTermTYPE_SPECIFIER>(esast);
+            return makeNT(TYPE_SPECIFIER, esast);
         });
 
     parser( NI(TYPE_SPECIFIER),
@@ -719,7 +767,7 @@ void CParser::declaration_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(tn, TYPEDEF_NAME, ASTNodeTypeSpecifier, 0);
-            return make_shared<NonTermTYPE_SPECIFIER>(tnast);
+            return makeNT(TYPE_SPECIFIER, tnast);
         });
 
 struct struct_pesudo: public ASTNode { struct_pesudo(ASTNodeParserContext c): ASTNode(c) {} };
@@ -754,7 +802,7 @@ static int anonymous_struct_union_counter = 0;
             } else {
                 ast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
             }
-            return make_shared<NonTermSTRUCT_OR_UNION_SPECIFIER>(ast);
+            return makeNT(STRUCT_OR_UNION_SPECIFIER, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(STRUCT_OR_UNION_SPECIFIER),
@@ -775,21 +823,21 @@ static int anonymous_struct_union_counter = 0;
             } else {
                 ast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
             }
-            return make_shared<NonTermSTRUCT_OR_UNION_SPECIFIER>(ast);
+            return makeNT(STRUCT_OR_UNION_SPECIFIER, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(STRUCT_OR_UNION),
         { KW(struct) },
         [](auto c, auto ts) {
             assert(ts.size() == 1);
-            return make_shared<NonTermSTRUCT_OR_UNION>(make_shared<struct_pesudo>(c));
+            return makeNT(STRUCT_OR_UNION, make_shared<struct_pesudo>(c));
         });
 
     parser( NI(STRUCT_OR_UNION),
         { KW(union) },
         [](auto c, auto ts) {
             assert(ts.size() == 1);
-            return make_shared<NonTermSTRUCT_OR_UNION>(make_shared<union_pesudo>(c));
+            return makeNT(STRUCT_OR_UNION, make_shared<union_pesudo>(c));
         });
 
     parser( NI(STRUCT_DECLARATION_LIST),
@@ -801,7 +849,7 @@ static int anonymous_struct_union_counter = 0;
             if (xsdlast) sdlast = xsdlast;
             get_ast(sd,  STRUCT_DECLARATION, ASTNodeStructUnionDeclarationList, 1);
             for (auto d: *sdast) sdlast->push_back(d);
-            return make_shared<NonTermSTRUCT_DECLARATION_LIST>(sdlast);
+            return makeNT(STRUCT_DECLARATION_LIST, sdlast);
         });
 
     // extension
@@ -812,7 +860,7 @@ static int anonymous_struct_union_counter = 0;
             auto ast = make_shared<ASTNodeStructUnionDeclarationList>(c);
             get_ast_if_presents(sdl, STRUCT_DECLARATION_LIST, ASTNodeStructUnionDeclarationList, 0);
             if (sdlast) ast = sdlast;
-            return make_shared<NonTermSTRUCT_DECLARATION_LIST>(ast);
+            return makeNT(STRUCT_DECLARATION_LIST, ast);
         });
 
     parser( NI(STRUCT_DECLARATION),
@@ -825,7 +873,7 @@ static int anonymous_struct_union_counter = 0;
             for (auto sd: *sdlast)
                 sd->set_leaf_type(vt);
 
-            return make_shared<NonTermSTRUCT_DECLARATION>(sdlast);
+            return makeNT(STRUCT_DECLARATION, sdlast);
         }, RuleAssocitiveRight);
 
     // exchange RHS order
@@ -844,7 +892,7 @@ static int anonymous_struct_union_counter = 0;
                 dsast->type_specifier() = tspecast;
                 ast = dsast;
             }
-            return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(ast);
+            return makeNT(SPECIFIER_QUALIFIER_LIST, ast);
         }, RuleAssocitiveRight);
 
     // exchange RHS order
@@ -860,7 +908,7 @@ static int anonymous_struct_union_counter = 0;
                 dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
                 std::swap(tqualast, dsast);
             }
-            return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tqualast);
+            return makeNT(SPECIFIER_QUALIFIER_LIST, tqualast);
         }, RuleAssocitiveRight);
 
     parser( NI(STRUCT_DECLARATOR_LIST),
@@ -874,7 +922,7 @@ static int anonymous_struct_union_counter = 0;
             }
             get_ast(sd,  STRUCT_DECLARATOR, ASTNodeStructUnionDeclaration, 1);
             sdlast->push_back(sdast);
-            return make_shared<NonTermSTRUCT_DECLARATOR_LIST>(sdlast);
+            return makeNT(STRUCT_DECLARATOR_LIST, sdlast);
         });
 
     parser( NI(STRUCT_DECLARATOR),
@@ -883,7 +931,7 @@ static int anonymous_struct_union_counter = 0;
             assert(ts.size() == 1);
             get_ast(d, DECLARATOR, ASTNodeInitDeclarator, 0);
             auto ast = make_shared<ASTNodeStructUnionDeclaration>(c, dast, nullptr);
-            return make_shared<NonTermSTRUCT_DECLARATOR>(ast);
+            return makeNT(STRUCT_DECLARATOR, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(STRUCT_DECLARATOR),
@@ -893,7 +941,7 @@ static int anonymous_struct_union_counter = 0;
             get_ast_if_presents(d, DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast(ce, CONSTANT_EXPRESSION, ASTNodeExpr, 2);
             auto ast = make_shared<ASTNodeStructUnionDeclaration>(c, dast, ceast);
-            return make_shared<NonTermSTRUCT_DECLARATOR>(ast);
+            return makeNT(STRUCT_DECLARATOR, ast);
         }, RuleAssocitiveRight);
 
 static size_t anonymous_enum_count = 0;
@@ -918,7 +966,7 @@ static size_t anonymous_enum_count = 0;
             // TODO add enum specifier to context
 
             auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
-            return make_shared<NonTermENUM_SPECIFIER>(ast);
+            return makeNT(ENUM_SPECIFIER, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(ENUM_SPECIFIER),
@@ -927,7 +975,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 2);
             auto id = dynamic_pointer_cast<TokenID>(ts[1]);
             auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
-            return make_shared<NonTermENUM_SPECIFIER>(ast);
+            return makeNT(ENUM_SPECIFIER, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(ENUMERATOR_LIST),
@@ -937,7 +985,7 @@ static size_t anonymous_enum_count = 0;
             auto elast = make_shared<ASTNodeEnumeratorList>(c);
             get_ast(en, ENUMERATOR, ASTNodeEnumerator, 0);
             elast->push_back(enast);
-            return make_shared<NonTermENUMERATOR_LIST>(elast);
+            return makeNT(ENUMERATOR_LIST, elast);
         });
 
     parser( NI(ENUMERATOR_LIST),
@@ -947,7 +995,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(el, ENUMERATOR_LIST, ASTNodeEnumeratorList, 0);
             get_ast(en, ENUMERATOR, ASTNodeEnumerator, 2);
             elast->push_back(enast);
-            return make_shared<NonTermENUMERATOR_LIST>(elast);
+            return makeNT(ENUMERATOR_LIST, elast);
         }, RuleAssocitiveRight);
 
     parser( NI(ENUMERATOR),
@@ -956,7 +1004,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1);
             get_ast(ec, ENUMERATION_CONSTANT, ASTNodeEnumerationConstant, 0);
             auto ast = make_shared<ASTNodeEnumerator>(c, ecast->id(), nullptr);
-            return make_shared<NonTermENUMERATOR>(ast);
+            return makeNT(ENUMERATOR, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(ENUMERATOR),
@@ -966,7 +1014,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ec, ENUMERATION_CONSTANT, ASTNodeEnumerationConstant, 0);
             get_ast(constant, CONSTANT_EXPRESSION, ASTNodeExpr, 2);
             auto ast = make_shared<ASTNodeEnumerator>(c, ecast->id(), constantast);
-            return make_shared<NonTermENUMERATOR>(ast);
+            return makeNT(ENUMERATOR, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(ENUMERATION_CONSTANT),
@@ -975,7 +1023,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1);
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             auto ast = make_shared<ASTNodeEnumerationConstant>(c, id);
-            return make_shared<NonTermENUMERATION_CONSTANT>(ast);
+            return makeNT(ENUMERATION_CONSTANT, ast);
         });
 
 #define add_to_qualifier(kw) \
@@ -985,7 +1033,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1); \
             auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
             ast->kw##_ref() = true; \
-            return make_shared<NonTermTYPE_QUALIFIER>(ast); \
+            return makeNT(TYPE_QUALIFIER, ast); \
         })
     add_to_qualifier(const);
     add_to_qualifier(restrict);
@@ -998,7 +1046,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1); \
             auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
             ast->kw_ref() = true; \
-            return make_shared<NonTermFUNCTION_SPECIFIER>(ast); \
+            return makeNT(FUNCTION_SPECIFIER, ast); \
         });
     add_to_function_specifier(inline, inlined);
 
@@ -1015,7 +1063,7 @@ static size_t anonymous_enum_count = 0;
             if (vtype)
                 ddast->set_leaf_type(vtype);
 
-            return make_shared<NonTermDECLARATOR>(ddast);
+            return makeNT(DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1024,7 +1072,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1);
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             auto ast = make_shared<ASTNodeInitDeclarator>(c, id, nullptr, nullptr);
-            return make_shared<NonTermDIRECT_DECLARATOR>(ast);
+            return makeNT(DIRECT_DECLARATOR, ast);
         });
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1032,7 +1080,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             get_ast(dd, DECLARATOR, ASTNodeInitDeclarator, 1);
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1050,7 +1098,7 @@ static size_t anonymous_enum_count = 0;
             }
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1068,7 +1116,7 @@ static size_t anonymous_enum_count = 0;
             }
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1086,7 +1134,7 @@ static size_t anonymous_enum_count = 0;
             }
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1104,7 +1152,7 @@ static size_t anonymous_enum_count = 0;
             }
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1116,7 +1164,7 @@ static size_t anonymous_enum_count = 0;
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
             ddast->set_leaf_type(func);
 
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_DECLARATOR),
@@ -1130,7 +1178,7 @@ static size_t anonymous_enum_count = 0;
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
             ddast->set_leaf_type(func);
 
-            return make_shared<NonTermDIRECT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     // exchange RHS order
@@ -1149,7 +1197,7 @@ static size_t anonymous_enum_count = 0;
             if (optrast)
                 ptr->set_leaf_type(optrast);
 
-            return make_shared<NonTermPOINTER>(ptr);
+            return makeNT(POINTER, ptr);
         }, RuleAssocitiveRight);
 
     parser( NI(TYPE_QUALIFIER_LIST),
@@ -1167,7 +1215,7 @@ static size_t anonymous_enum_count = 0;
             ql->restrict_ref() = ql->restrict_ref() || qast->restrict_ref();
             ql->volatile_ref() = ql->volatile_ref() || qast->volatile_ref();
 
-            return make_shared<NonTermTYPE_QUALIFIER_LIST>(ql);
+            return makeNT(TYPE_QUALIFIER_LIST, ql);
         }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_TYPE_LIST),
@@ -1175,7 +1223,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
-            return make_shared<NonTermPARAMETER_TYPE_LIST>(plast);
+            return makeNT(PARAMETER_TYPE_LIST, plast);
         }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_TYPE_LIST),
@@ -1184,7 +1232,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 3);
             get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
             plast->variadic() = true;
-            return make_shared<NonTermPARAMETER_TYPE_LIST>(plast);
+            return makeNT(PARAMETER_TYPE_LIST, plast);
         }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_LIST),
@@ -1194,7 +1242,7 @@ static size_t anonymous_enum_count = 0;
             auto pl = make_shared<ASTNodeParameterDeclarationList>(c);
             get_ast(pd, PARAMETER_DECLARATION, ASTNodeParameterDeclaration, 0);
             pl->push_back(pdast);
-            return make_shared<NonTermPARAMETER_LIST>(pl);
+            return makeNT(PARAMETER_LIST, pl);
         });
 
     parser( NI(PARAMETER_LIST),
@@ -1204,7 +1252,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(pl, PARAMETER_LIST, ASTNodeParameterDeclarationList, 0);
             get_ast(pd, PARAMETER_DECLARATION, ASTNodeParameterDeclaration, 2);
             plast->push_back(pdast);
-            return make_shared<NonTermPARAMETER_LIST>(plast);
+            return makeNT(PARAMETER_LIST, plast);
         }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_DECLARATION),
@@ -1216,7 +1264,7 @@ static size_t anonymous_enum_count = 0;
             auto pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
             dast->set_leaf_type(pd);
             auto ast = make_shared<ASTNodeParameterDeclaration>(c, dast->id(), dast->type());
-            return make_shared<NonTermPARAMETER_DECLARATION>(ast);
+            return makeNT(PARAMETER_DECLARATION, ast);
         });
 
     parser( NI(PARAMETER_DECLARATION),
@@ -1232,7 +1280,7 @@ static size_t anonymous_enum_count = 0;
                 pd = dast->type();
             }
             auto ast = make_shared<ASTNodeParameterDeclaration>(c, nullptr, pd);
-            return make_shared<NonTermPARAMETER_DECLARATION>(ast);
+            return makeNT(PARAMETER_DECLARATION, ast);
         });
 
     parser( NI(IDENTIFIER_LIST),
@@ -1243,7 +1291,7 @@ static size_t anonymous_enum_count = 0;
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             assert(id);
             il->push_back(make_shared<ASTNodeParameterDeclaration>(c, id, nullptr));
-            return make_shared<NonTermIDENTIFIER_LIST>(il);
+            return makeNT(IDENTIFIER_LIST, il);
         });
 
     parser( NI(IDENTIFIER_LIST),
@@ -1254,7 +1302,7 @@ static size_t anonymous_enum_count = 0;
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
             ilast->push_back(make_shared<ASTNodeParameterDeclaration>(c, id, nullptr));
-            return make_shared<NonTermIDENTIFIER_LIST>(ilast);
+            return makeNT(IDENTIFIER_LIST, ilast);
         });
 
     parser( NI(TYPE_NAME),
@@ -1271,7 +1319,7 @@ static size_t anonymous_enum_count = 0;
                 kt = dast->type();
             }
 
-            return make_shared<NonTermTYPE_NAME>(kt);
+            return makeNT(TYPE_NAME, kt);
         }, RuleAssocitiveRight);
 
     parser( NI(ABSTRACT_DECLARATOR),
@@ -1280,7 +1328,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 1);
             get_ast(sq, POINTER, ASTNodeVariableTypePointer, 0);
             auto ast = make_shared<ASTNodeInitDeclarator>(c, nullptr, sqast, nullptr);
-            return make_shared<NonTermABSTRACT_DECLARATOR>(ast);
+            return makeNT(ABSTRACT_DECLARATOR, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(ABSTRACT_DECLARATOR),
@@ -1292,7 +1340,7 @@ static size_t anonymous_enum_count = 0;
 
             if (sqast) dast->set_leaf_type(sqast);
 
-            return make_shared<NonTermABSTRACT_DECLARATOR>(dast);
+            return makeNT(ABSTRACT_DECLARATOR, dast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
@@ -1301,7 +1349,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 3);
             get_ast(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
             auto ast = make_shared<ASTNodeInitDeclarator>(c, nullptr, dast->type(), nullptr);
-            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ast);
+            return makeNT(DIRECT_ABSTRACT_DECLARATOR, ast);
         });
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
@@ -1321,7 +1369,7 @@ static size_t anonymous_enum_count = 0;
             if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
@@ -1341,7 +1389,7 @@ static size_t anonymous_enum_count = 0;
             if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
@@ -1361,7 +1409,7 @@ static size_t anonymous_enum_count = 0;
             if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
@@ -1381,7 +1429,7 @@ static size_t anonymous_enum_count = 0;
             if (!ddast) ddast = make_shared<ASTNodeInitDeclarator>(c, nullptr, nullptr, nullptr);
             ddast->set_leaf_type(array);
 
-            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     parser( NI(DIRECT_ABSTRACT_DECLARATOR),
@@ -1396,7 +1444,7 @@ static size_t anonymous_enum_count = 0;
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
             ddast->set_leaf_type(func);
 
-            return make_shared<NonTermDIRECT_ABSTRACT_DECLARATOR>(ddast);
+            return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
         }, RuleAssocitiveRight);
 
     // TYPEDEF_NAME typedef_rule()
@@ -1406,7 +1454,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 0);
-            return make_shared<NonTermINITIALIZER>(make_shared<ASTNodeInitializer>(c, exprast));
+            return makeNT(INITIALIZER, make_shared<ASTNodeInitializer>(c, exprast));
         });
 
     parser( NI(INITIALIZER),
@@ -1415,7 +1463,7 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 4);
             get_ast_if_presents(il, INITIALIZER_LIST, ASTNodeInitializerList, 1);
             if (!ilast) ilast = make_shared<ASTNodeInitializerList>(c);
-            return make_shared<NonTermINITIALIZER>(make_shared<ASTNodeInitializer>(c, ilast));
+            return makeNT(INITIALIZER, make_shared<ASTNodeInitializer>(c, ilast));
         });
 
     parser( NI(INITIALIZER_LIST),
@@ -1431,7 +1479,7 @@ static size_t anonymous_enum_count = 0;
             dx->initializer() = initast;
             ax->push_back(dx);
 
-            return make_shared<NonTermINITIALIZER_LIST>(ax);
+            return makeNT(INITIALIZER_LIST, ax);
         });
 
     parser( NI(INITIALIZER_LIST),
@@ -1449,7 +1497,7 @@ static size_t anonymous_enum_count = 0;
             dx->initializer() = initast;
             ax->push_back(dx);
 
-            return make_shared<NonTermINITIALIZER_LIST>(ax);
+            return makeNT(INITIALIZER_LIST, ax);
         });
 
 
@@ -1458,7 +1506,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 2);
             get_ast(dl, DESIGNATOR_LIST, ASTNodeDesignation, 0);
-            return make_shared<NonTermDESIGNATION>(dlast);
+            return makeNT(DESIGNATION, dlast);
         });
 
     parser( NI(DESIGNATOR_LIST),
@@ -1475,7 +1523,7 @@ static size_t anonymous_enum_count = 0;
             for (auto d: dsast->designators())
                 ax->add_designator(d);
 
-            return make_shared<NonTermDESIGNATOR_LIST>(ax);
+            return makeNT(DESIGNATOR_LIST, ax);
         });
 
     parser( NI(DESIGNATOR),
@@ -1485,7 +1533,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ce, CONSTANT_EXPRESSION, ASTNodeExpr, 1);
 
             auto ax = make_shared<ASTNodeDesignation>(c, ceast);
-            return make_shared<NonTermDESIGNATOR>(ax);
+            return makeNT(DESIGNATOR, ax);
         });
 
     parser( NI(DESIGNATOR),
@@ -1496,7 +1544,7 @@ static size_t anonymous_enum_count = 0;
             assert(id);
 
             auto ax = make_shared<ASTNodeDesignation>(c, id);
-            return make_shared<NonTermDESIGNATOR>(ax);
+            return makeNT(DESIGNATOR, ax);
         });
 }
 
@@ -1511,7 +1559,7 @@ void CParser::statement_rules()
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
             get_ast(st, xt, ASTNodeStat, 0); \
-            return make_shared<NonTermSTATEMENT>(stast); \
+            return makeNT(STATEMENT, stast); \
         })
 
     to_statement(LABELED_STATEMENT);
@@ -1528,7 +1576,7 @@ void CParser::statement_rules()
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             assert(id);
             get_ast(st, STATEMENT, ASTNodeStat, 2);
-            return make_shared<NonTermLABELED_STATEMENT>(make_shared<ASTNodeStatLabel>(c, id, stast));
+            return makeNT(LABELED_STATEMENT, make_shared<ASTNodeStatLabel>(c, id, stast));
         });
 
     parser( NI(LABELED_STATEMENT),
@@ -1537,7 +1585,7 @@ void CParser::statement_rules()
             assert(ts.size() == 4);
             get_ast(ce, CONSTANT_EXPRESSION, ASTNodeExpr, 1);
             get_ast(st, STATEMENT, ASTNodeStat, 3);
-            return make_shared<NonTermLABELED_STATEMENT>(make_shared<ASTNodeStatCase>(c, ceast, stast));
+            return makeNT(LABELED_STATEMENT, make_shared<ASTNodeStatCase>(c, ceast, stast));
         });
 
     parser( NI(LABELED_STATEMENT),
@@ -1545,7 +1593,7 @@ void CParser::statement_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             get_ast(st, STATEMENT, ASTNodeStat, 2);
-            return make_shared<NonTermLABELED_STATEMENT>(make_shared<ASTNodeStatDefault>(c, stast));
+            return makeNT(LABELED_STATEMENT, make_shared<ASTNodeStatDefault>(c, stast));
         });
 
     parser( NI(COMPOUND_STATEMENT),
@@ -1558,7 +1606,7 @@ void CParser::statement_rules()
             if (blast) list = blast;
 
             auto ast = make_shared<ASTNodeStatCompound>(c, list);
-            return make_shared<NonTermCOMPOUND_STATEMENT>(ast);
+            return makeNT(COMPOUND_STATEMENT, ast);
         });
 
     parser( NI(BLOCK_ITEM_LIST),
@@ -1572,7 +1620,7 @@ void CParser::statement_rules()
             get_ast(bi, BLOCK_ITEM, ASTNodeBlockItem, 1);
 
             list->push_back(biast);
-            return make_shared<NonTermBLOCK_ITEM_LIST>(list);
+            return makeNT(BLOCK_ITEM_LIST, list);
         });
 
     parser( NI(BLOCK_ITEM),
@@ -1580,7 +1628,7 @@ void CParser::statement_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(d, DECLARATION, ASTNodeBlockItem, 0);
-            return make_shared<NonTermBLOCK_ITEM>(dast);
+            return makeNT(BLOCK_ITEM, dast);
         });
 
     parser( NI(BLOCK_ITEM),
@@ -1588,7 +1636,7 @@ void CParser::statement_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(st, STATEMENT, ASTNodeBlockItem, 0);
-            return make_shared<NonTermBLOCK_ITEM>(stast);
+            return makeNT(BLOCK_ITEM, stast);
         });
 
     parser( NI(EXPRESSION_STATEMENT),
@@ -1601,7 +1649,7 @@ void CParser::statement_rules()
             if (exast) expr = exast;
 
             auto ast = make_shared<ASTNodeStatExpr>(c, expr);
-            return make_shared<NonTermEXPRESSION_STATEMENT>(ast);
+            return makeNT(EXPRESSION_STATEMENT, ast);
         });
 
     parser( NI(SELECTION_STATEMENT),
@@ -1613,7 +1661,7 @@ void CParser::statement_rules()
             get_ast(falsest, STATEMENT, ASTNodeStat, 6);
 
             auto ast = make_shared<ASTNodeStatIF>(c, condast, truestast, falsestast);
-            return make_shared<NonTermSELECTION_STATEMENT>(ast);
+            return makeNT(SELECTION_STATEMENT, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(SELECTION_STATEMENT),
@@ -1624,7 +1672,7 @@ void CParser::statement_rules()
             get_ast(truest, STATEMENT, ASTNodeStat, 4);
 
             auto ast = make_shared<ASTNodeStatIF>(c, condast, truestast, nullptr);
-            return make_shared<NonTermSELECTION_STATEMENT>(ast);
+            return makeNT(SELECTION_STATEMENT, ast);
         }, RuleAssocitiveRight);
 
     parser( NI(SELECTION_STATEMENT),
@@ -1635,7 +1683,7 @@ void CParser::statement_rules()
             get_ast(st, STATEMENT, ASTNodeStat, 4);
 
             auto ast = make_shared<ASTNodeStatSwitch>(c, condast, stast);
-            return make_shared<NonTermSELECTION_STATEMENT>(ast);
+            return makeNT(SELECTION_STATEMENT, ast);
         });
 
     parser( NI(ITERATION_STATEMENT),
@@ -1646,7 +1694,7 @@ void CParser::statement_rules()
             get_ast(st, STATEMENT, ASTNodeStat, 4);
 
             auto ast = make_shared<ASTNodeStatFor>(c, nullptr, condast, nullptr, stast);
-            return make_shared<NonTermITERATION_STATEMENT>(ast);
+            return makeNT(ITERATION_STATEMENT, ast);
         });
 
     parser( NI(ITERATION_STATEMENT),
@@ -1657,7 +1705,7 @@ void CParser::statement_rules()
             get_ast(cond, EXPRESSION, ASTNodeExpr, 4);
 
             auto ast = make_shared<ASTNodeStatDoWhile>(c, condast, stast);
-            return make_shared<NonTermITERATION_STATEMENT>(ast);
+            return makeNT(ITERATION_STATEMENT, ast);
         });
 
     parser( NI(ITERATION_STATEMENT),
@@ -1673,7 +1721,7 @@ void CParser::statement_rules()
             get_ast(st, STATEMENT, ASTNodeStat, 8);
 
             auto ast = make_shared<ASTNodeStatFor>(c, initast, condast, iterast, stast);
-            return make_shared<NonTermITERATION_STATEMENT>(ast);
+            return makeNT(ITERATION_STATEMENT, ast);
         });
 
     parser( NI(ITERATION_STATEMENT),
@@ -1689,7 +1737,7 @@ void CParser::statement_rules()
             get_ast(st, STATEMENT, ASTNodeStat, 7);
 
             auto ast = make_shared<ASTNodeStatForDecl>(c, declast, condast, iterast, stast);
-            return make_shared<NonTermITERATION_STATEMENT>(ast);
+            return makeNT(ITERATION_STATEMENT, ast);
         });
 
     parser( NI(JUMP_STATEMENT),
@@ -1699,7 +1747,7 @@ void CParser::statement_rules()
             auto id = dynamic_pointer_cast<TokenID>(ts[1]);
             assert(id);
             auto ast = make_shared<ASTNodeStatGoto>(c, id);
-            return make_shared<NonTermJUMP_STATEMENT>(ast);
+            return makeNT(JUMP_STATEMENT, ast);
         });
 
     parser( NI(JUMP_STATEMENT),
@@ -1707,7 +1755,7 @@ void CParser::statement_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 2);
             auto ast = make_shared<ASTNodeStatContinue>(c);
-            return make_shared<NonTermJUMP_STATEMENT>(ast);
+            return makeNT(JUMP_STATEMENT, ast);
         });
 
     parser( NI(JUMP_STATEMENT),
@@ -1715,7 +1763,7 @@ void CParser::statement_rules()
         [](auto c, auto ts) {
             assert(ts.size() == 2);
             auto ast = make_shared<ASTNodeStatBreak>(c);
-            return make_shared<NonTermJUMP_STATEMENT>(ast);
+            return makeNT(JUMP_STATEMENT, ast);
         });
 
     parser( NI(JUMP_STATEMENT),
@@ -1724,7 +1772,7 @@ void CParser::statement_rules()
             assert(ts.size() == 3);
             get_ast_if_presents(expr, EXPRESSION, ASTNodeExpr, 1);
             auto ast = make_shared<ASTNodeStatReturn>(c, exprast);
-            return make_shared<NonTermJUMP_STATEMENT>(ast);
+            return makeNT(JUMP_STATEMENT, ast);
         });
 }
 
@@ -1744,7 +1792,7 @@ void CParser::external_definitions()
                 prevast = make_shared<ASTNodeTranslationUnit>(c);
 
             prevast->push_back(curast);
-            return make_shared<NonTermTRANSLATION_UNIT>(prevast);
+            return makeNT(TRANSLATION_UNIT, prevast);
         });
 
     parser( NI(EXTERNAL_DECLARATION),
@@ -1752,7 +1800,7 @@ void CParser::external_definitions()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(cur, FUNCTION_DEFINITION, ASTNodeFunctionDefinition, 0);
-            return make_shared<NonTermEXTERNAL_DECLARATION>(curast);
+            return makeNT(EXTERNAL_DECLARATION, curast);
         });
 
     parser( NI(EXTERNAL_DECLARATION),
@@ -1760,7 +1808,7 @@ void CParser::external_definitions()
         [](auto c, auto ts) {
             assert(ts.size() == 1);
             get_ast(cur, DECLARATION, ASTNodeDeclarationList, 0);
-            return make_shared<NonTermEXTERNAL_DECLARATION>(curast);
+            return makeNT(EXTERNAL_DECLARATION, curast);
         });
 
     parser( NI(FUNCTION_DEFINITION),
@@ -1781,7 +1829,7 @@ void CParser::external_definitions()
             }
 
             auto ast = make_shared<ASTNodeFunctionDefinition>(c, functype, stast);
-            return make_shared<NonTermFUNCTION_DEFINITION>(ast);
+            return makeNT(FUNCTION_DEFINITION, ast);
         });
 
     parser( NI(DECLARATION_LIST),
@@ -1797,7 +1845,7 @@ void CParser::external_definitions()
             for (auto& d : *dlast)
                 dllast->push_back(d);
 
-            return make_shared<NonTermDECLARATION_LIST>(dllast);
+            return makeNT(DECLARATION_LIST, dllast);
         });
 }
 

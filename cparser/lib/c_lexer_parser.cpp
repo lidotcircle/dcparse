@@ -3,7 +3,12 @@ using namespace std;
 using namespace cparser;
 
 
-CLexerParser::CLexerParser(): parser(), lexer() {}
+CLexerParser::CLexerParser(): parser(), lexer()
+{
+    auto ctx = parser.getContext();
+    auto cctx = dynamic_pointer_cast<CParserContext>(ctx);
+    cctx->posinfo() = lexer.position_info();
+}
 
 void CLexerParser::feed(char c)
 {
@@ -24,6 +29,10 @@ void CLexerParser::reset()
 {
     this->lexer.reset();
     this->parser.reset();
+
+    auto ctx = parser.getContext();
+    auto cctx = dynamic_pointer_cast<CParserContext>(ctx);
+    cctx->posinfo() = lexer.position_info();
 }
 
 void CLexerParser::setDebugStream(ostream& os)

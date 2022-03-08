@@ -39,6 +39,38 @@ TEST(should_accpet, CParserLexer) {
         "int main() { for(int i = 0; i < 10; i++) { } }",
         "int main() { a: m = 2; }",
 
+        "char;",
+        "signed char;",
+        "unsigned char;",
+        "short;",
+        "signed short;",
+        "short int;",
+        "signed short int;",
+        "unsigned short;",
+        "unsigned short int;",
+        "int;",
+        "signed;",
+        "signed int;",
+        "unsigned;",
+        "unsigned int;",
+        "long;",
+        "signed long;",
+        "long int;",
+        "signed long int;",
+        "unsigned long;",
+        "long unsigned;",
+        "unsigned long int;",
+        "long long;",
+        "signed long long;",
+        "long long int;",
+        "signed long long int;",
+        "unsigned long long;",
+        "unsigned long long int;",
+        "float;",
+        "double;",
+        "long double;",
+        "_Bool;",
+
         "int primary_expr = a;",
         "int primary_expr = 22;",
         "int primary_expr = 22.2;",
@@ -154,6 +186,7 @@ TEST(should_accpet, CParserLexer) {
         "int main() { for(i=0;i;i--) i--; }",
         "int main() { for(int i=0, j=0;i;i--) i--; }",
         "int main() { goto a; continue; break; return; return a; }",
+        "struct { long long a; } a;",
     };
 
     for (auto t: test_cases) {
@@ -181,6 +214,11 @@ TEST(should_reject, CParserLexer) {
         "int hello*;",
         "struct;",
         "enum;",
+        "struct str long;",
+        "long struct str;",
+        "long long long;",
+        "long long long unsigned;",
+        "struct { long long long a; } a;",
     };
 
     for (auto t: test_cases) {

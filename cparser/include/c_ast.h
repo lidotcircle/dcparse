@@ -6,6 +6,7 @@
 #include <string>
 #include <memory>
 #include <variant>
+#include <set>
 
 namespace cparser {
 
@@ -309,11 +310,16 @@ public:
  *                                                                            *
  ******************************************************************************/
 class ASTNodeTypeSpecifier: public ASTNode {
+private:
+    std::multiset<std::string> m_typenames;
+
 public:
     inline ASTNodeTypeSpecifier(ASTNodeParserContext c): ASTNode(c) {}
 
     enum data_type { STRUCT, UNION, ENUM, TYPEDEF, VOID, INT, FLOAT };
     virtual data_type dtype() const = 0;
+    inline const std::multiset<std::string>& type_names() const { return this->m_typenames; }
+    inline void add_name (const std::string& name) { this->m_typenames.insert(name); }
 };
 
 class ASTNodeTypeSpecifierStruct: public ASTNodeTypeSpecifier {
@@ -324,7 +330,10 @@ public:
     inline ASTNodeTypeSpecifierStruct(
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> name
-            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+            ): ASTNodeTypeSpecifier(c), m_name(name)
+    {
+        this->add_name("struct " + m_name->id);
+    }
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
@@ -338,7 +347,10 @@ public:
     inline ASTNodeTypeSpecifierUnion(
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> name
-            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+            ): ASTNodeTypeSpecifier(c), m_name(name)
+    {
+        this->add_name("union " + m_name->id);
+    }
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
@@ -352,7 +364,10 @@ public:
     inline ASTNodeTypeSpecifierEnum(
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> name
-            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+            ): ASTNodeTypeSpecifier(c), m_name(name)
+    {
+        this->add_name("enum " + m_name->id);
+    }
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
@@ -366,7 +381,10 @@ public:
     inline ASTNodeTypeSpecifierTypedef(
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> name
-            ): ASTNodeTypeSpecifier(c), m_name(name) {}
+            ): ASTNodeTypeSpecifier(c), m_name(name)
+    {
+        this->add_name(m_name->id);
+    }
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
@@ -376,7 +394,10 @@ class ASTNodeTypeSpecifierVoid: public ASTNodeTypeSpecifier {
 public:
     inline ASTNodeTypeSpecifierVoid(
             ASTNodeParserContext c
-            ): ASTNodeTypeSpecifier(c) {}
+            ): ASTNodeTypeSpecifier(c)
+    {
+        this->add_name("void");
+    }
 
     virtual data_type dtype() const override;
 };

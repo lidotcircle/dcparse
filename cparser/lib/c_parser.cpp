@@ -1,5 +1,6 @@
 #include "c_parser.h"
 #include "c_error.h"
+#include <set>
 #include <memory>
 using namespace std;
 
@@ -548,6 +549,87 @@ void CParser::expression_rules()
     expr_reduce(CONSTANT_EXPRESSION, CONDITIONAL_EXPRESSION);
 }
 
+static shared_ptr<ASTNodeTypeSpecifier>
+mix_type_specifiers(
+        ASTNodeParserContext c,
+        shared_ptr<ASTNodeTypeSpecifier> spa,
+        shared_ptr<ASTNodeTypeSpecifier> spb)
+{
+    static const map<multiset<string>,tuple<size_t,bool,bool>> number_traits_map = {
+        { { "char"                            }, { sizeof(char), false, false } },
+        { { "signed", "char"                  }, { sizeof(signed char), false, false } },
+        { { "unsigned", "char"                }, { sizeof(unsigned char), true, false } },
+        { { "short"                           }, { sizeof(short), false, false } },
+        { { "signed", "short"                 }, { sizeof(signed short), false, false } },
+        { { "short", "int"                    }, { sizeof(short int), false, false } },
+        { { "signed", "short", "int"          }, { sizeof(signed short int), false, false } },
+        { { "unsigned", "short"               }, { sizeof(unsigned short), true, false } },
+        { { "unsigned", "short", "int"        }, { sizeof(unsigned short int), true, false } },
+        { { "int"                             }, { sizeof(int), false, false } },
+        { { "signed"                          }, { sizeof(signed), false, false } },
+        { { "signed", "int"                   }, { sizeof(signed int), false, false } },
+        { { "unsigned"                        }, { sizeof(unsigned), true, false } },
+        { { "unsigned", "int"                 }, { sizeof(unsigned int), true, false } },
+        { { "long"                            }, { sizeof(long), false, false } },
+        { { "signed", "long"                  }, { sizeof(signed long), false, false } },
+        { { "long", "int"                     }, { sizeof(long int), false, false } },
+        { { "signed", "long", "int"           }, { sizeof(signed long int), false, false } },
+        { { "unsigned", "long"                }, { sizeof(unsigned long), true, false } },
+        { { "unsigned", "long", "int"         }, { sizeof(unsigned long int), true, false } },
+        { { "long", "long"                    }, { sizeof(long long), false, false } },
+        { { "signed", "long", "long"          }, { sizeof(signed long long), false, false } },
+        { { "long", "long", "int"             }, { sizeof(long long int), false, false } },
+        { { "signed", "long", "long", "int"   }, { sizeof(signed long long int), false, false } },
+        { { "unsigned", "long", "long"        }, { sizeof(unsigned long long), true, false } },
+        { { "unsigned", "long", "long", "int" }, { sizeof(unsigned long long int), true, false } },
+        { { "float"                           }, { sizeof(float), false, true } },
+        { { "double"                          }, { sizeof(double), false, true } },
+        { { "long", "double"                  }, { sizeof(long double), false, true } },
+        { { "_Bool"                           }, { sizeof(bool), false, false } },
+    };
+
+    const auto ntype = spa->dtype();
+    if (ntype != ASTNodeTypeSpecifier::data_type::INT &&
+        ntype != ASTNodeTypeSpecifier::data_type::FLOAT)
+    {
+        throw CErrorparserMixedType("mixed type specifier only allowed in integer and float");
+    }
+
+    switch (spb->dtype()) {
+        case ASTNodeTypeSpecifier::data_type::STRUCT:
+        case ASTNodeTypeSpecifier::data_type::UNION:
+        case ASTNodeTypeSpecifier::data_type::ENUM:
+        case ASTNodeTypeSpecifier::data_type::VOID:
+        case ASTNodeTypeSpecifier::data_type::TYPEDEF:
+            throw CErrorparserMixedType("mixed type specifier only allowed in integer and float");
+            break;
+        case ASTNodeTypeSpecifier::data_type::INT:
+        case ASTNodeTypeSpecifier::data_type::FLOAT:
+            {
+                auto a1 = spa->type_names();
+                const auto& a2 = spb->type_names();
+                for (auto& v: a2) a1.insert(v);
+                if (number_traits_map.find(a1) == number_traits_map.end()) {
+                    string typestr;
+                    for (auto& v: a1) typestr += v + " ";
+                    throw CErrorparserMixedType("disallow mix type specifier: " + typestr);
+                }
+                auto [size, sign, float_] = number_traits_map.at(a1);
+                shared_ptr<ASTNodeTypeSpecifier> ret;
+                if (float_) {
+                    ret = make_shared<ASTNodeTypeSpecifierFloat>(c, size);
+                } else {
+                    ret = make_shared<ASTNodeTypeSpecifierInt>(c, size, sign);
+                }
+                for (auto& v: a1) ret->add_name(v);
+                return ret;
+            } break;
+        default:
+            assert(false && "unreachable");
+            break;
+    }
+}
+
 void CParser::declaration_rules()
 {
     DCParser& parser = *this;
@@ -613,31 +695,17 @@ void CParser::declaration_rules()
         { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
+            get_ast_if_presents(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
             get_ast(tspec, TYPE_SPECIFIER, ASTNodeTypeSpecifier, 1);
             auto ast = make_shared<ASTNodeDeclarationSpecifier>(c);
             ast->type_specifier() = tspecast;
-            if (ts[0]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            if (dsast) {
                 auto old_type = dsast->type_specifier();
                 if (old_type != nullptr) {
-                    switch (old_type->dtype()) {
-                    case ASTNodeTypeSpecifier::data_type::STRUCT:
-                    case ASTNodeTypeSpecifier::data_type::UNION:
-                    case ASTNodeTypeSpecifier::data_type::ENUM:
-                    case ASTNodeTypeSpecifier::data_type::VOID:
-                    case ASTNodeTypeSpecifier::data_type::TYPEDEF:
-                        throw CErrorparserMixedType("mixed type specifier only allowed in integer and float");
-                        break;
-                    case ASTNodeTypeSpecifier::data_type::INT:
-                    case ASTNodeTypeSpecifier::data_type::FLOAT:
-                        // TODO mixed type, long signed ..., and warnning or error
-                        break;
-                    default:
-                        assert(false && "unreachable");
-                        break;
-                    }
+                    dsast->type_specifier() = mix_type_specifiers(c, old_type, tspecast);
+                } else {
+                    dsast->type_specifier() = tspecast;
                 }
-                dsast->type_specifier() = tspecast;
                 ast = dsast;
             }
             return makeNT(DECLARATION_SPECIFIERS, ast);
@@ -732,18 +800,19 @@ void CParser::declaration_rules()
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
             auto ast = make_shared<ASTNodeTypeSpecifier##en>(c, ##__VA_ARGS__); \
+            ast->add_name(#kw); \
             return makeNT(TYPE_SPECIFIER, ast); \
         });
     to_type_specifier(void,     Void);
-    to_type_specifier(char,     Int,   sizeof(char), false);
-    to_type_specifier(short,    Int,   sizeof(short), false);
-    to_type_specifier(int,      Int,   sizeof(int), false);
-    to_type_specifier(long,     Int,   sizeof(long), false);
+    to_type_specifier(char,     Int,   sizeof(char),   false);
+    to_type_specifier(short,    Int,   sizeof(short),  false);
+    to_type_specifier(int,      Int,   sizeof(int),    false);
+    to_type_specifier(long,     Int,   sizeof(long),   false);
     to_type_specifier(float,    Float, sizeof(float));
     to_type_specifier(double,   Float, sizeof(double));
     to_type_specifier(signed,   Int,   sizeof(signed), false);
     to_type_specifier(unsigned, Int,   sizeof(signed), true);
-    to_type_specifier(_Bool,    Int,   sizeof(bool), false);
+    to_type_specifier(_Bool,    Int,   sizeof(bool),   false);
     // TODO _Complex
 
     parser( NI(TYPE_SPECIFIER),
@@ -881,15 +950,16 @@ static int anonymous_struct_union_counter = 0;
         { ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
+            get_ast_if_presents(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
             get_ast(tspec, TYPE_SPECIFIER, ASTNodeTypeSpecifier, 1);
             auto ast = make_shared<ASTNodeDeclarationSpecifier>(c);
             ast->type_specifier() = tspecast;
-            if (ts[0]) {
-                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            if (dsast) {
                 if (dsast->type_specifier() != nullptr) {
-                    // TODO mixed type, long signed ..., and warnning or error
+                    dsast->type_specifier() = mix_type_specifiers(c, dsast->type_specifier(), tspecast);
+                } else {
+                    dsast->type_specifier() = tspecast;
                 }
-                dsast->type_specifier() = tspecast;
                 ast = dsast;
             }
             return makeNT(SPECIFIER_QUALIFIER_LIST, ast);

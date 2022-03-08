@@ -41,6 +41,7 @@ struct RuleOption {
     decision_t     decision;
     set<size_t>    decision_pos;
     bool           seen;
+    int            ruleid;
 };
 
 struct PushdownEntry;
@@ -392,16 +393,18 @@ int DCParser::add_rule_internal(
     ri.m_rhs_optional = move(rhop);
     ri.m_reduce_callback = cb;
     ri.m_rule_option = std::make_shared<RuleOption>();
+    auto ruleopt = ri.m_rule_option;
 
-    ri.m_rule_option->associtive = associtive;
-    ri.m_rule_option->priority = this->m_priority;
-    if (priority) ri.m_rule_option->priority = priority->priority();
-    ri.m_rule_option->decision = decision;
-    ri.m_rule_option->decision_pos = move(positions);
-    ri.m_rule_option->seen = false;
+    ruleopt->associtive = associtive;
+    ruleopt->priority = this->m_priority;
+    if (priority) ruleopt->priority = priority->priority();
+    ruleopt->decision = decision;
+    ruleopt->decision_pos = move(positions);
+    ruleopt->seen = false;
+    ruleopt->ruleid = this->m_rules.size() + 0x999;
 
     this->m_rules.push_back(ri);
-    return this->m_rules.size() - 1;
+    return ruleopt->ruleid;
 }
 
 void DCParser::see_dchar(DCharInfo char_)
@@ -643,6 +646,11 @@ void DCParser::setup_real_start_symbol()
 void DCParser::generate_table()
 {
     this->setup_real_start_symbol();
+
+    std::sort(this->m_rules.begin(), this->m_rules.end(), 
+              [](const auto& lhs, const auto& rhs) {
+                  return lhs.m_rule_option->priority < rhs.m_rule_option->priority;
+              });
 
     SetStateAllocator<pair<ruleid_t,size_t>> sallocator;
     const auto s_start_state = this->startState();

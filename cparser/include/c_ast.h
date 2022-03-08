@@ -33,9 +33,9 @@ public:
     ASTNodeBlockItem(ASTNodeParserContext p): ASTNode(p) {}
 };
 
-class ASTNodeExternalDeclaration : public ASTNode {
+class ASTNodeExternalDeclaration : public ASTNodeBlockItem {
 public:
-    ASTNodeExternalDeclaration(ASTNodeParserContext p): ASTNode(p) {}
+    ASTNodeExternalDeclaration(ASTNodeParserContext p): ASTNodeBlockItem(p) {}
 };
 
 

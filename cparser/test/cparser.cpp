@@ -33,6 +33,93 @@ TEST(should_accpet, CParserLexer) {
         "int * const * const volatile a = 22 * 44 * 88;",
         "static const inline a = 22 * 44 + 55;",
         "int main();",
+        "int main() {}",
+        "int main() { int a = 2; }",
+        "int hux(a) int a; { return a; }",
+        "int main() { for(int i = 0; i < 10; i++) { } }",
+        "int main() { a: m = 2; }",
+
+        "int primary_expr = a;",
+        "int primary_expr = 22;",
+        "int primary_expr = 22.2;",
+        "int primary_expr = \"hello world\";",
+        "int primary_expr = ( a );",
+
+        "int posfix_expr = ( expr );",
+        "int posfix_expr = ( expr )[a];",
+        "int posfix_expr = ( expr )();",
+        "int posfix_expr = ( expr )(a, b, c);",
+        "int posfix_expr = ( expr ).a;",
+        "int posfix_expr = ( expr )->a;",
+        "int posfix_expr = ( expr )++;",
+        "int posfix_expr = ( expr )--;",
+        "int posfix_expr = ( int ){ .a = 2, };",
+        "int posfix_expr = ( int ){ .a = 2, 3, 4 };",
+
+        "int unary_expr = ++a;",
+        "int unary_expr = --a;",
+        "int unary_expr = +a;",
+        "int unary_expr = -a;",
+        "int unary_expr = !a;",
+        "int unary_expr = ~a;",
+        "int unary_expr = *a;",
+        "int unary_expr = &a;",
+        "int unary_expr = sizeof a;",
+        "int unary_expr = sizeof(a);",
+        "int unary_expr = sizeof(int);",
+        "int unary_expr = sizeof(long int*);",
+        "int unary_expr = sizeof(const long int*);",
+        "int unary_expr = sizeof(const long int (*)(int));",
+
+        "int cast_expr = (int)a;",
+        "int cast_expr = (int*)a;",
+        "int cast_expr = (int* const)a;",
+        "int cast_expr = (int* const*)a;",
+
+        "int multiplicative_expr = a * b;",
+        "int multiplicative_expr = a / b;",
+        "int multiplicative_expr = a % b;",
+
+        "int additive_expr = a + b;",
+        "int additive_expr = a - b;",
+
+        "int shift_expr = a << b;",
+        "int shift_expr = a >> b;",
+
+        "int relational_expr = a < b;",
+        "int relational_expr = a > b;",
+        "int relational_expr = a <= b;",
+        "int relational_expr = a >= b;",
+
+        "int equality_expr = a == b;",
+        "int equality_expr = a != b;",
+
+        "int and_expr = a & b;",
+
+        "int xor_expr = a ^ b;",
+
+        "int or_expr = a | b;",
+
+        "int logical_and_expr = a && b;",
+
+        "int logical_or_expr = a || b;",
+
+        "int conditional_expr = a ? b : c;",
+        "int conditional_expr = a ? b : c ? d : e;",
+
+        "int assignment_expr = a = b;",
+        "int assignment_expr = a += b;",
+        "int assignment_expr = a -= b;",
+        "int assignment_expr = a *= b;",
+        "int assignment_expr = a /= b;",
+        "int assignment_expr = a %= b;",
+        "int assignment_expr = a <<= b;",
+        "int assignment_expr = a >>= b;",
+        "int assignment_expr = a &= b;",
+        "int assignment_expr = a ^= b;",
+        "int assignment_expr = a |= b;",
+
+        "int expr = a, b, c;",
     };
 
     for (auto t: test_cases) {

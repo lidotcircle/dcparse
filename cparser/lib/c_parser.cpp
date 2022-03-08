@@ -106,7 +106,7 @@ using ParserChar = DCParser::ParserChar;
         assert(varn##ast);\
     }
 
-#define add_binary_rule(nonterm, leftnonterm, rightnonterm, op, astop, assoc) \
+#define add_binary_rule(nonterm, leftnonterm, rightnonterm, op, astop, assoc, ...) \
     parser( NI(nonterm), \
         { NI(leftnonterm), PT(op), NI(rightnonterm) }, \
         [](auto c, auto ts) { \
@@ -119,7 +119,7 @@ using ParserChar = DCParser::ParserChar;
                     lhsast, \
                     rhsast); \
             return make_shared<NonTerm##nonterm>(ast); \
-        }, assoc);
+        }, assoc, ##__VA_ARGS__);
 
 #define add_prefix_unary_rule(lhsnonterm, rhsnonterm, op, astop, assoc) \
     parser( NI(lhsnonterm), \
@@ -201,15 +201,15 @@ void CParser::typedef_rule()
         }));
 }
 
-#define expr_reduce(to, from) \
-    parser.__________(); \
+#define expr_reduce(to, from, ...) \
+    auto priority_##from = parser.__________(); \
     parser( NI(to), \
         { NI(from) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
             get_ast(expr, from, ASTNodeExpr, 0); \
             return make_shared<NonTerm##to>(exprast); \
-        });
+        }, ##__VA_ARGS__);
 
 void CParser::expression_rules()
 {
@@ -386,12 +386,12 @@ void CParser::expression_rules()
         RuleAssocitiveLeft);
 
 
-    expr_reduce(CAST_EXPRESSION, UNARY_EXPRESSION);
+    expr_reduce(CAST_EXPRESSION, UNARY_EXPRESSION, RuleAssocitiveRight);
     parser( NI(CAST_EXPRESSION),
         { PT(LPAREN), NI(TYPE_NAME), PT(RPAREN), NI(CAST_EXPRESSION) },
         [](auto c, auto ts) {
             assert(ts.size() == 4);
-            get_ast(type, TYPE_NAME, ASTNodeVariableType, 2);
+            get_ast(type, TYPE_NAME, ASTNodeVariableType, 1);
             get_ast(rhs, CAST_EXPRESSION, ASTNodeExpr, 3);
             auto ast = make_shared<ASTNodeExprCast>(c, typeast, rhsast);
             return make_shared<NonTermCAST_EXPRESSION>(ast);
@@ -450,27 +450,38 @@ void CParser::expression_rules()
     parser( NI(CONDITIONAL_EXPRESSION),
         { NI(LOGICAL_OR_EXPRESSION), PT(QUESTION), NI(EXPRESSION), PT(COLON), NI(CONDITIONAL_EXPRESSION) },
         [](auto c, auto ts) {
-            assert(ts.size() == 4);
+            assert(ts.size() == 5);
             get_ast(cond, LOGICAL_OR_EXPRESSION, ASTNodeExpr, 0);
             get_ast(true_expr, EXPRESSION, ASTNodeExpr, 2);
             get_ast(false_expr, CONDITIONAL_EXPRESSION, ASTNodeExpr, 4);
             auto ast = make_shared<ASTNodeExprConditional>(c, condast, true_exprast, false_exprast);
             return make_shared<NonTermCONDITIONAL_EXPRESSION>(ast);
-        }, RuleAssocitiveRight);
+        }, RuleAssocitiveRight, nullptr, priority_LOGICAL_AND_EXPRESSION);
 
 
     expr_reduce(ASSIGNMENT_EXPRESSION, CONDITIONAL_EXPRESSION);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, ASSIGN, ASSIGNMENT, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, MULTIPLY_ASSIGN, ASSIGNMENT_MULTIPLY, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, DIVISION_ASSIGN, ASSIGNMENT_DIVISION, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, REMAINDER_ASSIGN, ASSIGNMENT_REMAINDER, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, PLUS_ASSIGN, ASSIGNMENT_PLUS, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, MINUS_ASSIGN, ASSIGNMENT_MINUS, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, LEFT_SHIFT_ASSIGN, ASSIGNMENT_LEFT_SHIFT, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, RIGHT_SHIFT_ASSIGN, ASSIGNMENT_RIGHT_SHIFT, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, BIT_AND_ASSIGN, ASSIGNMENT_BITWISE_AND, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, BIT_XOR_ASSIGN, ASSIGNMENT_BITWISE_XOR, RuleAssocitiveRight);
-    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION, BIT_OR_ASSIGN, ASSIGNMENT_BITWISE_OR, RuleAssocitiveRight);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    ASSIGN, ASSIGNMENT, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    MULTIPLY_ASSIGN, ASSIGNMENT_MULTIPLY, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    DIVISION_ASSIGN, ASSIGNMENT_DIVISION, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    REMAINDER_ASSIGN, ASSIGNMENT_REMAINDER, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    PLUS_ASSIGN, ASSIGNMENT_PLUS, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    MINUS_ASSIGN, ASSIGNMENT_MINUS, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    LEFT_SHIFT_ASSIGN, ASSIGNMENT_LEFT_SHIFT, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    RIGHT_SHIFT_ASSIGN, ASSIGNMENT_RIGHT_SHIFT, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    BIT_AND_ASSIGN, ASSIGNMENT_BITWISE_AND, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    BIT_XOR_ASSIGN, ASSIGNMENT_BITWISE_XOR, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
+    add_binary_rule(ASSIGNMENT_EXPRESSION, UNARY_EXPRESSION, ASSIGNMENT_EXPRESSION,
+                    BIT_OR_ASSIGN, ASSIGNMENT_BITWISE_OR, RuleAssocitiveRight, nullptr, priority_UNARY_EXPRESSION);
 
     parser( NI(EXPRESSION),
         { NI(EXPRESSION), PT(COMMA), NI(ASSIGNMENT_EXPRESSION) },
@@ -807,7 +818,7 @@ static int anonymous_struct_union_counter = 0;
                 sd->set_leaf_type(vt);
 
             return make_shared<NonTermSTRUCT_DECLARATION>(sdlast);
-        });
+        }, RuleAssocitiveRight);
 
     // exchange RHS order
     parser( NI(SPECIFIER_QUALIFIER_LIST),
@@ -826,7 +837,7 @@ static int anonymous_struct_union_counter = 0;
                 ast = dsast;
             }
             return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(ast);
-        }, RuleAssocitiveLeft);
+        }, RuleAssocitiveRight);
 
     // exchange RHS order
     parser( NI(SPECIFIER_QUALIFIER_LIST),
@@ -842,7 +853,7 @@ static int anonymous_struct_union_counter = 0;
                 std::swap(tqualast, dsast);
             }
             return make_shared<NonTermSPECIFIER_QUALIFIER_LIST>(tqualast);
-        }, RuleAssocitiveLeft);
+        }, RuleAssocitiveRight);
 
     parser( NI(STRUCT_DECLARATOR_LIST),
         { ParserChar::beOptional(NI(STRUCT_DECLARATOR_LIST)), NI(STRUCT_DECLARATOR) },
@@ -1396,15 +1407,13 @@ static size_t anonymous_enum_count = 0;
         });
 
     parser( NI(INITIALIZER_LIST),
-        { ParserChar::beOptional(NI(INITIALIZER_LIST)), ParserChar::beOptional(NI(DESIGNATION)), NI(INITIALIZER) },
+        { ParserChar::beOptional(NI(DESIGNATION)), NI(INITIALIZER) },
         [](auto c, auto ts) {
-            assert(ts.size() == 3);
-            get_ast_if_presents(il, INITIALIZER_LIST, ASTNodeInitializerList, 0);
-            get_ast_if_presents(ds, DESIGNATION, ASTNodeDesignation, 1);
-            get_ast(init, INITIALIZER, ASTNodeInitializer, 2);
+            assert(ts.size() == 2);
+            get_ast_if_presents(ds, DESIGNATION, ASTNodeDesignation, 0);
+            get_ast(init, INITIALIZER, ASTNodeInitializer, 1);
 
             auto ax = make_shared<ASTNodeInitializerList>(c);
-            if (ilast) ax = ilast;
             auto dx = make_shared<ASTNodeDesignation>(c);
             if (dsast) dx = dsast;
             dx->initializer() = initast;
@@ -1412,6 +1421,25 @@ static size_t anonymous_enum_count = 0;
 
             return make_shared<NonTermINITIALIZER_LIST>(ax);
         });
+
+    parser( NI(INITIALIZER_LIST),
+        { NI(INITIALIZER_LIST), PT(COMMA), ParserChar::beOptional(NI(DESIGNATION)), NI(INITIALIZER) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 4);
+            get_ast(il, INITIALIZER_LIST, ASTNodeInitializerList, 0);
+            get_ast_if_presents(ds, DESIGNATION, ASTNodeDesignation, 2);
+            get_ast(init, INITIALIZER, ASTNodeInitializer, 3);
+
+            auto ax = make_shared<ASTNodeInitializerList>(c);
+            ax = ilast;
+            auto dx = make_shared<ASTNodeDesignation>(c);
+            if (dsast) dx = dsast;
+            dx->initializer() = initast;
+            ax->push_back(dx);
+
+            return make_shared<NonTermINITIALIZER_LIST>(ax);
+        });
+
 
     parser( NI(DESIGNATION),
         { NI(DESIGNATOR_LIST), PT(ASSIGN) },
@@ -1470,7 +1498,7 @@ void CParser::statement_rules()
         { NI(xt) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
-            get_ast(st, LABELED_STATEMENT, ASTNodeStat, 0); \
+            get_ast(st, xt, ASTNodeStat, 0); \
             return make_shared<NonTermSTATEMENT>(stast); \
         })
 
@@ -1538,7 +1566,7 @@ void CParser::statement_rules()
     parser( NI(BLOCK_ITEM),
         { NI(DECLARATION) },
         [](auto c, auto ts) {
-            assert(ts.size() == 2);
+            assert(ts.size() == 1);
             get_ast(d, DECLARATION, ASTNodeBlockItem, 0);
             return make_shared<NonTermBLOCK_ITEM>(dast);
         });
@@ -1546,7 +1574,7 @@ void CParser::statement_rules()
     parser( NI(BLOCK_ITEM),
         { NI(STATEMENT) },
         [](auto c, auto ts) {
-            assert(ts.size() == 2);
+            assert(ts.size() == 1);
             get_ast(st, STATEMENT, ASTNodeBlockItem, 0);
             return make_shared<NonTermBLOCK_ITEM>(stast);
         });
@@ -1642,11 +1670,11 @@ void CParser::statement_rules()
                    ParserChar::beOptional(NI(EXPRESSION)), PT(SEMICOLON), 
                    ParserChar::beOptional(NI(EXPRESSION)), PT(RPAREN), NI(STATEMENT) },
         [](auto c, auto ts) {
-            assert(ts.size() == 9);
+            assert(ts.size() == 8);
             get_ast(decl, DECLARATION, ASTNodeDeclarationList, 2);
-            get_ast_if_presents(cond, EXPRESSION, ASTNodeExpr, 4);
-            get_ast_if_presents(iter, EXPRESSION, ASTNodeExpr, 6);
-            get_ast(st, STATEMENT, ASTNodeStat, 8);
+            get_ast_if_presents(cond, EXPRESSION, ASTNodeExpr, 3);
+            get_ast_if_presents(iter, EXPRESSION, ASTNodeExpr, 5);
+            get_ast(st, STATEMENT, ASTNodeStat, 7);
 
             auto ast = make_shared<ASTNodeStatForDecl>(c, declast, condast, iterast, stast);
             return make_shared<NonTermITERATION_STATEMENT>(ast);

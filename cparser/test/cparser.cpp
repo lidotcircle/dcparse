@@ -54,6 +54,7 @@ TEST(should_accpet, CParserLexer) {
         "int posfix_expr = ( expr )++;",
         "int posfix_expr = ( expr )--;",
         "int posfix_expr = ( int ){ .a = 2, };",
+        "int posfix_expr = ( int ){ [a] = 2, };",
         "int posfix_expr = ( int ){ .a = 2, 3, 4 };",
 
         "int unary_expr = ++a;",
@@ -120,6 +121,39 @@ TEST(should_accpet, CParserLexer) {
         "int assignment_expr = a |= b;",
 
         "int expr = a, b, c;",
+
+        "struct sct;",
+        "struct sct {};",
+        "struct sct { ; };",
+        "struct sct { int a; };",
+        "struct sct { const int a; };",
+        "struct sct { const int a; int a:4; int b:4; };",
+        "struct sct { const int:4; int a:4; int b:4; };",
+        "struct sct { const int **a; };",
+        "struct sct { const int (*a)(); };",
+        "struct sct { const int (*a)(int, ...); };",
+
+        "union un ;",
+        "union un {};",
+
+        "enum em { };",
+        "enum em { , };",
+        "enum em { a = 1 };",
+        "enum em { a = 1, b, d };",
+        "enum em { a = 1, b, d, };",
+
+        "int a = { };",
+        "int a = { .a = 10 };",
+        "int a = { [a][b] = 10 };",
+
+        "int main() { label: return; }",
+        "int main() { switch (a) { case 1: break; default: break; } }",
+        "int main() { switch (a) { case 1: break; default: break; } { int a; } }",
+        "int main() { { if (a) a = b; if (10) return; else return; } }",
+        "int main() { while(i) i--; }",
+        "int main() { for(i=0;i;i--) i--; }",
+        "int main() { for(int i=0, j=0;i;i--) i--; }",
+        "int main() { goto a; continue; break; return; return a; }",
     };
 
     for (auto t: test_cases) {
@@ -141,6 +175,12 @@ TEST(should_reject, CParserLexer) {
 
     vector<string> test_cases = {
         "",
+        "typedef",
+        " { int a; } ",
+        "const int * int;",
+        "int hello*;",
+        "struct;",
+        "enum;",
     };
 
     for (auto t: test_cases) {
@@ -149,7 +189,7 @@ TEST(should_reject, CParserLexer) {
             for (auto c: t)
                 parser.feed(c);
             auto tunit = parser.end();
-        );
+        ) << t;
 
         parser.reset();
     }

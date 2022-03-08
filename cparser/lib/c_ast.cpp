@@ -119,7 +119,7 @@ void ASTNodeInitDeclarator::set_leaf_type(std::shared_ptr<ASTNodeVariableType> t
 void ASTNodeStructUnionDeclaration::set_leaf_type(std::shared_ptr<ASTNodeVariableType> type)
 {
     if (this->m_decl == nullptr)
-        this->m_decl = make_shared<ASTNodeInitDeclarator>(this->context(), nullptr, type, nullptr);
+        this->m_decl = make_shared<ASTNodeInitDeclarator>(this->context(), nullptr, nullptr, nullptr);
 
     this->m_decl->set_leaf_type(type);
 }

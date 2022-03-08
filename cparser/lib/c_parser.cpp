@@ -112,6 +112,11 @@ set_astnode_position_info(shared_ptr<cparser::ASTNode> node, pair<size_t,size_t>
     node->end_pos() = pos.second;
     return node;
 }
+static void astnode_belong_to(shared_ptr<cparser::ASTNode> node, const vector<shared_ptr<DChar>>& chars)
+{
+    auto pos = get_position_range(chars);
+    node = set_astnode_position_info(node, pos);
+}
 #define makeNT(NT, node) make_shared<NonTerm##NT>(set_astnode_position_info(node, get_position_range(ts)))
 
 #define TENTRY(n) \
@@ -203,7 +208,7 @@ static string position_info_of(shared_ptr<cparser::ASTNode> node, cparser::ASTNo
     const auto e = node->end_pos();
     get_ctx(ctx, c);
     auto pinfo = ctx->posinfo();
-    return "(" + pinfo->queryLine(s, e) + ")" + pinfo->query_string(s, e);
+    return pinfo->queryLine(s, e) + " {" + pinfo->query_string(s, e) + "}";
 }
 
 namespace cparser {
@@ -337,6 +342,7 @@ void CParser::expression_rules()
             get_ast(func, POSTFIX_EXPRESSION, ASTNodeExpr, 0);
             auto args = dynamic_pointer_cast<NonTermARGUMENT_EXPRESSION_LIST>(ts[2]);
             auto argsast = make_shared<ASTNodeArgList>(c);
+            astnode_belong_to(argsast, { ts[1], ts[3] });
             if (args) {
                 auto ax = dynamic_pointer_cast<ASTNodeArgList>(args->astnode);
                 assert(ax);
@@ -948,6 +954,7 @@ static int anonymous_struct_union_counter = 0;
             get_ast(sdl, STRUCT_DECLARATOR_LIST,  ASTNodeStructUnionDeclarationList, 1);
 
             auto vt = make_shared<ASTNodeVariableTypePlain>(c, sqlast);
+            astnode_belong_to(vt, { sql });
             for (auto sd: *sdlast)
                 sd->set_leaf_type(vt);
 
@@ -1170,6 +1177,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
             get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
+            astnode_belong_to(array, { ts[1], ts[4] });
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1188,6 +1196,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 3);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            astnode_belong_to(array, { ts[1], ts[5] });
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1206,6 +1215,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            astnode_belong_to(array, {ts[1], ts[5]});
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1223,6 +1233,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
+            astnode_belong_to(array, { ts[1], ts[5] });
             array->unspecified_size_vla() = true;
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
@@ -1241,6 +1252,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast(pl, PARAMETER_TYPE_LIST, ASTNodeParameterDeclarationList, 2);
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
+            astnode_belong_to(func, { ts[0], ts[3] });
             ddast->set_leaf_type(func);
 
             return makeNT(DIRECT_DECLARATOR, ddast);
@@ -1252,9 +1264,11 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 4);
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
             auto plast = make_shared<ASTNodeParameterDeclarationList>(c);
+            astnode_belong_to(plast, { ts[1], ts[3] });
             get_ast_if_presents(xpl, IDENTIFIER_LIST, ASTNodeParameterDeclarationList, 2);
             if (xplast) plast = xplast;
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
+            astnode_belong_to(func, { ts[0], ts[3] });
             ddast->set_leaf_type(func);
 
             return makeNT(DIRECT_DECLARATOR, ddast);
@@ -1341,6 +1355,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
             get_ast(d, DECLARATOR, ASTNodeInitDeclarator, 1);
             auto pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
+            astnode_belong_to(pd, { ts[0] });
             dast->set_leaf_type(pd);
             auto ast = make_shared<ASTNodeParameterDeclaration>(c, dast->id(), dast->type());
             return makeNT(PARAMETER_DECLARATION, ast);
@@ -1354,6 +1369,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
             shared_ptr<ASTNodeVariableType> pd;
             pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
+            astnode_belong_to(pd, { ts[0] });
             if (dast) {
                 dast->set_leaf_type(pd);
                 pd = dast->type();
@@ -1380,7 +1396,9 @@ static size_t anonymous_enum_count = 0;
             get_ast(il, IDENTIFIER_LIST, ASTNodeParameterDeclarationList, 0);
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
-            ilast->push_back(make_shared<ASTNodeParameterDeclaration>(c, id, nullptr));
+            auto nid = make_shared<ASTNodeParameterDeclaration>(c, id, nullptr);
+            astnode_belong_to(nid, { ts[0] });
+            ilast->push_back(nid);
             return makeNT(IDENTIFIER_LIST, ilast);
         });
 
@@ -1439,6 +1457,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
             get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
+            astnode_belong_to(array, { ts[1], ts[4] });
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1459,6 +1478,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 3);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            astnode_belong_to(array, { ts[1], ts[5] });
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1479,6 +1499,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
+            astnode_belong_to(array, { ts[1], ts[5] });
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1498,6 +1519,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
+            astnode_belong_to(array, { ts[1], ts[5] });
             array->unspecified_size_vla() = true;
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
@@ -1518,9 +1540,13 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast_if_presents(pl, PARAMETER_TYPE_LIST, ASTNodeParameterDeclarationList, 2);
 
-            if (!plast) plast = make_shared<ASTNodeParameterDeclarationList>(c);
+            if (!plast) {
+                plast = make_shared<ASTNodeParameterDeclarationList>(c);
+                astnode_belong_to(plast, { ts[1], ts[3] });
+            }
 
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
+            astnode_belong_to(func, { ts[0], ts[3] });
             ddast->set_leaf_type(func);
 
             return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
@@ -1541,7 +1567,10 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 4);
             get_ast_if_presents(il, INITIALIZER_LIST, ASTNodeInitializerList, 1);
-            if (!ilast) ilast = make_shared<ASTNodeInitializerList>(c);
+            if (!ilast) {
+                ilast = make_shared<ASTNodeInitializerList>(c);
+                astnode_belong_to(ilast, { ts[0], ts[3] });
+            }
             return makeNT(INITIALIZER, make_shared<ASTNodeInitializer>(c, ilast));
         });
 
@@ -1681,6 +1710,7 @@ void CParser::statement_rules()
             assert(ts.size() == 3);
 
             auto list = make_shared<ASTNodeBlockItemList>(c);
+            astnode_belong_to(list, { ts[0], ts[2] });
             get_ast_if_presents(bl, BLOCK_ITEM_LIST, ASTNodeBlockItemList, 1);
             if (blast) list = blast;
 
@@ -1694,6 +1724,7 @@ void CParser::statement_rules()
             assert(ts.size() == 2);
 
             auto list = make_shared<ASTNodeBlockItemList>(c);
+            astnode_belong_to(list, { ts[1] });
             get_ast_if_presents(bl, BLOCK_ITEM_LIST, ASTNodeBlockItemList, 0);
             if (blast) list = blast;
             get_ast(bi, BLOCK_ITEM, ASTNodeBlockItem, 1);
@@ -1896,7 +1927,10 @@ void CParser::external_definitions()
             assert(ts.size() == 4);
             get_ast(spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
             get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 1);
-            declast->set_leaf_type(make_shared<ASTNodeVariableTypePlain>(c, specast));
+            auto ds = make_shared<ASTNodeVariableTypePlain>(c, specast);
+            astnode_belong_to(ds, { ts[0] });
+            declast->set_leaf_type(ds);
+            astnode_belong_to(declast, { ts[0], ts[2] });
 
             auto functype = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(declast->type());
             assert(functype);
@@ -1905,7 +1939,7 @@ void CParser::external_definitions()
             get_ast_if_presents(decltx, DECLARATION_LIST, ASTNodeDeclarationList, 2);
             if (decltxast != nullptr) {
                 if (decltxast->size() != functype->parameter_declaration_list()->size()) {
-                    throw CErrorParser("Function parameter count mismatch" +
+                    throw CErrorParser("Function parameter count mismatch, at " +
                                        position_info_of(functype, c));
                 }
 
@@ -1914,16 +1948,16 @@ void CParser::external_definitions()
                     auto declx = dynamic_pointer_cast<ASTNodeDeclaration>(decl);
                     assert(declx);
                     if (!declx->id()) {
-                        throw CErrorParser("old style function parameter declaration without ID, " + 
+                        throw CErrorParser("old style function parameter declaration without ID, at " + 
                                            position_info_of(declx, c));
                     }
                     if (declx->initializer()) {
-                        throw CErrorParser("old style function parameter can't be initialized, " + 
+                        throw CErrorParser("old style function parameter can't be initialized, at " + 
                                            position_info_of(declx, c));
                     }
                     const auto& id = declx->id()->id;
                     if (declmap.find(id) != declmap.end()) {
-                        throw CErrorParser("duplicate function parameter name, " + 
+                        throw CErrorParser("duplicate function parameter name, at " + 
                                            position_info_of(declx, c));
                     }
                     declmap[id] = declx->type();
@@ -1932,13 +1966,13 @@ void CParser::external_definitions()
                 for (auto decl : *functype->parameter_declaration_list()) {
                     if (!decl->id() || decl->type())
                     {
-                        throw CErrorParser("old style function parameter need identifier list in parenthese, " + 
+                        throw CErrorParser("old style function parameter need identifier list in parenthese, at " + 
                                            position_info_of(decl, c));
                     }
                     const auto& id = decl->id()->id;
                     if (declmap.find(id) == declmap.end())
                     {
-                        throw CErrorParser("old style function parameter not found, " + 
+                        throw CErrorParser("old style function parameter not found, at " + 
                                            position_info_of(decl, c));
                     }
                     decl->type() = declmap[id];
@@ -1954,7 +1988,7 @@ void CParser::external_definitions()
                 if (p->id()) {
                     const auto& id = p->id()->id;
                     if (argnames.find(id) != argnames.end()) {
-                        throw CErrorParser("duplicate parameter name, " + 
+                        throw CErrorParser("duplicate parameter name, at " + 
                                            position_info_of(p, c));
                     }
                     argnames.insert(id);

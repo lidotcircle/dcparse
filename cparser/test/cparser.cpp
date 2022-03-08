@@ -219,6 +219,9 @@ TEST(should_reject, CParserLexer) {
         "long long long;",
         "long long long unsigned;",
         "struct { long long long a; } a;",
+        "int hux() int b; { return a; }",
+        "int hux(a) int b; { return a; }",
+        "int hux(a, int b) int a; { return a; }",
     };
 
     for (auto t: test_cases) {

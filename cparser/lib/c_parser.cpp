@@ -196,6 +196,15 @@ using ParserChar = DCParser::ParserChar;
         }, \
         assoc);
 
+static string position_info_of(shared_ptr<cparser::ASTNode> node, cparser::ASTNodeParserContext c)
+{
+    using namespace cparser;
+    const auto s = node->start_pos();
+    const auto e = node->end_pos();
+    get_ctx(ctx, c);
+    auto pinfo = ctx->posinfo();
+    return "(" + pinfo->queryLine(s, e) + ")" + pinfo->query_string(s, e);
+}
 
 namespace cparser {
 
@@ -1895,7 +1904,61 @@ void CParser::external_definitions()
 
             get_ast_if_presents(decltx, DECLARATION_LIST, ASTNodeDeclarationList, 2);
             if (decltxast != nullptr) {
-                // TODO old style C parameter declaration
+                if (decltxast->size() != functype->parameter_declaration_list()->size()) {
+                    throw CErrorParser("Function parameter count mismatch" +
+                                       position_info_of(functype, c));
+                }
+
+                map<string,shared_ptr<ASTNodeVariableType>> declmap;
+                for (auto decl : *decltxast) {
+                    auto declx = dynamic_pointer_cast<ASTNodeDeclaration>(decl);
+                    assert(declx);
+                    if (!declx->id()) {
+                        throw CErrorParser("old style function parameter declaration without ID, " + 
+                                           position_info_of(declx, c));
+                    }
+                    if (declx->initializer()) {
+                        throw CErrorParser("old style function parameter can't be initialized, " + 
+                                           position_info_of(declx, c));
+                    }
+                    const auto& id = declx->id()->id;
+                    if (declmap.find(id) != declmap.end()) {
+                        throw CErrorParser("duplicate function parameter name, " + 
+                                           position_info_of(declx, c));
+                    }
+                    declmap[id] = declx->type();
+                }
+
+                for (auto decl : *functype->parameter_declaration_list()) {
+                    if (!decl->id() || decl->type())
+                    {
+                        throw CErrorParser("old style function parameter need identifier list in parenthese, " + 
+                                           position_info_of(decl, c));
+                    }
+                    const auto& id = decl->id()->id;
+                    if (declmap.find(id) == declmap.end())
+                    {
+                        throw CErrorParser("old style function parameter not found, " + 
+                                           position_info_of(decl, c));
+                    }
+                    decl->type() = declmap[id];
+                }
+            }
+
+            for (auto p: *functype->parameter_declaration_list())
+            {
+                set<string> argnames;
+                if (p->type() == nullptr)
+                    throw CErrorParser("Function parameter type is not specified");
+
+                if (p->id()) {
+                    const auto& id = p->id()->id;
+                    if (argnames.find(id) != argnames.end()) {
+                        throw CErrorParser("duplicate parameter name, " + 
+                                           position_info_of(p, c));
+                    }
+                    argnames.insert(id);
+                }
             }
 
             auto ast = make_shared<ASTNodeFunctionDefinition>(c, functype, stast);

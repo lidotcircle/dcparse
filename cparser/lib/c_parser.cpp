@@ -854,8 +854,16 @@ void CParser::declaration_rules()
             return makeNT(TYPE_SPECIFIER, tnast);
         });
 
-struct struct_pesudo: public ASTNode { struct_pesudo(ASTNodeParserContext c): ASTNode(c) {} };
-struct union_pesudo:  public ASTNode { union_pesudo (ASTNodeParserContext c): ASTNode(c) {} };
+struct struct_pesudo: public ASTNode
+{
+    struct_pesudo(ASTNodeParserContext c): ASTNode(c) {} 
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override {}
+};
+struct union_pesudo:  public ASTNode
+{
+    union_pesudo (ASTNodeParserContext c): ASTNode(c) {}
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override {}
+};
 
 static int anonymous_struct_union_counter = 0;
     parser( NI(STRUCT_OR_UNION_SPECIFIER),

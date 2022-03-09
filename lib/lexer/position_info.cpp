@@ -1,6 +1,8 @@
 #include "lexer/position_info.h"
+#include "assert.h"
 using namespace std;
 using PInfo = TokenPositionInfo::PInfo;
+using LineRange = TokenPositionInfo::LineRange;
 
 
 string TokenPositionInfo::queryLine(size_t pos) const
@@ -21,4 +23,25 @@ string TokenPositionInfo::queryLine(size_t p1, size_t p2) const
     if (this->filename().size() > 0)
         s += this->filename() + "[" + s + "]";
     return s;
+}
+
+vector<LineRange> TokenPositionInfo::lines(size_t beg_pos, size_t end_pos) const
+{
+    assert(beg_pos <= end_pos);
+    auto binfo = this->query(beg_pos);
+    auto einfo = this->query(end_pos);
+    vector<LineRange> ret;
+
+    for (auto bl=binfo.line;bl<einfo.line;bl++) {
+        auto l = this->queryLine(bl);
+        size_t b = 0, e = l.size();
+        if (bl == binfo.line)
+            b = binfo.column;
+        if (bl == einfo.line)
+            e = einfo.column;
+
+        ret.push_back(LineRange{ .line = l, .beg = b, .end = e });
+    }
+
+    return ret;
 }

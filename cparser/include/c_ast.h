@@ -3,6 +3,7 @@
 
 #include "parser/parser.h"
 #include "./c_token.h"
+#include "./c_reporter.h"
 #include <string>
 #include <memory>
 #include <variant>
@@ -13,6 +14,7 @@ namespace cparser {
 
 using ASTNodeParserContext = std::weak_ptr<DCParser::DCParserContext>;
 
+class CParserContext;
 class ASTNode {
 private:
     ASTNodeParserContext m_parser_context;
@@ -22,7 +24,9 @@ public:
     size_t& start_pos() { return m_start_pos; }
     size_t& end_pos() { return m_end_pos; }
     inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_start_pos(0), m_end_pos(0) {}
-    inline ASTNodeParserContext context() { return this->m_parser_context; }
+    std::shared_ptr<CParserContext> context();
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) = 0;
     virtual ~ASTNode() = default;
 };
 
@@ -60,6 +64,8 @@ private:
 public:
     inline ASTNodeExprIdentifier(ASTNodeParserContext p, std::shared_ptr<TokenID> id): ASTNodeExpr(p), m_id(id) {}
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
+    
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprString: public ASTNodeExpr {
@@ -69,6 +75,8 @@ private:
 public:
     inline ASTNodeExprString(ASTNodeParserContext p, std::shared_ptr<TokenStringLiteral> str): ASTNodeExpr(p), m_token(str) {}
     inline std::shared_ptr<TokenStringLiteral> token() { return this->m_token; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprInteger: public ASTNodeExpr {
@@ -78,6 +86,8 @@ private:
 public:
     inline ASTNodeExprInteger(ASTNodeParserContext p, std::shared_ptr<TokenConstantInteger> val): ASTNodeExpr(p), m_token(val) {}
     inline std::shared_ptr<TokenConstantInteger> token() { return this->m_token; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprFloat: public ASTNodeExpr {
@@ -87,6 +97,8 @@ private:
 public:
     inline ASTNodeExprFloat(ASTNodeParserContext p, std::shared_ptr<TokenConstantFloat> val): ASTNodeExpr(p), m_token(val) {}
     inline std::shared_ptr<TokenConstantFloat> token() { return this->m_token; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprIndexing: public ASTNodeExpr {
@@ -97,6 +109,8 @@ public:
     inline ASTNodeExprIndexing(ASTNodeParserContext p, std::shared_ptr<ASTNodeExpr> array, std::shared_ptr<ASTNodeExpr> idx): ASTNodeExpr(p), m_array(array), m_idx(idx) {}
     inline std::shared_ptr<ASTNodeExpr> array() { return this->m_array; }
     inline std::shared_ptr<ASTNodeExpr> idx() { return this->m_idx; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeArgList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeExpr>>
@@ -119,6 +133,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprFunctionCall: public ASTNodeExpr {
@@ -133,6 +149,8 @@ public:
             std::shared_ptr<ASTNodeArgList> args): ASTNodeExpr(c), m_func(func), m_args(args) {}
     inline std::shared_ptr<ASTNodeExpr> func() { return this->m_func; }
     inline std::shared_ptr<ASTNodeArgList> args() { return this->m_args; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprMemberAccess: public ASTNodeExpr {
@@ -147,6 +165,8 @@ public:
             std::shared_ptr<TokenID> member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
     inline std::shared_ptr<ASTNodeExpr> obj() { return this->m_obj; }
     inline std::shared_ptr<TokenID> member() { return this->m_member; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprPointerMemberAccess: public ASTNodeExpr {
@@ -161,6 +181,8 @@ public:
             std::shared_ptr<TokenID> member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
     inline std::shared_ptr<ASTNodeExpr> obj() { return this->m_obj; }
     inline std::shared_ptr<TokenID> member() { return this->m_member; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprInitializer: public ASTNodeExpr {
@@ -176,6 +198,8 @@ public:
             ): ASTNodeExpr(c), m_init(init), m_type(type) {}
     inline std::shared_ptr<ASTNodeInitializerList> init() { return this->m_init; }
     inline std::shared_ptr<ASTNodeVariableType> type() { return this->m_type; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprUnaryOp: public ASTNodeExpr {
@@ -202,6 +226,8 @@ public:
             ):
         ASTNodeExpr(c), m_operator(optype),
         m_expr(expr) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprSizeof: public ASTNodeExpr {
@@ -214,6 +240,8 @@ public:
             std::shared_ptr<ASTNodeVariableType> type
             ):
         ASTNodeExpr(c), m_type(type) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprCast: public ASTNodeExpr {
@@ -229,6 +257,8 @@ public:
             ):
         ASTNodeExpr(c), m_type(type),
         m_expr(expr) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprBinaryOp: public ASTNodeExpr {
@@ -264,6 +294,8 @@ public:
             ):
         ASTNodeExpr(c), m_operator(optype),
         m_left(std::move(left)), m_right(std::move(right)) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprConditional: public ASTNodeExpr {
@@ -279,6 +311,8 @@ public:
             ):
         ASTNodeExpr(c), m_cond(std::move(cond)),
         m_true(std::move(true_expr)), m_false(std::move(false_expr)) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeExprList: public ASTNodeExpr, private std::vector<std::shared_ptr<ASTNodeExpr>>
@@ -301,6 +335,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 
@@ -340,6 +376,8 @@ public:
 
     virtual data_type dtype() const override;
     inline std::shared_ptr<ASTNodeStructUnionDeclarationList>& definition() { return this->m_definition; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeTypeSpecifierUnion: public ASTNodeTypeSpecifier {
@@ -359,6 +397,8 @@ public:
 
     virtual data_type dtype() const override;
     inline std::shared_ptr<ASTNodeStructUnionDeclarationList>& definition() { return this->m_definition; }
+    
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeEnumeratorList;
@@ -379,6 +419,8 @@ public:
 
     virtual data_type dtype() const override;
     inline std::shared_ptr<ASTNodeEnumeratorList>& definition() { return this->m_definition; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeTypeSpecifierTypedef: public ASTNodeTypeSpecifier {
@@ -396,6 +438,8 @@ public:
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeTypeSpecifierVoid: public ASTNodeTypeSpecifier {
@@ -408,6 +452,8 @@ public:
     }
 
     virtual data_type dtype() const override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeTypeSpecifierInt: public ASTNodeTypeSpecifier {
@@ -427,6 +473,8 @@ public:
     inline bool is_unsigned() { return this->m_is_unsigned; }
 
     virtual data_type dtype() const override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeTypeSpecifierFloat: public ASTNodeTypeSpecifier {
@@ -442,6 +490,8 @@ public:
     inline size_t byte_length() { return this->m_byte_length; }
 
     virtual data_type dtype() const override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class Qualifiable {
@@ -478,6 +528,8 @@ public:
     inline std::shared_ptr<ASTNodeTypeSpecifier>& type_specifier() { return this->m_type_specifier; }
     inline bool&                                  inlined() { return this->m_inlined; }
     inline StorageClass&                          storage_class() { return this->m_storage_class; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeInitDeclarator: public ASTNode {
@@ -503,6 +555,8 @@ public:
     inline std::shared_ptr<ASTNodeInitializer>& initializer() { return this->m_initializer; }
 
     void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type);
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 using ASTNodeDeclaration = ASTNodeInitDeclarator;
 
@@ -523,6 +577,8 @@ public:
     inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_decl->type(); }
 
     void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type);
+ 
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeInitDeclaratorList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeInitDeclarator>>
@@ -544,6 +600,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeDeclarationList: public ASTNodeExternalDeclaration, private std::vector<std::shared_ptr<ASTNodeDeclaration>>
@@ -565,6 +623,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStructUnionDeclarationList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeStructUnionDeclaration>>
@@ -590,6 +650,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeEnumerationConstant: public ASTNode
@@ -601,6 +663,8 @@ public:
     inline ASTNodeEnumerationConstant(ASTNodeParserContext c, std::shared_ptr<TokenID> id): ASTNode(c), m_id(id) {}
 
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeEnumerator: public ASTNode
@@ -615,6 +679,8 @@ public:
 
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
     inline std::shared_ptr<ASTNodeExpr> value() { return this->m_value; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeEnumeratorList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeEnumerator>>
@@ -636,6 +702,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeVariableType: public ASTNode {
@@ -665,6 +733,8 @@ public:
     virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeVariableTypePointer : public ASTNodeVariableType, public Qualifiable
@@ -683,6 +753,8 @@ public:
     virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeVariableTypeArray : public ASTNodeVariableType, public Qualifiable
@@ -710,6 +782,8 @@ public:
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
     bool& unspecified_size_vla() { return this->m_unspecified_size_vla; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeParameterDeclaration: public ASTNode {
@@ -729,6 +803,8 @@ public:
 
     inline std::shared_ptr<TokenID>& id() { return this->m_id; }
     inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_type; }
+    
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeParameterDeclarationList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeParameterDeclaration>>
@@ -753,6 +829,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeVariableTypeFunction : public ASTNodeVariableType
@@ -777,6 +855,8 @@ public:
     virtual const std::shared_ptr<ASTNodeDeclarationSpecifier> declspec() const override;
     virtual variable_basic_type basic_type() override;
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeInitializer: public ASTNode {
@@ -793,6 +873,8 @@ public:
     ASTNodeInitializer(ASTNodeParserContext c,
                        std::shared_ptr<ASTNodeInitializerList> list):
         ASTNode(c), m_value(list) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeDesignation: public ASTNode {
@@ -817,6 +899,8 @@ public:
     inline std::shared_ptr<ASTNodeInitializer>& initializer() { return this->m_initializer; }
     inline const std::vector<std::variant<array_designator_t,member_designator_t>>& designators() const { return this->m_designators; }
     inline void add_designator(std::variant<array_designator_t,member_designator_t> designator) { this->m_designators.push_back(designator); }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeInitializerList: public ASTNode, public std::vector<std::shared_ptr<ASTNodeDesignation>>
@@ -838,6 +922,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 
@@ -887,6 +973,8 @@ public:
     inline bool is_id_label() const { return std::holds_alternative<id_label_t>(this->m_label); }
     inline bool is_case_label() const { return std::holds_alternative<case_label_t>(this->m_label); }
     inline bool is_default_label() const { return std::holds_alternative<default_label_t>(this->m_label); }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatCase: public ASTNodeStat {
@@ -900,6 +988,8 @@ public:
             std::shared_ptr<ASTNodeExpr> expr,
             std::shared_ptr<ASTNodeStat> stat):
         ASTNodeStat(c), m_expr(expr), m_stat(stat) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatDefault: public ASTNodeStat {
@@ -911,6 +1001,8 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeStat> stat):
         ASTNodeStat(c), m_stat(stat) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeBlockItemList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeBlockItem>>
@@ -933,6 +1025,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatCompound: public ASTNodeStat
@@ -948,6 +1042,8 @@ public:
 
     inline std::shared_ptr<ASTNodeBlockItemList>       StatementList()       { return this->_statlist; }
     inline const std::shared_ptr<ASTNodeBlockItemList> StatementList() const { return this->_statlist; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatExpr: public ASTNodeStat
@@ -962,6 +1058,8 @@ public:
 
     inline       std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline const std::shared_ptr<ASTNodeExpr> expr() const { return this->_expr; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatIF: public ASTNodeStat
@@ -982,6 +1080,8 @@ public:
     inline std::shared_ptr<ASTNodeStat> trueStat()  { return this->_truestat; }
     inline std::shared_ptr<ASTNodeStat> falseStat() { return this->_falsestat; }
     inline std::shared_ptr<ASTNodeExpr> condition() { return this->_cond; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatSwitch: public ASTNodeStat
@@ -999,6 +1099,8 @@ public:
 
     inline std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline std::shared_ptr<ASTNodeStat> stat()       { return this->_stat; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatDoWhile: public ASTNodeStat
@@ -1015,6 +1117,8 @@ public:
 
     inline std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline std::shared_ptr<ASTNodeStat> stat()       { return this->_stat; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatFor: public ASTNodeStat
@@ -1036,6 +1140,8 @@ public:
     inline std::shared_ptr<ASTNodeExpr> cond()       { return this->_cond; }
     inline std::shared_ptr<ASTNodeExpr> post()       { return this->_post; }
     inline std::shared_ptr<ASTNodeStat> stat()       { return this->_stat; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatForDecl: public ASTNodeStat
@@ -1058,6 +1164,8 @@ public:
     inline std::shared_ptr<ASTNodeExpr>               cond()  { return this->_cond; }
     inline std::shared_ptr<ASTNodeExpr>               post()  { return this->_post; }
     inline std::shared_ptr<ASTNodeStat>               stat()  { return this->_stat; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatGoto: public ASTNodeStat
@@ -1070,6 +1178,8 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> label):
         ASTNodeStat(c), _label(label) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatContinue: public ASTNodeStat
@@ -1078,6 +1188,8 @@ public:
     inline ASTNodeStatContinue(
             ASTNodeParserContext c):
         ASTNodeStat(c) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatBreak: public ASTNodeStat
@@ -1086,6 +1198,8 @@ public:
     inline ASTNodeStatBreak(
             ASTNodeParserContext c):
         ASTNodeStat(c) {}
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeStatReturn: public ASTNodeStat
@@ -1100,6 +1214,8 @@ public:
 
     inline       std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline const std::shared_ptr<ASTNodeExpr> expr() const { return this->_expr; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 
@@ -1118,6 +1234,8 @@ public:
 
     inline std::shared_ptr<ASTNodeVariableTypeFunction> decl() { return this->_decl; }
     inline std::shared_ptr<ASTNodeStatCompound>         body() { return this->_body; }
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 class ASTNodeTranslationUnit: public ASTNode, private std::vector<std::shared_ptr<ASTNodeExternalDeclaration>>
@@ -1140,6 +1258,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
 }

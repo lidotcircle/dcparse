@@ -1,10 +1,20 @@
 #include "c_ast.h"
+#include "c_parser.h"
 #include <stdexcept>
 using namespace std;
 using data_type = cparser::ASTNodeTypeSpecifier::data_type;
 using variable_basic_type = cparser::ASTNodeVariableType::variable_basic_type;
 
 namespace cparser {
+
+shared_ptr<CParserContext> ASTNode::context() 
+{
+    auto c1 = this->m_parser_context.lock();;
+    assert(c1);
+    auto ret = dynamic_pointer_cast<CParserContext>(c1);
+    assert(ret);
+    return ret;
+}
 
 data_type ASTNodeTypeSpecifierStruct::dtype()  const { return data_type::STRUCT; }
 data_type ASTNodeTypeSpecifierUnion::dtype()   const { return data_type::STRUCT; }

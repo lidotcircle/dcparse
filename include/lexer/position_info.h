@@ -2,6 +2,7 @@
 #define _LEXER_POSITION_INFO_H_
 
 #include <string>
+#include <vector>
 
 
 class TokenPositionInfo {
@@ -9,6 +10,10 @@ public:
     struct PInfo {
         size_t line;
         size_t column;
+    };
+    struct LineRange {
+        std::string line;
+        size_t beg, end;
     };
 
     virtual const std::string& filename() const = 0;
@@ -18,7 +23,9 @@ public:
     virtual std::string query_string(size_t from, size_t to) const = 0;
 
     std::string queryLine(size_t pos) const;
-    std::string queryLine(size_t pos, size_t len) const;
+    std::string queryLine(size_t pos, size_t end_pos) const;
+
+    std::vector<LineRange> lines(size_t beg_pos, size_t end_pos) const;
 };
 
 #endif // _LEXER_POSITION_INFO_H_

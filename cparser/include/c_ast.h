@@ -322,9 +322,11 @@ public:
     inline void add_name (const std::string& name) { this->m_typenames.insert(name); }
 };
 
+class ASTNodeStructUnionDeclarationList;
 class ASTNodeTypeSpecifierStruct: public ASTNodeTypeSpecifier {
 private:
     std::shared_ptr<TokenID> m_name;
+    std::shared_ptr<ASTNodeStructUnionDeclarationList> m_definition;
 
 public:
     inline ASTNodeTypeSpecifierStruct(
@@ -337,11 +339,13 @@ public:
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
+    inline std::shared_ptr<ASTNodeStructUnionDeclarationList>& definition() { return this->m_definition; }
 };
 
 class ASTNodeTypeSpecifierUnion: public ASTNodeTypeSpecifier {
 private:
     std::shared_ptr<TokenID> m_name;
+    std::shared_ptr<ASTNodeStructUnionDeclarationList> m_definition;
 
 public:
     inline ASTNodeTypeSpecifierUnion(
@@ -354,11 +358,14 @@ public:
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
+    inline std::shared_ptr<ASTNodeStructUnionDeclarationList>& definition() { return this->m_definition; }
 };
 
+class ASTNodeEnumeratorList;
 class ASTNodeTypeSpecifierEnum: public ASTNodeTypeSpecifier {
 private:
     std::shared_ptr<TokenID> m_name;
+    std::shared_ptr<ASTNodeEnumeratorList> m_definition;
 
 public:
     inline ASTNodeTypeSpecifierEnum(
@@ -371,6 +378,7 @@ public:
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
 
     virtual data_type dtype() const override;
+    inline std::shared_ptr<ASTNodeEnumeratorList>& definition() { return this->m_definition; }
 };
 
 class ASTNodeTypeSpecifierTypedef: public ASTNodeTypeSpecifier {
@@ -563,6 +571,8 @@ class ASTNodeStructUnionDeclarationList: public ASTNode, private std::vector<std
 {
 private:
     using container_t = std::vector<std::shared_ptr<ASTNodeStructUnionDeclaration>>;
+    bool _is_struct;
+    std::shared_ptr<TokenID> _id;
 
 public:
     using reference = container_t::reference;
@@ -571,6 +581,8 @@ public:
     using const_iterator = container_t::const_iterator;
 
     inline ASTNodeStructUnionDeclarationList(ASTNodeParserContext c): ASTNode(c) {}
+    inline bool& is_struct() { return this->_is_struct; }
+    inline std::shared_ptr<TokenID>& id() { return this->_id; }
 
     using container_t::begin;
     using container_t::end;

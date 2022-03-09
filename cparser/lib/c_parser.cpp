@@ -878,13 +878,20 @@ static int anonymous_struct_union_counter = 0;
                         LexerToken::TokenInfo());
             }
             get_ast_if_presents(dc, STRUCT_OR_UNION_SPECIFIER, ASTNodeStructUnionDeclarationList, 3);
-            // TODO add declaration to global context
+            if (dcast) {
+                dcast->id() = id;
+                dcast->is_struct() = is_struct;
+            }
 
             shared_ptr<ASTNodeTypeSpecifier> ast = nullptr;
             if (is_struct) {
-                ast = make_shared<ASTNodeTypeSpecifierStruct>(c, id);
+                auto sast = make_shared<ASTNodeTypeSpecifierStruct>(c, id);
+                sast->definition() = dcast;
+                ast = sast;
             } else {
-                ast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
+                auto uast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
+                uast->definition() = dcast;
+                ast = uast;
             }
             return makeNT(STRUCT_OR_UNION_SPECIFIER, ast);
         }, RuleAssocitiveRight);
@@ -1047,11 +1054,11 @@ static size_t anonymous_enum_count = 0;
                         LexerToken::TokenInfo());
             }
 
-            get_ast_if_presents(el, ENUMERATOR_LIST, ASTNodeEnumeratorList, 3);
-            if (!elast) elast = make_shared<ASTNodeEnumeratorList>(c);
-            // TODO add enum specifier to context
-
             auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
+            get_ast_if_presents(el, ENUMERATOR_LIST, ASTNodeEnumeratorList, 3);
+            if (elast)
+                ast->definition() = elast;
+
             return makeNT(ENUM_SPECIFIER, ast);
         }, RuleAssocitiveRight);
 

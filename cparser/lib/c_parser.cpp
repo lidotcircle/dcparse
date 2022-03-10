@@ -3,6 +3,8 @@
 #include <set>
 #include <memory>
 using namespace std;
+using variable_basic_type = cparser::ASTNodeVariableType::variable_basic_type;
+using storage_class_t = cparser::ASTNodeVariableType::storage_class_t;
 
 
 #define NONTERMS \
@@ -229,7 +231,7 @@ void CParser::typedef_rule()
             assert(ts.size() == 1);
             auto id = dynamic_pointer_cast<TokenID>(ts[0]);
             assert(id);
-            return makeNT(TYPEDEF_NAME, make_shared<ASTNodeTypeSpecifierTypedef>(c, id));
+            return makeNT(TYPEDEF_NAME, make_shared<ASTNodeVariableTypeTypedef>(c, id));
         }, RuleAssocitiveLeft, 
         make_shared<RuleDecisionFunction>([](auto ctx, auto& rhs, auto& stack) {
             assert(rhs.size() == 1);
@@ -249,9 +251,8 @@ void CParser::typedef_rule()
                 const auto m = dynamic_pointer_cast<NonTermDECLARATION_SPECIFIERS>(b);
                 if (!m) return true;
 
-                auto dsast = dynamic_pointer_cast<ASTNodeDeclarationSpecifier>(m->astnode);
-                assert(dsast);
-                if (dsast->type_specifier())
+                auto dsast = dynamic_pointer_cast<ASTNodeVariableType>(m->astnode);
+                if (dsast)
                     return false;
             }
 
@@ -564,12 +565,13 @@ void CParser::expression_rules()
     expr_reduce(CONSTANT_EXPRESSION, CONDITIONAL_EXPRESSION);
 }
 
-static shared_ptr<ASTNodeTypeSpecifier>
+static shared_ptr<ASTNodeVariableTypePlain>
 mix_type_specifiers(
         ASTNodeParserContext c,
-        shared_ptr<ASTNodeTypeSpecifier> spa,
-        shared_ptr<ASTNodeTypeSpecifier> spb)
+        shared_ptr<ASTNodeVariableTypePlain> spa,
+        shared_ptr<ASTNodeVariableTypePlain> spb)
 {
+    assert(spa && spb);
     static const map<multiset<string>,tuple<size_t,bool,bool>> number_traits_map = {
         { { "char"                            }, { sizeof(char), false, false } },
         { { "signed", "char"                  }, { sizeof(signed char), false, false } },
@@ -603,46 +605,51 @@ mix_type_specifiers(
         { { "_Bool"                           }, { sizeof(bool), false, false } },
     };
 
-    const auto ntype = spa->dtype();
-    if (ntype != ASTNodeTypeSpecifier::data_type::INT &&
-        ntype != ASTNodeTypeSpecifier::data_type::FLOAT)
+    auto td = dynamic_pointer_cast<ASTNodeVariableTypeTypedef>(spa);
+    if (td)
+        throw CErrorparserMixedType("mixed type specifier error");
+
+    const auto ntype = spa->basic_type();
+    if (ntype != variable_basic_type::INT &&
+        ntype != variable_basic_type::FLOAT)
     {
         throw CErrorparserMixedType("mixed type specifier only allowed in integer and float");
     }
 
-    switch (spb->dtype()) {
-        case ASTNodeTypeSpecifier::data_type::STRUCT:
-        case ASTNodeTypeSpecifier::data_type::UNION:
-        case ASTNodeTypeSpecifier::data_type::ENUM:
-        case ASTNodeTypeSpecifier::data_type::VOID:
-        case ASTNodeTypeSpecifier::data_type::TYPEDEF:
+    switch (spb->basic_type()) {
+        case variable_basic_type::STRUCT:
+        case variable_basic_type::UNION:
+        case variable_basic_type::ENUM:
+        case variable_basic_type::VOID:
             throw CErrorparserMixedType("mixed type specifier only allowed in integer and float");
             break;
-        case ASTNodeTypeSpecifier::data_type::INT:
-        case ASTNodeTypeSpecifier::data_type::FLOAT:
-            {
-                auto a1 = spa->type_names();
-                const auto& a2 = spb->type_names();
-                for (auto& v: a2) a1.insert(v);
-                if (number_traits_map.find(a1) == number_traits_map.end()) {
-                    string typestr;
-                    for (auto& v: a1) typestr += v + " ";
-                    throw CErrorparserMixedType("disallow mix type specifier: " + typestr);
-                }
-                auto [size, sign, float_] = number_traits_map.at(a1);
-                shared_ptr<ASTNodeTypeSpecifier> ret;
-                if (float_) {
-                    ret = make_shared<ASTNodeTypeSpecifierFloat>(c, size);
-                } else {
-                    ret = make_shared<ASTNodeTypeSpecifierInt>(c, size, sign);
-                }
-                for (auto& v: a1) ret->add_name(v);
-                return ret;
-            } break;
+        case variable_basic_type::INT:
+        case variable_basic_type::FLOAT:
+        {
+            auto a1 = spa->type_names();
+            const auto& a2 = spb->type_names();
+            for (auto& v: a2) a1.insert(v);
+            if (number_traits_map.find(a1) == number_traits_map.end()) {
+                string typestr;
+                for (auto& v: a1) typestr += v + " ";
+                throw CErrorparserMixedType("disallow mix type specifier: " + typestr);
+            }
+            auto [size, sign, float_] = number_traits_map.at(a1);
+            shared_ptr<ASTNodeVariableTypePlain> ret;
+            if (float_) {
+                ret = make_shared<ASTNodeVariableTypeFloat>(c, size);
+            } else {
+                ret = make_shared<ASTNodeVariableTypeInt>(c, size, sign);
+            }
+            for (auto& v: a1) ret->add_name(v);
+            return ret;
+        } break;
         default:
             assert(false && "unreachable");
             break;
     }
+
+    return nullptr;
 }
 
 void CParser::declaration_rules()
@@ -657,7 +664,7 @@ void CParser::declaration_rules()
             auto ctx = c.lock();
             auto cctx = dynamic_pointer_cast<CParserContext>(ctx);
             auto _p = cctx->cparser();
-            get_ast(decl_spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(decl_spec, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
 
             auto init_decl_list_ast = make_shared<ASTNodeInitDeclaratorList>(c);
             if (ts[1]) {
@@ -668,12 +675,11 @@ void CParser::declaration_rules()
             auto ast = make_shared<ASTNodeDeclarationList>(c);
 
             for (auto decl: *init_decl_list_ast) {
-                decl->set_leaf_type(make_shared<ASTNodeVariableTypePlain>(c, decl_specast));
+                decl->set_leaf_type(decl_specast);
                 ast->push_back(decl);
 
                 auto type = decl->type();
-                auto spec = type->declspec();
-                if (spec->storage_class() == ASTNodeDeclarationSpecifier::StorageClass::SC_Typedef) {
+                if (type->storage_class() == storage_class_t::SC_Typedef) {
                     auto typedefid = decl->id();
                     assert(typedefid && !typedefid->id.empty());
                     _p->m_typedefs.insert(typedefid->id);
@@ -688,10 +694,10 @@ void CParser::declaration_rules()
         { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(STORAGE_CLASS_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(sspec, STORAGE_CLASS_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
+            get_ast(sspec, STORAGE_CLASS_SPECIFIER, ASTNodeVariableType, 1);
             if (ts[0]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
-                if (dsast->storage_class() != ASTNodeDeclarationSpecifier::StorageClass::SC_Default) {
+                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
+                if (dsast->storage_class() != storage_class_t::SC_Default) {
                     get_ctx(ctx, c);
                     auto p = ctx->posinfo();
                     const auto s = dsast->start_pos(), e = dsast->end_pos();
@@ -710,20 +716,22 @@ void CParser::declaration_rules()
         { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast_if_presents(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
-            get_ast(tspec, TYPE_SPECIFIER, ASTNodeTypeSpecifier, 1);
-            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c);
-            ast->type_specifier() = tspecast;
+            get_ast_if_presents(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeVariableType, 1);
             if (dsast) {
-                auto old_type = dsast->type_specifier();
-                if (old_type != nullptr) {
-                    dsast->type_specifier() = mix_type_specifiers(c, old_type, tspecast);
-                } else {
-                    dsast->type_specifier() = tspecast;
+                if (dsast->basic_type() != variable_basic_type::DUMMY) {
+                    auto p1 = dynamic_pointer_cast<ASTNodeVariableTypePlain>(dsast);
+                    auto p2 = dynamic_pointer_cast<ASTNodeVariableTypePlain>(tspecast);
+                    tspecast = mix_type_specifiers(c, p1, p2);
                 }
-                ast = dsast;
+
+                tspecast->storage_class() = dsast->storage_class();
+                tspecast->inlined() = dsast->inlined();
+                tspecast->const_ref() = dsast->const_ref();
+                tspecast->volatile_ref() = dsast->volatile_ref();
+                tspecast->restrict_ref() = dsast->restrict_ref();
             }
-            return makeNT(DECLARATION_SPECIFIERS, ast);
+            return makeNT(DECLARATION_SPECIFIERS, tspecast);
         }, RuleAssocitiveLeft);
 
     // exchage RHS order
@@ -731,9 +739,9 @@ void CParser::declaration_rules()
         { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(TYPE_QUALIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 1);
-            if (ts[0]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(tqual, TYPE_QUALIFIER, ASTNodeVariableType, 1);
+            get_ast_if_presents(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
+            if (dsast) {
                 dsast->const_ref() = dsast->const_ref() || tqualast->const_ref();;
                 dsast->restrict_ref() = dsast->restrict_ref() || tqualast->restrict_ref();;
                 dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
@@ -747,9 +755,9 @@ void CParser::declaration_rules()
         { ParserChar::beOptional(NI(DECLARATION_SPECIFIERS)), NI(FUNCTION_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tqual, FUNCTION_SPECIFIER, ASTNodeDeclarationSpecifier, 1);
-            if (ts[0]) {
-                get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(tqual, FUNCTION_SPECIFIER, ASTNodeVariableType, 1);
+            get_ast_if_presents(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
+            if (dsast) {
                 dsast->inlined() = tqualast->inlined();;
                 std::swap(tqualast, dsast);
             }
@@ -799,8 +807,8 @@ void CParser::declaration_rules()
         { KW(kw) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
-            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
-            ast->storage_class() = ASTNodeDeclarationSpecifier::StorageClass::en; \
+            auto ast = make_shared<ASTNodeVariableTypeDummy>(c); \
+            ast->storage_class() = storage_class_t::en; \
             return makeNT(STORAGE_CLASS_SPECIFIER, ast); \
         });
     to_storage_specifier(typedef,  SC_Typedef);
@@ -814,7 +822,7 @@ void CParser::declaration_rules()
         { KW(kw) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
-            auto ast = make_shared<ASTNodeTypeSpecifier##en>(c, ##__VA_ARGS__); \
+            auto ast = make_shared<ASTNodeVariableType##en>(c, ##__VA_ARGS__); \
             ast->add_name(#kw); \
             return makeNT(TYPE_SPECIFIER, ast); \
         });
@@ -834,7 +842,7 @@ void CParser::declaration_rules()
         { NI(STRUCT_OR_UNION_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 1);
-            get_ast(su, STRUCT_OR_UNION_SPECIFIER, ASTNodeTypeSpecifier, 0);
+            get_ast(su, STRUCT_OR_UNION_SPECIFIER, ASTNodeVariableTypePlain, 0);
             return makeNT(TYPE_SPECIFIER, suast);
         });
 
@@ -842,7 +850,7 @@ void CParser::declaration_rules()
         { NI(ENUM_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 1);
-            get_ast(es, ENUM_SPECIFIER, ASTNodeTypeSpecifier, 0);
+            get_ast(es, ENUM_SPECIFIER, ASTNodeVariableTypeEnum, 0);
             return makeNT(TYPE_SPECIFIER, esast);
         });
 
@@ -850,7 +858,7 @@ void CParser::declaration_rules()
         { NI(TYPEDEF_NAME) },
         [](auto c, auto ts) {
             assert(ts.size() == 1);
-            get_ast(tn, TYPEDEF_NAME, ASTNodeTypeSpecifier, 0);
+            get_ast(tn, TYPEDEF_NAME, ASTNodeVariableTypePlain, 0);
             return makeNT(TYPE_SPECIFIER, tnast);
         });
 
@@ -891,13 +899,13 @@ static int anonymous_struct_union_counter = 0;
                 dcast->is_struct() = is_struct;
             }
 
-            shared_ptr<ASTNodeTypeSpecifier> ast = nullptr;
+            shared_ptr<ASTNodeVariableType> ast = nullptr;
             if (is_struct) {
-                auto sast = make_shared<ASTNodeTypeSpecifierStruct>(c, id);
+                auto sast = make_shared<ASTNodeVariableTypeStruct>(c, id);
                 sast->definition() = dcast;
                 ast = sast;
             } else {
-                auto uast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
+                auto uast = make_shared<ASTNodeVariableTypeUnion>(c, id);
                 uast->definition() = dcast;
                 ast = uast;
             }
@@ -916,11 +924,11 @@ static int anonymous_struct_union_counter = 0;
             auto id = dynamic_pointer_cast<TokenID>(ts[1]);
             assert(id);
 
-            shared_ptr<ASTNodeTypeSpecifier> ast = nullptr;
+            shared_ptr<ASTNodeVariableType> ast = nullptr;
             if (is_struct) {
-                ast = make_shared<ASTNodeTypeSpecifierStruct>(c, id);
+                ast = make_shared<ASTNodeVariableTypeStruct>(c, id);
             } else {
-                ast = make_shared<ASTNodeTypeSpecifierUnion>(c, id);
+                ast = make_shared<ASTNodeVariableTypeUnion>(c, id);
             }
             return makeNT(STRUCT_OR_UNION_SPECIFIER, ast);
         }, RuleAssocitiveRight);
@@ -965,13 +973,11 @@ static int anonymous_struct_union_counter = 0;
     parser( NI(STRUCT_DECLARATION),
         { NI(SPECIFIER_QUALIFIER_LIST), NI(STRUCT_DECLARATOR_LIST), PT(SEMICOLON) },
         [](auto c, auto ts) {
-            get_ast(sql, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            get_ast(sql, SPECIFIER_QUALIFIER_LIST, ASTNodeVariableType, 0);
             get_ast(sdl, STRUCT_DECLARATOR_LIST,  ASTNodeStructUnionDeclarationList, 1);
 
-            auto vt = make_shared<ASTNodeVariableTypePlain>(c, sqlast);
-            astnode_belong_to(vt, { sql });
             for (auto sd: *sdlast)
-                sd->set_leaf_type(vt);
+                sd->set_leaf_type(sqlast);
 
             return makeNT(STRUCT_DECLARATION, sdlast);
         }, RuleAssocitiveRight);
@@ -981,19 +987,20 @@ static int anonymous_struct_union_counter = 0;
         { ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)), NI(TYPE_SPECIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast_if_presents(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
-            get_ast(tspec, TYPE_SPECIFIER, ASTNodeTypeSpecifier, 1);
-            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c);
-            ast->type_specifier() = tspecast;
+            get_ast_if_presents(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeVariableType, 0);
+            get_ast(tspec, TYPE_SPECIFIER, ASTNodeVariableType, 1);
             if (dsast) {
-                if (dsast->type_specifier() != nullptr) {
-                    dsast->type_specifier() = mix_type_specifiers(c, dsast->type_specifier(), tspecast);
-                } else {
-                    dsast->type_specifier() = tspecast;
+                if (dsast->basic_type() != variable_basic_type::DUMMY) {
+                    auto p1 = dynamic_pointer_cast<ASTNodeVariableTypePlain>(dsast);
+                    auto p2 = dynamic_pointer_cast<ASTNodeVariableTypePlain>(tspecast);
+                    assert(p1 && p2);
+                    tspecast = mix_type_specifiers(c, p1, p2);
                 }
-                ast = dsast;
+                tspecast->const_ref() = dsast->const_ref();
+                tspecast->volatile_ref() = dsast->volatile_ref();
+                tspecast->restrict_ref() = dsast->restrict_ref();
             }
-            return makeNT(SPECIFIER_QUALIFIER_LIST, ast);
+            return makeNT(SPECIFIER_QUALIFIER_LIST, tspecast);
         }, RuleAssocitiveRight);
 
     // exchange RHS order
@@ -1001,9 +1008,9 @@ static int anonymous_struct_union_counter = 0;
         { ParserChar::beOptional(NI(SPECIFIER_QUALIFIER_LIST)), NI(TYPE_QUALIFIER) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(tqual, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 1);
-            if (ts[0]) {
-                get_ast(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            get_ast(tqual, TYPE_QUALIFIER, ASTNodeVariableType, 1);
+            get_ast_if_presents(ds, SPECIFIER_QUALIFIER_LIST, ASTNodeVariableType, 0);
+            if (dsast) {
                 dsast->const_ref() = dsast->const_ref() || tqualast->const_ref();;
                 dsast->restrict_ref() = dsast->restrict_ref() || tqualast->restrict_ref();;
                 dsast->volatile_ref() = dsast->volatile_ref() || tqualast->volatile_ref();;
@@ -1062,7 +1069,7 @@ static size_t anonymous_enum_count = 0;
                         LexerToken::TokenInfo());
             }
 
-            auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
+            auto ast = make_shared<ASTNodeVariableTypeEnum>(c, id);
             get_ast_if_presents(el, ENUMERATOR_LIST, ASTNodeEnumeratorList, 3);
             if (elast)
                 ast->definition() = elast;
@@ -1075,7 +1082,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 2);
             auto id = dynamic_pointer_cast<TokenID>(ts[1]);
-            auto ast = make_shared<ASTNodeTypeSpecifierEnum>(c, id);
+            auto ast = make_shared<ASTNodeVariableTypeEnum>(c, id);
             return makeNT(ENUM_SPECIFIER, ast);
         }, RuleAssocitiveRight);
 
@@ -1132,7 +1139,7 @@ static size_t anonymous_enum_count = 0;
         { KW(kw) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
-            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
+            auto ast = make_shared<ASTNodeVariableTypeDummy>(c); \
             ast->kw##_ref() = true; \
             return makeNT(TYPE_QUALIFIER, ast); \
         })
@@ -1145,7 +1152,7 @@ static size_t anonymous_enum_count = 0;
         { KW(kw) }, \
         [](auto c, auto ts) { \
             assert(ts.size() == 1); \
-            auto ast = make_shared<ASTNodeDeclarationSpecifier>(c); \
+            auto ast = make_shared<ASTNodeVariableTypeDummy>(c); \
             ast->kw_ref() = true; \
             return makeNT(FUNCTION_SPECIFIER, ast); \
         });
@@ -1189,7 +1196,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 5);
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
             astnode_belong_to(array, { ts[1], ts[4] });
@@ -1208,7 +1215,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 6);
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 3);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 3);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
             astnode_belong_to(array, { ts[1], ts[5] });
@@ -1227,7 +1234,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 6);
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
             astnode_belong_to(array, {ts[1], ts[5]});
@@ -1246,7 +1253,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 6);
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
             astnode_belong_to(array, { ts[1], ts[5] });
             array->unspecified_size_vla() = true;
@@ -1295,7 +1302,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 3);
             auto ptr = make_shared<ASTNodeVariableTypePointer>(c, nullptr);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast_if_presents(optr, POINTER, ASTNodeVariableTypePointer, 0);
             if (qlast) {
                 ptr->const_ref() = qlast->const_ref();
@@ -1313,9 +1320,9 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 2);
 
-            auto ql = make_shared<ASTNodeDeclarationSpecifier>(c);
-            get_ast_if_presents(xql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
-            get_ast(q, TYPE_QUALIFIER, ASTNodeDeclarationSpecifier, 1);
+            auto ql = make_shared<ASTNodeVariableTypeDummy>(c);
+            get_ast_if_presents(xql, TYPE_QUALIFIER_LIST, ASTNodeVariableTypeDummy, 0);
+            get_ast(q, TYPE_QUALIFIER, ASTNodeVariableTypeDummy, 1);
 
             if (xql) ql = xqlast;
 
@@ -1367,11 +1374,9 @@ static size_t anonymous_enum_count = 0;
         { NI(DECLARATION_SPECIFIERS), NI(DECLARATOR) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
             get_ast(d, DECLARATOR, ASTNodeInitDeclarator, 1);
-            auto pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
-            astnode_belong_to(pd, { ts[0] });
-            dast->set_leaf_type(pd);
+            dast->set_leaf_type(dsast);
             auto ast = make_shared<ASTNodeParameterDeclaration>(c, dast->id(), dast->type());
             return makeNT(PARAMETER_DECLARATION, ast);
         });
@@ -1380,16 +1385,15 @@ static size_t anonymous_enum_count = 0;
         { NI(DECLARATION_SPECIFIERS), ParserChar::beOptional(NI(ABSTRACT_DECLARATOR)) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
             get_ast_if_presents(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
-            shared_ptr<ASTNodeVariableType> pd;
-            pd = make_shared<ASTNodeVariableTypePlain>(c, dsast);
-            astnode_belong_to(pd, { ts[0] });
+            shared_ptr<TokenID> decl_id = nullptr;
             if (dast) {
-                dast->set_leaf_type(pd);
-                pd = dast->type();
+                dast->set_leaf_type(dsast);
+                dsast = dast->type();
+                decl_id = dast->id();
             }
-            auto ast = make_shared<ASTNodeParameterDeclaration>(c, nullptr, pd);
+            auto ast = make_shared<ASTNodeParameterDeclaration>(c, decl_id, dsast);
             return makeNT(PARAMETER_DECLARATION, ast);
         });
 
@@ -1421,17 +1425,15 @@ static size_t anonymous_enum_count = 0;
         { NI(SPECIFIER_QUALIFIER_LIST), ParserChar::beOptional(NI(ABSTRACT_DECLARATOR)) },
         [](auto c, auto ts) {
             assert(ts.size() == 2);
-            get_ast(sq, SPECIFIER_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 0);
+            get_ast(sq, SPECIFIER_QUALIFIER_LIST, ASTNodeVariableType, 0);
             get_ast_if_presents(d, ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 1);
 
-            shared_ptr<ASTNodeVariableType> kt;
-            kt = make_shared<ASTNodeVariableTypePlain>(c, sqast);
             if (dast) {
-                dast->set_leaf_type(kt);
-                kt = dast->type();
+                dast->set_leaf_type(sqast);
+                sqast = dast->type();
             }
 
-            return makeNT(TYPE_NAME, kt);
+            return makeNT(TYPE_NAME, sqast);
         }, RuleAssocitiveRight);
 
     parser( NI(ABSTRACT_DECLARATOR),
@@ -1469,7 +1471,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 5);
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
             astnode_belong_to(array, { ts[1], ts[4] });
@@ -1490,7 +1492,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 6);
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 3);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 3);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
             astnode_belong_to(array, { ts[1], ts[5] });
@@ -1511,7 +1513,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 6);
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
             astnode_belong_to(array, { ts[1], ts[5] });
@@ -1532,7 +1534,7 @@ static size_t anonymous_enum_count = 0;
         [](auto c, auto ts) {
             assert(ts.size() == 6);
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
-            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeDeclarationSpecifier, 2);
+            get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
             astnode_belong_to(array, { ts[1], ts[5] });
             array->unspecified_size_vla() = true;
@@ -1940,11 +1942,9 @@ void CParser::external_definitions()
         { NI(DECLARATION_SPECIFIERS), NI(DECLARATOR), ParserChar::beOptional(NI(DECLARATION_LIST)), NI(COMPOUND_STATEMENT) },
         [](auto c, auto ts) {
             assert(ts.size() == 4);
-            get_ast(spec, DECLARATION_SPECIFIERS, ASTNodeDeclarationSpecifier, 0);
+            get_ast(spec, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
             get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 1);
-            auto ds = make_shared<ASTNodeVariableTypePlain>(c, specast);
-            astnode_belong_to(ds, { ts[0] });
-            declast->set_leaf_type(ds);
+            declast->set_leaf_type(specast);
             astnode_belong_to(declast, { ts[0], ts[2] });
 
             auto functype = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(declast->type());

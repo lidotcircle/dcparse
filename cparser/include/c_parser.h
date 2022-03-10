@@ -13,6 +13,7 @@ namespace cparser {
 
 
 class CParser;
+class CTranslationUnitContext;;
 class CParserContext: public DCParser::DCParserContext, virtual public CLogger
 {
 private:
@@ -21,6 +22,7 @@ private:
     // This member is used to store the pointer of CParser.
     CParser *m_cparser;
     std::shared_ptr<TokenPositionInfo> m_posinfo;
+    std::shared_ptr<CTranslationUnitContext> m_tu_context;
 
 public:
     CParserContext(CParser *cparser);
@@ -28,6 +30,8 @@ public:
     inline std::shared_ptr<TokenPositionInfo>& posinfo() { return this->m_posinfo; }
     inline CParser* cparser() { return this->m_cparser; }
     inline const CParser* cparser() const { return this->m_cparser; }
+    inline std::shared_ptr<CTranslationUnitContext> tu_context() { return this->m_tu_context; }
+    inline void set_tu_context(std::shared_ptr<CTranslationUnitContext> tu_context) { this->m_tu_context = tu_context; }
 };
 
 class CParser: private DCParser

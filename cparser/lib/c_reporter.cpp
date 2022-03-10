@@ -64,3 +64,13 @@ string SemanticError::error_message() const
 
     return oss.str();
 }
+
+#define SENTRY(name, level, type) \
+    SemanticError##name::SemanticError##name(const string& what, size_t start_pos, size_t end_pos, \
+                                             shared_ptr<TokenPositionInfo> posinfo): \
+        SemanticError(what, start_pos, end_pos, posinfo) {} \
+    string SemanticError##name::error_type() const { return type; } \
+    ErrorLevel SemanticError##name::error_level() const { return ErrorLevel::level; }
+SEMANTIC_ERROR_LIST
+#undef SENTRY
+

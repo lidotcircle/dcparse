@@ -32,6 +32,29 @@ public:
     virtual std::string error_message() const;
 };
 
+
+#define SEMANTIC_ERROR_LIST \
+    SENTRY(Redefinition,        ERROR, "redefinition") \
+    SENTRY(NonConstant,         ERROR, "expect a constant") \
+    SENTRY(BadType,             ERROR, "unexpected type") \
+    SENTRY(VarNotDefined,       ERROR, "variable not defined") \
+    SENTRY(InvalidArrayIndex,   ERROR, "invalid array index") \
+    SENTRY(InvalidFunctionCall, ERROR, "invalid function call") \
+    SENTRY(InvalidMemberAccess, ERROR, "invalid member access") \
+
+
+#define SENTRY(name, _, __) \
+    class SemanticError##name: public SemanticError { \
+    public: \
+        SemanticError##name(const std::string& what, size_t start_pos, size_t end_pos, \
+                            std::shared_ptr<TokenPositionInfo> posinfo); \
+        virtual std::string error_type() const override; \
+        virtual ErrorLevel  error_level() const override; \
+    };
+SEMANTIC_ERROR_LIST
+#undef SENTRY
+
+
 class SemanticReporter: private std::vector<std::shared_ptr<SemanticError>>
 {
 private:

@@ -20,6 +20,16 @@ std::optional<FloatInfo> get_float_info(std::shared_ptr<ASTNodeVariableType> typ
 
 std::shared_ptr<ASTNodeVariableTypeFunction> cast2function(std::shared_ptr<ASTNodeVariableType> type);
 std::shared_ptr<ASTNodeExpr> make_exprcast(std::shared_ptr<ASTNodeExpr> expr, std::shared_ptr<ASTNodeVariableType> type);
+
+namespace kstype {
+
+std::shared_ptr<ASTNodeVariableTypeVoid>    voidtype(std::shared_ptr<CParserContext> ctx);
+std::shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(std::shared_ptr<CParserContext> ctx);
+}
+
+std::shared_ptr<ASTNodeVariableTypePointer> ptrto(std::shared_ptr<ASTNodeVariableType> type);
+std::shared_ptr<ASTNodeVariableTypeArray>   arrayto(std::shared_ptr<ASTNodeVariableType> type);
+
 }
 
 

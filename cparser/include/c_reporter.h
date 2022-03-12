@@ -34,13 +34,16 @@ public:
 
 
 #define SEMANTIC_ERROR_LIST \
-    SENTRY(Redefinition,        ERROR, "redefinition") \
-    SENTRY(NonConstant,         ERROR, "expect a constant") \
-    SENTRY(BadType,             ERROR, "unexpected type") \
-    SENTRY(VarNotDefined,       ERROR, "variable not defined") \
-    SENTRY(InvalidArrayIndex,   ERROR, "invalid array index") \
-    SENTRY(InvalidFunctionCall, ERROR, "invalid function call") \
-    SENTRY(InvalidMemberAccess, ERROR, "invalid member access") \
+    SENTRY(Redefinition,         ERROR, "redefinition") \
+    SENTRY(NonConstant,          ERROR, "expect a constant") \
+    SENTRY(BadType,              ERROR, "unexpected type") \
+    SENTRY(VarNotDefined,        ERROR, "variable not defined") \
+    SENTRY(InvalidArrayIndex,    ERROR, "invalid array index") \
+    SENTRY(InvalidFunctionCall,  ERROR, "invalid function call") \
+    SENTRY(InvalidMemberAccess,  ERROR, "invalid member access") \
+    SENTRY(InvalidValueCategory, ERROR, "invalid value category") \
+    SENTRY(InvalidOperand,       ERROR, "invalid operand") \
+    SENTRY(InvalidCastFailed,    ERROR, "cast failed") \
 
 
 #define SENTRY(name, _, __) \

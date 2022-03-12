@@ -28,21 +28,21 @@ shared_ptr<ASTNodeVariableType> CTranslationUnitContext::Scope::lookup_typedef (
 
     return nullptr;
 }
-optional<shared_ptr<ASTNodeEnumeratorList>> CTranslationUnitContext::Scope::lookup_enum(const string& enum_name)
+optional<pair<size_t,shared_ptr<ASTNodeEnumeratorList>>> CTranslationUnitContext::Scope::lookup_enum(const string& enum_name)
 {
     if (this->m_enums.find(enum_name) != this->m_enums.end())
         return m_enums.at(enum_name);
 
     return nullopt;
 }
-optional<shared_ptr<ASTNodeStructUnionDeclarationList>> CTranslationUnitContext::Scope::lookup_struct(const string& struct_name)
+optional<pair<size_t,shared_ptr<ASTNodeStructUnionDeclarationList>>> CTranslationUnitContext::Scope::lookup_struct(const string& struct_name)
 {
     if (this->m_structs.find(struct_name) != this->m_structs.end())
         return m_structs.at(struct_name);
 
     return nullopt;
 }
-optional<shared_ptr<ASTNodeStructUnionDeclarationList>> CTranslationUnitContext::Scope::lookup_union(const string& union_name)
+optional<pair<size_t,shared_ptr<ASTNodeStructUnionDeclarationList>>> CTranslationUnitContext::Scope::lookup_union(const string& union_name)
 {
     if (this->m_unions.find(union_name) != this->m_unions.end())
         return m_unions.at(union_name);
@@ -63,7 +63,7 @@ void CTranslationUnitContext::Scope::declare_variable(const string& varname, sha
         auto old_decl = this->m_decls.at(varname);
         assert(old_decl);
 
-        if (!old_decl->equal_wrt_declaration(type)) {
+        if (!old_decl->compatible_with(type)) {
             this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                         "incompatible redefinition of variable '" + varname + "'",
                         type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
@@ -86,7 +86,7 @@ void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name,
         auto old_decl = this->m_typedefs.at(typedef_name);
         assert(old_decl);
 
-        if (!old_decl->equal_wrt_declaration(type)) {
+        if (!old_decl->compatible_with(type)) {
             this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                         "incompatible redefinition of typedef '" + typedef_name + "'",
                         type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
@@ -96,32 +96,34 @@ void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name,
 
     this->m_typedefs[typedef_name] = type;
 }
+
+static size_t user_defined_type_id = 0x999;
 void CTranslationUnitContext::Scope::declare_enum(const string& enum_name)
 {
     if (this->m_enums.find(enum_name) != this->m_enums.end())
         return;
 
-    this->m_enums[enum_name] = nullopt;
+    this->m_enums[enum_name] = make_pair(user_defined_type_id++, nullptr);
 }
 void CTranslationUnitContext::Scope::declare_struct(const string& struct_name)
 {
     if (this->m_structs.find(struct_name) != this->m_structs.end())
         return;
 
-    this->m_structs[struct_name] = nullopt;
+    this->m_structs[struct_name] = make_pair(user_defined_type_id++, nullptr);
 }
 void CTranslationUnitContext::Scope::declare_union(const string& struct_name)
 {
     if (this->m_unions.find(struct_name) != this->m_unions.end())
         return;
 
-    this->m_unions[struct_name] = nullopt;
+    this->m_unions[struct_name] = make_pair(user_defined_type_id++, nullptr);
 }
 
 void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared_ptr<ASTNodeEnumeratorList> enum_node)
 {
     if (this->m_enums.find(enum_name) != this->m_enums.end() &&
-        this->m_enums.at(enum_name).has_value())
+        this->m_enums.at(enum_name).second)
     {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of enum '" + enum_name + "'",
@@ -129,7 +131,13 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
         return;
     }
 
-    this->m_enums[enum_name] = enum_node;
+    size_t type_id;
+    if (this->m_enums.find(enum_name) == this->m_enums.end()) {
+        type_id = user_defined_type_id++;
+    } else {
+        type_id = this->m_enums.at(enum_name).first;
+    }
+    this->m_enums[enum_name] = make_pair(type_id, enum_node);
 
     auto enum_id = make_shared<TokenID>(enum_name, LexerToken::TokenInfo());
     auto enum_type = make_shared<ASTNodeVariableTypeEnum>(this->m_pctx, enum_id);
@@ -174,7 +182,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
 void CTranslationUnitContext::Scope::define_struct(const string& struct_name, shared_ptr<ASTNodeStructUnionDeclarationList> struct_node)
 {
     if (this->m_structs.find(struct_name) != this->m_structs.end() &&
-        this->m_structs.at(struct_name).has_value())
+        this->m_structs.at(struct_name).second)
     {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of struct '" + struct_name + "'",
@@ -182,12 +190,18 @@ void CTranslationUnitContext::Scope::define_struct(const string& struct_name, sh
         return;
     }
 
-    this->m_structs[struct_name] = struct_node;
+    size_t type_id;
+    if (this->m_structs.find(struct_name) == this->m_structs.end()) {
+        type_id = user_defined_type_id++;
+    } else {
+        type_id = this->m_structs.at(struct_name).first;
+    }
+    this->m_structs[struct_name] = make_pair(type_id, struct_node);
 }
 void CTranslationUnitContext::Scope::define_union(const string& union_name,  shared_ptr<ASTNodeStructUnionDeclarationList> union_node)
 {
     if (this->m_unions.find(union_name) != this->m_unions.end() &&
-        this->m_unions.at(union_name).has_value())
+        this->m_unions.at(union_name).second)
     {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of union '" + union_name + "'",
@@ -195,9 +209,32 @@ void CTranslationUnitContext::Scope::define_union(const string& union_name,  sha
         return;
     }
 
-    this->m_unions[union_name] = union_node;
+    size_t type_id;
+    if (this->m_unions.find(union_name) == this->m_unions.end()) {
+        type_id = user_defined_type_id++;
+    } else {
+        type_id = this->m_unions.at(union_name).first;
+    }
+    this->m_unions[union_name] = make_pair(type_id, union_node);
 }
 
+optional<int> CTranslationUnitContext::Scope::resolve_enum_constant(const string& enumtag, const string& id)
+{
+    auto enumx = this->lookup_enum(enumtag);
+    if (!enumx.has_value())
+        return nullopt;
+
+    auto& vals = enumx.value().second;
+    for (auto& def: *vals) {
+        assert(def && def->id());
+        if (def->id()->id == id)
+        {
+            return def->value()->get_integer_constant();
+        }
+    }
+
+    return nullopt;
+}
 
 
 CTranslationUnitContext::CTranslationUnitContext(shared_ptr<SemanticReporter> reporter, shared_ptr<CParserContext> pctx)
@@ -229,7 +266,7 @@ shared_ptr<ASTNodeVariableType> CTranslationUnitContext::lookup_typedef (const s
     }
     return nullptr;
 }
-optional<shared_ptr<ASTNodeEnumeratorList>> CTranslationUnitContext::lookup_enum(const string& enum_name)
+optional<pair<size_t,shared_ptr<ASTNodeEnumeratorList>>> CTranslationUnitContext::lookup_enum(const string& enum_name)
 {
     for (auto rb = this->m_scopes.rbegin(); rb != this->m_scopes.rend(); ++rb)
     {
@@ -240,7 +277,7 @@ optional<shared_ptr<ASTNodeEnumeratorList>> CTranslationUnitContext::lookup_enum
     }
     return nullopt;
 }
-optional<shared_ptr<ASTNodeStructUnionDeclarationList>> CTranslationUnitContext::lookup_struct(const string& struct_name)
+optional<pair<size_t,shared_ptr<ASTNodeStructUnionDeclarationList>>> CTranslationUnitContext::lookup_struct(const string& struct_name)
 {
     for (auto rb = this->m_scopes.rbegin(); rb != this->m_scopes.rend(); ++rb)
     {
@@ -251,7 +288,7 @@ optional<shared_ptr<ASTNodeStructUnionDeclarationList>> CTranslationUnitContext:
     }
     return nullopt;
 }
-optional<shared_ptr<ASTNodeStructUnionDeclarationList>> CTranslationUnitContext::lookup_union (const string& union_name)
+optional<pair<size_t,shared_ptr<ASTNodeStructUnionDeclarationList>>> CTranslationUnitContext::lookup_union (const string& union_name)
 {
     for (auto rb = this->m_scopes.rbegin(); rb != this->m_scopes.rend(); ++rb)
     {
@@ -379,4 +416,17 @@ void CTranslationUnitContext::define_struct(const string& struct_name, shared_pt
 void CTranslationUnitContext::define_union(const string& union_name, shared_ptr<ASTNodeStructUnionDeclarationList> union_node)
 {
     this->m_scopes.back().define_union(union_name, union_node);
+}
+
+optional<int> CTranslationUnitContext::resolve_enum_constant(const string& enumtag, const string& id)
+{
+    for (auto rb = this->m_scopes.rbegin(); rb != this->m_scopes.rend(); ++rb)
+    {
+        auto& scope = *rb;
+        auto ec = scope.resolve_enum_constant(enumtag, id);
+        if (ec.has_value())
+            return ec;
+    }
+
+    return nullopt;
 }

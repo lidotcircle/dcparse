@@ -19,9 +19,9 @@ private:
     private:
         std::map<std::string,std::shared_ptr<ASTNodeVariableType>> m_decls;
         std::map<std::string,std::shared_ptr<ASTNodeVariableType>> m_typedefs;
-        std::map<std::string,std::optional<std::shared_ptr<ASTNodeStructUnionDeclarationList>>> m_structs;
-        std::map<std::string,std::optional<std::shared_ptr<ASTNodeStructUnionDeclarationList>>> m_unions;
-        std::map<std::string,std::optional<std::shared_ptr<ASTNodeEnumeratorList>>> m_enums;
+        std::map<std::string,std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> m_structs;
+        std::map<std::string,std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> m_unions;
+        std::map<std::string,std::pair<size_t,std::shared_ptr<ASTNodeEnumeratorList>>> m_enums;
         std::shared_ptr<SemanticReporter> m_reporter;
         std::shared_ptr<CParserContext> m_pctx;
 
@@ -30,9 +30,9 @@ private:
 
         std::shared_ptr<ASTNodeVariableType> lookup_variable(const std::string& varname);
         std::shared_ptr<ASTNodeVariableType> lookup_typedef (const std::string& typedef_name);
-        std::optional<std::shared_ptr<ASTNodeEnumeratorList>> lookup_enum  (const std::string& enum_name);
-        std::optional<std::shared_ptr<ASTNodeStructUnionDeclarationList>> lookup_struct(const std::string& struct_name);
-        std::optional<std::shared_ptr<ASTNodeStructUnionDeclarationList>> lookup_union (const std::string& union_name);
+        std::optional<std::pair<size_t,std::shared_ptr<ASTNodeEnumeratorList>>> lookup_enum  (const std::string& enum_name);
+        std::optional<std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> lookup_struct(const std::string& struct_name);
+        std::optional<std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> lookup_union (const std::string& union_name);
 
         void declare_variable(const std::string& varname, std::shared_ptr<ASTNodeVariableType> type);
         void declare_typedef (const std::string& typedef_name, std::shared_ptr<ASTNodeVariableType> type);
@@ -43,6 +43,8 @@ private:
         void define_enum  (const std::string& enum_name,   std::shared_ptr<ASTNodeEnumeratorList> enum_node);
         void define_struct(const std::string& struct_name, std::shared_ptr<ASTNodeStructUnionDeclarationList> struct_node);
         void define_union (const std::string& union_name,  std::shared_ptr<ASTNodeStructUnionDeclarationList> union_node);
+
+        std::optional<int> resolve_enum_constant(const std::string& enumtag, const std::string& id);
     };
     std::shared_ptr<SemanticReporter> m_reporter;
     std::shared_ptr<CParserContext> m_pctx;
@@ -58,9 +60,9 @@ public:
 
     std::shared_ptr<ASTNodeVariableType> lookup_variable(const std::string& varname);
     std::shared_ptr<ASTNodeVariableType> lookup_typedef (const std::string& typedef_name);
-    std::optional<std::shared_ptr<ASTNodeEnumeratorList>> lookup_enum  (const std::string& enum_name);
-    std::optional<std::shared_ptr<ASTNodeStructUnionDeclarationList>> lookup_struct(const std::string& struct_name);
-    std::optional<std::shared_ptr<ASTNodeStructUnionDeclarationList>> lookup_union (const std::string& union_name);
+    std::optional<std::pair<size_t,std::shared_ptr<ASTNodeEnumeratorList>>> lookup_enum  (const std::string& enum_name);
+    std::optional<std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> lookup_struct(const std::string& struct_name);
+    std::optional<std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> lookup_union (const std::string& union_name);
 
     void function_begin(const std::string& funcname, std::shared_ptr<ASTNodeVariableType> ret_type,
                         std::shared_ptr<ASTNodeParameterDeclarationList> parameter_list);
@@ -87,6 +89,8 @@ public:
     void define_enum  (const std::string& enum_name,   std::shared_ptr<ASTNodeEnumeratorList> enum_node);
     void define_struct(const std::string& struct_name, std::shared_ptr<ASTNodeStructUnionDeclarationList> struct_node);
     void define_union (const std::string& union_name,  std::shared_ptr<ASTNodeStructUnionDeclarationList> union_node);
+
+    std::optional<int> resolve_enum_constant(const std::string& enumtag, const std::string& id);
 };
 
 }

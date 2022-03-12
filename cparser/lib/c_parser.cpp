@@ -865,12 +865,12 @@ void CParser::declaration_rules()
 struct struct_pesudo: public ASTNode
 {
     struct_pesudo(ASTNodeParserContext c): ASTNode(c) {} 
-    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override {}
+    virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override {}
 };
 struct union_pesudo:  public ASTNode
 {
     union_pesudo (ASTNodeParserContext c): ASTNode(c) {}
-    virtual void check_semantic(std::shared_ptr<SemanticReporter> reporter) override {}
+    virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override {}
 };
 
 static int anonymous_struct_union_counter = 0;

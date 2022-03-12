@@ -2,259 +2,42 @@
 #include <map>
 using namespace std;
 using namespace cparser;
-using TestFlags = ASTNodeVariableType::TestFlags;
 using storage_class_t = ASTNodeVariableType::storage_class_t;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
+#define ENUM_COMPATIBLE_INT_BYTE_WIDTH  4
+#define ENUM_COMPATIBLE_INT_IS_UNSIGNED true
 
 
 bool& ASTNodeVariableType::const_ref() { return this->m_const; }
 bool& ASTNodeVariableType::volatile_ref() { return this->m_volatile; }
 bool& ASTNodeVariableType::restrict_ref() { return this->m_restrict; }
 
-bool ASTNodeVariableType::equal_wrt_declaration(shared_ptr<ASTNodeVariableType> other) const
+bool ASTNodeVariableType::is_object_type() const
 {
-    TestFlags flags;
+    const auto bt = this->basic_type();
+    if (bt == variable_basic_type::ARRAY ||
+        bt == variable_basic_type::STRUCT ||
+        bt == variable_basic_type::ENUM ||
+        bt == variable_basic_type::UNION)
+    {
+        throw runtime_error("unexpected call to this function, it should be overrided");
+    }
 
-    flags.ignore_storage_class_static = true;
-    flags.ignore_storage_class_extern = true;
-    flags.ignore_storage_class_register = true;
-    flags.ignore_storage_class_auto = true;
-    flags.ignore_storage_class_default = true;
-
-    flags.ignore_qualifiers_const = false;
-    flags.ignore_qualifiers_volatile = false;
-    flags.ignore_qualifiers_restrict = false;
-
-    flags.pointer_to_voidptr = false;
-    flags.voidptr_to_pointer = false;
-    flags.array_to_pointer = true;
-    flags.pointer_to_array = true;
-    flags.ignore_array_size = true;
-    flags.function_to_pointer = false;
-    flags.pointer_to_function = false;
-    flags.pointer_to_integer = false;
-    flags.integer_to_pointer = false;
-    flags.enum_to_integer = false;
-    flags.integer_to_enum = false;
-
-    flags.ignore_integer_sign = false;
-    flags.integer_downcast = false;
-    flags.integer_upcast = false;
-    flags.float_to_integer = false;
-    flags.integer_to_float = false;
-    flags.float_downcast = false;
-    flags.float_upcast = false;
-
-    flags.any_to_void = false;
-
-    if (!this->equal_to(other, flags))
-        return false;;
-
-    if (this->storage_class() == other->storage_class())
+    return bt == variable_basic_type::INT ||
+           bt == variable_basic_type::FLOAT ||
+           bt == variable_basic_type::POINTER;
+}
+bool ASTNodeVariableType::is_function_type() const
+{
+    return this->basic_type() == variable_basic_type::FUNCTION;
+}
+bool ASTNodeVariableType::is_incomplete_type() const
+{
+    const auto bt = this->basic_type();
+    if (bt == variable_basic_type::VOID)
         return true;
 
-    static map<storage_class_t,map<storage_class_t,bool>> storage_class_map = 
-    {
-        { storage_class_t::SC_Default, {
-            { storage_class_t::SC_Static, false },
-            { storage_class_t::SC_Extern, true },
-            { storage_class_t::SC_Register, false },
-            { storage_class_t::SC_Auto, true },
-            { storage_class_t::SC_Default, true },
-        } },
-        { storage_class_t::SC_Static, {
-            { storage_class_t::SC_Static, true },
-            { storage_class_t::SC_Extern, false },
-            { storage_class_t::SC_Register, false },
-            { storage_class_t::SC_Auto, false },
-            { storage_class_t::SC_Default, false },
-        } },
-        { storage_class_t::SC_Extern, {
-            { storage_class_t::SC_Static, false },
-            { storage_class_t::SC_Extern, true },
-            { storage_class_t::SC_Register, false },
-            { storage_class_t::SC_Auto, true },
-            { storage_class_t::SC_Default, true },
-        } },
-        { storage_class_t::SC_Register, {
-            { storage_class_t::SC_Static, false },
-            { storage_class_t::SC_Extern, false },
-            { storage_class_t::SC_Register, true },
-            { storage_class_t::SC_Auto, false },
-            { storage_class_t::SC_Default, false },
-        } },
-        { storage_class_t::SC_Auto, {
-            { storage_class_t::SC_Static, false },
-            { storage_class_t::SC_Extern, true },
-            { storage_class_t::SC_Register, false },
-            { storage_class_t::SC_Auto, true },
-            { storage_class_t::SC_Default, true },
-        } },
-    };
-    return storage_class_map[this->storage_class()][other->storage_class()];
-}
-
-bool ASTNodeVariableType::equal_ignore_storage_class(shared_ptr<ASTNodeVariableType> other) const
-{
-    TestFlags flags;
-
-    flags.ignore_storage_class_static = true;
-    flags.ignore_storage_class_extern = true;
-    flags.ignore_storage_class_register = true;
-    flags.ignore_storage_class_auto = true;
-    flags.ignore_storage_class_default = true;
-
-    flags.ignore_qualifiers_const = false;
-    flags.ignore_qualifiers_volatile = false;
-    flags.ignore_qualifiers_restrict = false;
-
-    flags.pointer_to_voidptr = false;
-    flags.voidptr_to_pointer = false;
-    flags.array_to_pointer = false;
-    flags.pointer_to_array = false;
-    flags.ignore_array_size = false;
-    flags.function_to_pointer = false;
-    flags.pointer_to_function = false;
-    flags.pointer_to_integer = false;
-    flags.integer_to_pointer = false;
-    flags.enum_to_integer = false;
-    flags.integer_to_enum = false;
-
-    flags.ignore_integer_sign = false;
-    flags.integer_downcast = false;
-    flags.integer_upcast = false;
-    flags.float_to_integer = false;
-    flags.integer_to_float = false;
-    flags.float_downcast = false;
-    flags.float_upcast = false;
-
-    flags.any_to_void = false;
-
-    return this->equal_to(other, flags);
-}
-
-bool ASTNodeVariableType::equal_implicitly(std::shared_ptr<ASTNodeVariableType> type) const
-{
-    TestFlags flags;
-
-    flags.ignore_storage_class_static = true;
-    flags.ignore_storage_class_extern = true;
-    flags.ignore_storage_class_register = true;
-    flags.ignore_storage_class_auto = true;
-    flags.ignore_storage_class_default = true;
-
-    flags.ignore_qualifiers_const = true;
-    flags.ignore_qualifiers_volatile = true;
-    flags.ignore_qualifiers_restrict = true;
-
-    flags.pointer_to_voidptr = true;
-    flags.voidptr_to_pointer = true;
-    flags.array_to_pointer = true;
-    flags.pointer_to_array = false;
-    flags.ignore_array_size = false;
-    flags.function_to_pointer = false;
-    flags.pointer_to_function = false;
-    flags.pointer_to_integer = false;
-    flags.integer_to_pointer = false;
-    flags.enum_to_integer = false;
-    flags.integer_to_enum = false;
-
-    flags.ignore_integer_sign = false;
-    flags.integer_downcast = false;
-    flags.integer_upcast = false;
-    flags.float_to_integer = false;
-    flags.integer_to_float = false;
-    flags.float_downcast = false;
-    flags.float_upcast = false;
-
-    flags.any_to_void = false;
-
-    return this->equal_to(type, flags);
-}
-
-shared_ptr<ASTNodeVariableType> ASTNodeVariableType::implicitly_convert_to(std::shared_ptr<ASTNodeVariableType> type) const
-{
-    TestFlags flags;
-
-    flags.ignore_storage_class_static = true;
-    flags.ignore_storage_class_extern = true;
-    flags.ignore_storage_class_register = true;
-    flags.ignore_storage_class_auto = true;
-    flags.ignore_storage_class_default = true;
-
-    flags.ignore_qualifiers_const = true;
-    flags.ignore_qualifiers_volatile = true;
-    flags.ignore_qualifiers_restrict = true;
-
-    flags.pointer_to_voidptr = true;
-    flags.voidptr_to_pointer = true;
-    flags.array_to_pointer = true;
-    flags.pointer_to_array = false;
-    flags.ignore_array_size = false;
-    flags.function_to_pointer = false;
-    flags.pointer_to_function = false;
-    flags.pointer_to_integer = false;
-    flags.integer_to_pointer = false;
-    flags.enum_to_integer = false;
-    flags.integer_to_enum = false;
-
-    flags.ignore_integer_sign = false;
-    flags.integer_downcast = false;
-    flags.integer_upcast = false;
-    flags.float_to_integer = false;
-    flags.integer_to_float = false;
-    flags.float_downcast = false;
-    flags.float_upcast = false;
-
-    flags.any_to_void = false;
-
-    if (this->equal_to(type, flags))
-    {
-        auto t = type->copy();
-        t->storage_class() = storage_class_t::SC_Default;
-        t->inlined() = false;
-        return t;
-    }
-
-    return nullptr;
-}
-
-bool ASTNodeVariableType::equal_to(shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
-{
-    if (this->storage_class() != type->storage_class())
-    {
-        bool this_ignore = false, type_ignore = false;
-        switch (this->storage_class())
-        {
-            case storage_class_t::SC_Extern: this_ignore = flags.ignore_storage_class_extern; break;
-            case storage_class_t::SC_Static: this_ignore = flags.ignore_storage_class_static; break;
-            case storage_class_t::SC_Auto: this_ignore = flags.ignore_storage_class_auto; break;
-            case storage_class_t::SC_Register: this_ignore = flags.ignore_storage_class_register; break;
-            default: break;
-        }
-        switch (type->storage_class())
-        {
-            case storage_class_t::SC_Extern: type_ignore = flags.ignore_storage_class_extern; break;
-            case storage_class_t::SC_Static: type_ignore = flags.ignore_storage_class_static; break;
-            case storage_class_t::SC_Auto: type_ignore = flags.ignore_storage_class_auto; break;
-            case storage_class_t::SC_Register: type_ignore = flags.ignore_storage_class_register; break;
-            default: break;
-        }
-
-        if (!this_ignore || !type_ignore) return false;
-    }
-
-    auto _this = const_cast<ASTNodeVariableType*>(this);
-    if (_this->const_ref() != type->const_ref() && !flags.ignore_qualifiers_const)
-        return false;
-
-    if (_this->volatile_ref() != type->volatile_ref() && !flags.ignore_qualifiers_volatile)
-        return false;
-
-    if (_this->restrict_ref() != type->restrict_ref() && !flags.ignore_qualifiers_restrict)
-        return false;
-
-    return true;
+    return !this->is_function_type() && !this->is_object_type();
 }
 
 
@@ -272,22 +55,37 @@ void ASTNodeVariableTypePlain::set_leaf_type(std::shared_ptr<ASTNodeVariableType
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeDummy::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    assert(false);
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeDummy::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    assert(false);
+}
+
+bool  ASTNodeVariableTypeDummy::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    assert(false);
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeDummy::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    assert(false);
+}
+
 variable_basic_type ASTNodeVariableTypeDummy::basic_type() const
 {
     return variable_basic_type::DUMMY;
 }
 
-bool ASTNodeVariableTypeDummy::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
+optional<size_t> ASTNodeVariableTypeDummy::opsizeof() const
 {
     throw std::runtime_error("ASTNodeVariableTypeDummy::copy() unexpected");
 }
 
-size_t ASTNodeVariableTypeDummy::opsizeof() const
-{
-    throw std::runtime_error("ASTNodeVariableTypeDummy::copy() unexpected");
-}
-
-size_t ASTNodeVariableTypeDummy::opalignof() const
+optional<size_t> ASTNodeVariableTypeDummy::opalignof() const
 {
     throw std::runtime_error("ASTNodeVariableTypeDummy::copy() unexpected");
 }
@@ -298,36 +96,85 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeDummy::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeStruct::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->compatible_with(type);
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeStruct::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() == variable_basic_type::VOID)
+        return type;
+
+    if (type->basic_type() != variable_basic_type::STRUCT)
+        return nullptr;
+
+    auto scttype = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(type);
+    assert(scttype);
+
+    assert(this->m_type_id.has_value() && scttype->m_type_id.has_value());
+    if (this->m_type_id != scttype->m_type_id)
+        return nullptr;
+
+    return type;
+}
+
+bool  ASTNodeVariableTypeStruct::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::STRUCT)
+        return false;
+
+    if (this->const_ref() != type->const_ref() ||
+        this->volatile_ref() != type->volatile_ref() ||
+        this->restrict_ref() != type->restrict_ref())
+    {
+        return false;
+    }
+
+    auto scttype = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(type);
+    assert(scttype);
+
+    assert(this->m_type_id.has_value() && scttype->m_type_id.has_value());
+    return this->m_type_id == scttype->m_type_id;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeStruct::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::STRUCT)
+        return nullptr;
+
+    auto t = std::dynamic_pointer_cast<ASTNodeVariableTypeStruct>(type);
+    assert(t);
+
+    assert(this->m_type_id.has_value() && t->m_type_id.has_value());
+    if (this->m_type_id.value() == this->m_type_id.value() &&
+        this->const_ref() == t->const_ref() &&
+        this->volatile_ref() == t->volatile_ref() &&
+        this->restrict_ref() == t->restrict_ref())
+    {
+        return type;
+    } else {
+        return nullptr;
+    }
+}
+
 variable_basic_type ASTNodeVariableTypeStruct::basic_type() const
 {
     return variable_basic_type::STRUCT;
 }
 
-bool ASTNodeVariableTypeStruct::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
+bool ASTNodeVariableTypeStruct::is_object_type() const
 {
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    if (type->basic_type() == variable_basic_type::VOID && flags.any_to_void)
-        return true;
-
-    if (type->basic_type() != variable_basic_type::STRUCT)
-        return false;
-
-    auto _type = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(type);
-    assert(_type);
-
-    assert(this->m_definition && _type->m_definition);
-    return this->m_definition == _type->m_definition;
+    return this->m_definition != nullptr;
 }
 
-size_t ASTNodeVariableTypeStruct::opsizeof() const
+optional<size_t> ASTNodeVariableTypeStruct::opsizeof() const
 {
     assert(this->m_definition);
     return this->m_definition->sizeof_().value();
 }
 
-size_t ASTNodeVariableTypeStruct::opalignof() const
+optional<size_t> ASTNodeVariableTypeStruct::opalignof() const
 {
     assert(this->m_definition);
     return this->m_definition->alignment().value();
@@ -346,36 +193,85 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeStruct::copy() const
     return ast;
 }
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeUnion::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->compatible_with(type);
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeUnion::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() == variable_basic_type::VOID)
+        return type;
+
+    if (type->basic_type() != variable_basic_type::UNION)
+        return nullptr;
+
+    auto scttype = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(type);
+    assert(scttype);
+
+    assert(this->m_type_id.has_value() && scttype->m_type_id.has_value());
+    if (this->m_type_id != scttype->m_type_id)
+        return nullptr;
+
+    return type;
+}
+
+bool  ASTNodeVariableTypeUnion::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::UNION)
+        return false;
+
+    if (this->const_ref() != type->const_ref() ||
+        this->volatile_ref() != type->volatile_ref() ||
+        this->restrict_ref() != type->restrict_ref())
+    {
+        return false;
+    }
+
+    auto scttype = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(type);
+    assert(scttype);
+
+    assert(this->m_type_id.has_value() && scttype->m_type_id.has_value());
+    return this->m_type_id == scttype->m_type_id;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeUnion::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::UNION)
+        return nullptr;
+
+    auto t = std::dynamic_pointer_cast<ASTNodeVariableTypeUnion>(type);
+    assert(t);
+
+    assert(this->m_type_id.has_value() && t->m_type_id.has_value());
+    if (this->m_type_id.value() == this->m_type_id.value() &&
+        this->const_ref() == t->const_ref() &&
+        this->volatile_ref() == t->volatile_ref() &&
+        this->restrict_ref() == t->restrict_ref())
+    {
+        return type;
+    } else {
+        return nullptr;
+    }
+}
+
 variable_basic_type ASTNodeVariableTypeUnion::basic_type() const
 {
     return variable_basic_type::UNION;
 }
 
-bool ASTNodeVariableTypeUnion::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
+bool ASTNodeVariableTypeUnion::is_object_type() const
 {
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    if (type->basic_type() == variable_basic_type::VOID && flags.any_to_void)
-        return true;
-
-    if (type->basic_type() != variable_basic_type::UNION)
-        return false;
-
-    auto _type = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(type);
-    assert(_type);
-
-    assert(this->m_definition && _type->m_definition);
-    return this->m_definition == _type->m_definition;
+    return this->m_definition != nullptr;
 }
 
-size_t ASTNodeVariableTypeUnion::opsizeof() const
+optional<size_t> ASTNodeVariableTypeUnion::opsizeof() const
 {
     assert(this->m_definition);
     return this->m_definition->sizeof_().value();
 }
 
-size_t ASTNodeVariableTypeUnion::opalignof() const
+optional<size_t> ASTNodeVariableTypeUnion::opalignof() const
 {
     assert(this->m_definition);
     return this->m_definition->alignment().value();
@@ -395,46 +291,98 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeUnion::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeEnum::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    auto enumt = dynamic_pointer_cast<ASTNodeVariableTypeEnum>(type);
+    if (enumt->m_type_id == this->m_type_id)
+        return type;
+
+    if (type->is_arithmatic_type())
+        return type;
+
+    return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeEnum::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() == variable_basic_type::VOID)
+        return type;
+
+    if (type->is_scalar_type() || type->basic_type() == variable_basic_type::ENUM)
+        return type;
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypeEnum::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (this->const_ref() != type->const_ref() ||
+        this->volatile_ref() != type->volatile_ref() ||
+        this->restrict_ref() != type->restrict_ref())
+    {
+        return false;
+    }
+
+    auto enumt = dynamic_pointer_cast<ASTNodeVariableTypeEnum>(type);
+    if (enumt)
+        return this->m_type_id == enumt->m_type_id;
+
+    return false;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeEnum::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (this->const_ref() != type->const_ref() ||
+        this->volatile_ref() != type->volatile_ref() ||
+        this->restrict_ref() != type->restrict_ref())
+    {
+        return nullptr;
+    }
+
+    auto tenum = std::dynamic_pointer_cast<ASTNodeVariableTypeEnum>(type);
+
+    if (tenum) {
+        assert(this->m_type_id.has_value() && tenum->m_type_id.has_value());
+        if (this->m_type_id.value() == tenum->m_type_id.value())
+        {
+            return type;
+        } else {
+            return nullptr;
+        }
+    }
+
+    auto tint = std::dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
+    if (tint) {
+        if (tint->byte_length() == ENUM_COMPATIBLE_INT_BYTE_WIDTH &&
+            tint->is_unsigned() == ENUM_COMPATIBLE_INT_IS_UNSIGNED)
+        {
+            return tint;
+        } else {
+            return nullptr;
+        }
+    }
+
+    return nullptr;
+}
+
 variable_basic_type ASTNodeVariableTypeEnum::basic_type() const
 {
     return variable_basic_type::ENUM;
 }
 
-bool ASTNodeVariableTypeEnum::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
+bool ASTNodeVariableTypeEnum::is_object_type() const
 {
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    switch (this->basic_type()) 
-    {
-    case variable_basic_type::ENUM:
-    {
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypeEnum>(type);
-        assert(_type);
-        if (_type->m_definition != this->m_definition)
-            return true;
-    } break;
-    case variable_basic_type::INT:
-        if (flags.enum_to_integer)
-            return true;
-        break;
-    case variable_basic_type::VOID:
-        if (flags.any_to_void)
-            return true;
-    default:
-        break;
-    }
-
-    return false;
+    return this->m_definition != nullptr;
 }
 
-size_t ASTNodeVariableTypeEnum::opsizeof() const
+optional<size_t> ASTNodeVariableTypeEnum::opsizeof() const
 {
-    return sizeof(int);
+    return ENUM_COMPATIBLE_INT_BYTE_WIDTH;
 }
 
-size_t ASTNodeVariableTypeEnum::opalignof() const
+optional<size_t> ASTNodeVariableTypeEnum::opalignof() const
 {
+    // TODO
     return alignof(int);
 }
 
@@ -451,66 +399,96 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeEnum::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeTypedef::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->m_type->implicit_cast_to(type);
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeTypedef::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->m_type->explicit_cast_to(type);
+}
+
+bool  ASTNodeVariableTypeTypedef::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->m_type->equal_to(type);
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeTypedef::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->m_type->compatible_with(type);
+}
+
 variable_basic_type ASTNodeVariableTypeTypedef::basic_type() const
 {
-    if (!this->type())
-        throw std::runtime_error("unresolved typedef");
-
+    assert(this->type());
     return this->type()->basic_type();
 }
 
-bool ASTNodeVariableTypeTypedef::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
+bool ASTNodeVariableTypeTypedef::is_object_type() const
 {
-    if (!this->type())
-        throw std::runtime_error("unresolved typedef");
-
-    return this->type()->equal_to(type, flags);
+    assert(this->type());
+    return this->type()->is_object_type();
 }
 
-size_t ASTNodeVariableTypeTypedef::opsizeof() const
+optional<size_t> ASTNodeVariableTypeTypedef::opsizeof() const
 {
-    if (!this->type())
-        throw std::runtime_error("unresolved typedef");
-
+    assert(this->type());
     return this->type()->opsizeof();
 }
 
-size_t ASTNodeVariableTypeTypedef::opalignof() const
+optional<size_t> ASTNodeVariableTypeTypedef::opalignof() const
 {
-    if (!this->type())
-        throw std::runtime_error("unresolved typedef");
-
+    assert(this->type());
     return this->type()->opalignof();
 }
 
 std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeTypedef::copy() const
 {
-    if (!this->type())
-        throw std::runtime_error("unresolved typedef");
-
+    assert(this->type());
     return this->type()->copy();
 }
 
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeVoid::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() == variable_basic_type::VOID)
+        return type;
+
+    return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeVoid::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() == variable_basic_type::VOID)
+        return type;
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypeVoid::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    return this->implicit_cast_to(type) != nullptr;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeVoid::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::VOID)
+        return nullptr;
+    return type;
+}
 
 variable_basic_type ASTNodeVariableTypeVoid::basic_type() const
 {
     return variable_basic_type::VOID;
 }
 
-bool ASTNodeVariableTypeVoid::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
-{
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    return type->basic_type() == variable_basic_type::VOID;
-}
-
-size_t ASTNodeVariableTypeVoid::opsizeof() const
+optional<size_t> ASTNodeVariableTypeVoid::opsizeof() const
 {
     return 0;
 }
 
-size_t ASTNodeVariableTypeVoid::opalignof() const
+optional<size_t> ASTNodeVariableTypeVoid::opalignof() const
 {
     return 0;
 }
@@ -527,74 +505,89 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeVoid::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeInt::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (this->is_arithmatic_type())
+        return type;
+
+    if (type->basic_type() == variable_basic_type::ENUM &&
+        this->m_byte_length == ENUM_COMPATIBLE_INT_BYTE_WIDTH &&
+        this->m_is_unsigned == ENUM_COMPATIBLE_INT_IS_UNSIGNED)
+    {
+        return type;
+    }
+
+    return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeInt::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->is_scalar_type() || type->basic_type() == variable_basic_type::ENUM)
+        return type;
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypeInt::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != this->basic_type() ||
+        type->const_ref() != this->const_ref() ||
+        type->volatile_ref() != this->volatile_ref() ||
+        type->restrict_ref() != this->restrict_ref())
+    {
+        return false;
+    }
+
+    auto intt = dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
+    return intt->byte_length() == this->m_byte_length &&
+           intt->is_unsigned() == this->m_is_unsigned;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeInt::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (this->const_ref() != type->const_ref() ||
+        this->volatile_ref() != type->volatile_ref() ||
+        this->restrict_ref() != type->restrict_ref())
+    {
+        return nullptr;
+    }
+
+    auto tint = std::dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
+    if (tint) {
+        if (this->m_is_unsigned == tint->m_is_unsigned &&
+            this->m_byte_length == tint->m_byte_length)
+        {
+            return type;
+        } else {
+            return nullptr;
+        }
+    }
+
+    auto tenum = std::dynamic_pointer_cast<ASTNodeVariableTypeEnum>(type);
+    if (tenum) {
+        if (this->m_is_unsigned == ENUM_COMPATIBLE_INT_IS_UNSIGNED &&
+            this->m_byte_length == ENUM_COMPATIBLE_INT_BYTE_WIDTH)
+        {
+            return make_shared<ASTNodeVariableTypeInt>(this->lcontext(), this->m_byte_length, this->m_is_unsigned);
+        } else {
+            return nullptr;
+        }
+    }
+
+    return nullptr;
+}
+
 variable_basic_type ASTNodeVariableTypeInt::basic_type() const
 {
     return variable_basic_type::INT;
 }
 
-bool ASTNodeVariableTypeInt::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
-{
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    switch (type->basic_type())
-    {
-    case variable_basic_type::VOID:
-    {
-        if (flags.any_to_void)
-            return true;
-    } break;
-    case variable_basic_type::INT:
-    {
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
-        assert(_type);
-
-        if (!flags.ignore_integer_sign && _type->m_is_unsigned != this->m_is_unsigned)
-            break;
-
-        if (this->m_byte_length == _type->m_byte_length)
-            return true;
-
-        if (flags.integer_downcast && this->m_byte_length > _type->m_byte_length)
-            return true;
-
-        if (flags.integer_upcast && this->m_byte_length < _type->m_byte_length)
-            return true;
-    } break;
-    case variable_basic_type::FLOAT:
-    {
-        if (flags.integer_to_float)
-            return true;
-    } break;
-    case variable_basic_type::POINTER:
-    {
-        if (this->m_byte_length < type->opsizeof()) {
-            // TODO warning
-            return false;
-        }
-
-        if (flags.integer_to_pointer)
-            return true;
-    }
-    case variable_basic_type::ARRAY:
-    {
-        // TODO to pointer
-        if (flags.integer_to_pointer && flags.pointer_to_array)
-            return true;
-    }
-    default:
-        break;
-    }
-
-    return false;
-}
-
-size_t ASTNodeVariableTypeInt::opsizeof() const
+optional<size_t> ASTNodeVariableTypeInt::opsizeof() const
 {
     return this->m_byte_length;
 }
 
-size_t ASTNodeVariableTypeInt::opalignof() const
+optional<size_t> ASTNodeVariableTypeInt::opalignof() const
 {
     return this->m_byte_length;
 }
@@ -611,55 +604,65 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeInt::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeFloat::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (this->is_arithmatic_type())
+        return type;
+    else
+        return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeFloat::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->is_arithmatic_type() || type->basic_type() == variable_basic_type::ENUM)
+        return type;
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypeFloat::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != this->basic_type() ||
+        type->const_ref() != this->const_ref() ||
+        type->volatile_ref() != this->volatile_ref() ||
+        type->restrict_ref() != this->restrict_ref())
+    {
+        return false;
+    }
+
+    auto m = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(type);
+    return m->m_byte_length == this->m_byte_length;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFloat::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::FLOAT)
+        return nullptr;
+
+    auto t = std::dynamic_pointer_cast<ASTNodeVariableTypeFloat>(type);
+    assert(t);
+    if (this->m_byte_length == t->m_byte_length &&
+        this->const_ref() == t->const_ref() &&
+        this->volatile_ref() == t->volatile_ref() &&
+        this->restrict_ref() == t->restrict_ref())
+    {
+        return type;
+    } else {
+        return nullptr;
+    }
+}
+
 variable_basic_type ASTNodeVariableTypeFloat::basic_type() const
 {
     return variable_basic_type::FLOAT;
 }
 
-bool ASTNodeVariableTypeFloat::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
-{
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    switch (type->basic_type())
-    {
-    case variable_basic_type::VOID:
-    {
-        if (flags.any_to_void)
-            return true;
-    } break;
-    case variable_basic_type::INT:
-    {
-        if (flags.float_to_integer)
-            return true;
-    } break;
-    case variable_basic_type::FLOAT:
-    {
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(type);
-        assert(_type);
-
-        if (this->m_byte_length == _type->m_byte_length)
-            return true;
-
-        if (flags.float_downcast && this->m_byte_length > _type->m_byte_length)
-            return true;
-
-        if (flags.float_upcast && this->m_byte_length < _type->m_byte_length)
-            return true;
-    } break;
-    default:
-        break;
-    }
-
-    return false;
-}
-
-size_t ASTNodeVariableTypeFloat::opsizeof() const
+optional<size_t> ASTNodeVariableTypeFloat::opsizeof() const
 {
     return this->m_byte_length;
 }
 
-size_t ASTNodeVariableTypeFloat::opalignof() const
+optional<size_t> ASTNodeVariableTypeFloat::opalignof() const
 {
     return this->m_byte_length;
 }
@@ -676,71 +679,140 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFloat::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypePointer::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    assert(!type->is_function_type());
+    auto ptrtype = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
+    if (ptrtype) {
+        if ((this->m_type->const_ref() && !ptrtype->m_type->const_ref()) ||
+            (this->m_type->volatile_ref() && !ptrtype->m_type->volatile_ref()))
+        {
+            return nullptr;
+        }
+
+        if (this->m_type->basic_type() == variable_basic_type::VOID ||
+            ptrtype->m_type->basic_type() == variable_basic_type::VOID)
+        {
+            return type;
+        }
+
+        if (this->m_type->compatible_with(ptrtype->m_type)) {
+            return type;
+        } else {
+            return nullptr;
+        }
+    }
+
+    auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+    if (arrtype) {
+        if ((this->m_type->const_ref() && !arrtype->elemtype()->const_ref()) ||
+            (this->m_type->volatile_ref() && !arrtype->elemtype()->volatile_ref()))
+        {
+            return nullptr;
+        }
+
+        if (this->m_type->basic_type() == variable_basic_type::VOID)
+        {
+            return type;
+        }
+
+        if (this->m_type->compatible_with(arrtype->elemtype())) {
+            return type;
+        } else {
+            return nullptr;
+        }
+    }
+
+    return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypePointer::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    const auto bt = type->basic_type();
+    if (bt == variable_basic_type::POINTER ||
+        bt == variable_basic_type::ENUM ||
+        bt == variable_basic_type::INT ||
+        bt == variable_basic_type::ARRAY)
+    {
+        return type;
+    }
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypePointer::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->const_ref() != this->const_ref() ||
+        type->volatile_ref() != this->volatile_ref() ||
+        type->restrict_ref() != this->restrict_ref())
+    {
+        return false;
+    }
+
+    if (type->basic_type() != variable_basic_type::POINTER)
+        return false;
+
+    auto ptrtype = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
+    return this->m_type->equal_to(ptrtype->m_type);
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypePointer::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    auto tptr = std::dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
+    if (tptr) {
+        if (this->const_ref() != tptr->const_ref() ||
+            this->volatile_ref() != tptr->volatile_ref() ||
+            this->restrict_ref() != tptr->restrict_ref())
+        {
+            return nullptr;
+        }
+
+        auto composite_type = this->m_type->compatible_with(tptr->m_type);
+        if (!composite_type)
+            return nullptr;
+
+        auto ret = std::make_shared<ASTNodeVariableTypePointer>(this->lcontext(), composite_type);
+        ret->const_ref() = this->const_ref();
+        ret->volatile_ref() = this->volatile_ref();
+        ret->restrict_ref() = this->restrict_ref();
+        return ret;
+    }
+
+    auto tarr = std::dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+    if (tarr) {
+        if (this->const_ref() != tarr->const_ref() ||
+            this->volatile_ref() != tarr->volatile_ref() ||
+            this->restrict_ref() != tarr->restrict_ref())
+        {
+            return nullptr;
+        }
+
+        auto composite_type = this->m_type->compatible_with(tarr->elemtype());
+        if (composite_type)
+            return nullptr;
+
+        auto ret = std::make_shared<ASTNodeVariableTypePointer>(this->lcontext(), composite_type);
+        ret->const_ref() = this->const_ref();
+        ret->volatile_ref() = this->volatile_ref();
+        ret->restrict_ref() = this->restrict_ref();
+        return ret;
+    }
+
+    return nullptr;
+}
+
 variable_basic_type ASTNodeVariableTypePointer::basic_type() const
 {
     return variable_basic_type::POINTER;
 }
 
-bool ASTNodeVariableTypePointer::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
-{
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    switch (type->basic_type())
-    {
-    case variable_basic_type::VOID:
-    {
-        if (flags.any_to_void)
-            return true;
-    } break;
-    case variable_basic_type::POINTER:
-    {
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
-
-        if (_type->deref()->basic_type() == variable_basic_type::VOID && flags.pointer_to_voidptr)
-            return true;
-
-        if (this->deref()->basic_type() == variable_basic_type::VOID && flags.voidptr_to_pointer)
-            return true;
-
-        flags.any_to_void = false;
-        return this->deref()->equal_to(_type->deref(), flags);
-    } break;
-    case variable_basic_type::ARRAY:
-    {
-        if (!flags.pointer_to_array)
-            break;
-
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
-        assert(_type);
-        flags.any_to_void = false;
-        return this->deref()->equal_to(_type->elemtype(), flags);
-    } break;
-    case variable_basic_type::FUNCTION:
-    {
-        if (!flags.pointer_to_function)
-            break;
-        auto funct = this->deref();
-        if (funct->basic_type() != variable_basic_type::FUNCTION)
-            break;
-
-        flags.any_to_void = false;
-        return funct->equal_to(type, flags);
-    } break;
-    default:
-        break;
-    }
-
-    return false;
-}
-
-size_t ASTNodeVariableTypePointer::opsizeof() const
+optional<size_t> ASTNodeVariableTypePointer::opsizeof() const
 {
     // TODO
     return sizeof(void*);
 }
 
-size_t ASTNodeVariableTypePointer::opalignof() const
+optional<size_t> ASTNodeVariableTypePointer::opalignof() const
 {
     // TODO
     return sizeof(void*);
@@ -758,74 +830,204 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypePointer::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeArray::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    auto ptrtype = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
+    if (ptrtype) {
+        if (ptrtype->deref()->basic_type() == variable_basic_type::VOID &&
+            (ptrtype->deref()->const_ref() || !this->elemtype()->const_ref()) &&
+            (ptrtype->deref()->volatile_ref() || !this->elemtype()->volatile_ref()))
+        {
+            return type;
+        }
+
+        if (this->elemtype()->compatible_with(ptrtype->deref()))
+            return type;
+    }
+
+    auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+    if (arrtype) {
+        if (!this->elemtype()->compatible_with(arrtype->elemtype()))
+            return nullptr;
+
+        if (arrtype->m_static && 
+            arrtype->m_size && 
+            this->m_size)
+        {
+            auto s1 = arrtype->m_size->get_integer_constant();
+            auto s2 = this->m_size->get_integer_constant();
+
+            if (s1.has_value() && s2.has_value() &&
+                s1.value() > s2.value())
+            {
+                return nullptr;
+            }
+        }
+
+        return type;
+    }
+
+    return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeArray::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    const auto bt = type->basic_type();
+    if (bt == variable_basic_type::POINTER ||
+        bt == variable_basic_type::ARRAY ||
+        bt == variable_basic_type::INT ||
+        bt == variable_basic_type::ENUM)
+    {
+        return type;
+    }
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypeArray::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != this->basic_type())
+        return false;
+
+    if (type->const_ref() != this->const_ref() ||
+        type->volatile_ref() != this->volatile_ref() ||
+        type->restrict_ref() != this->restrict_ref())
+    {
+        return false;
+    }
+
+    auto arrtype= dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+    assert(arrtype);
+    if (!this->m_type->equal_to(arrtype->m_type) ||
+        this->m_static != arrtype->m_static)
+    {
+        return false;
+    }
+
+    if (!this->m_size && !arrtype->m_size)
+        return true;
+
+    if (this->m_size && arrtype->m_size) {
+        auto s1 = this->m_size->get_integer_constant();
+        auto s2 = arrtype->m_size->get_integer_constant();
+
+        if (s1.has_value())
+        {
+            if (s2.has_value()) {
+                return s1.value() == s2.value();
+            } else {
+                return false;
+            }
+        } else
+        {
+            if (s2.has_value()) {
+                return false;
+            } else {
+                // TODO
+                return false;
+            }
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeArray::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    auto tptr = std::dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
+    if (tptr) {
+        if (this->const_ref() != tptr->const_ref() ||
+            this->volatile_ref() != tptr->volatile_ref() ||
+            this->restrict_ref() != tptr->restrict_ref())
+        {
+            return nullptr;
+        }
+
+        auto composite_type = this->elemtype()->compatible_with(tptr->deref());
+        if (!composite_type)
+            return nullptr;
+
+        auto ret = make_shared<ASTNodeVariableTypePointer>(this->lcontext(), composite_type);
+        ret->const_ref() = this->const_ref();
+        ret->volatile_ref() = this->volatile_ref();
+        ret->restrict_ref() = this->restrict_ref();
+        return ret;
+    }
+
+    auto tarr = std::dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+    if (tarr) {
+        if (this->const_ref() != tarr->const_ref() ||
+            this->volatile_ref() != tarr->volatile_ref() ||
+            this->restrict_ref() != tarr->restrict_ref())
+        {
+            return nullptr;
+        }
+
+        auto composite_type = this->elemtype()->compatible_with(tarr->elemtype());
+        if (!composite_type) 
+            return nullptr;
+
+        shared_ptr<ASTNodeExpr> size_expr;
+        if (this->m_size && tarr->m_size)
+        {
+            auto this_size = this->m_size->get_integer_constant();
+            auto type_size = tarr->m_size->get_integer_constant();
+            if (this_size.has_value() && type_size.has_value() &&
+                this_size.value() != type_size.value())
+            {
+                return nullptr;
+            } else {
+                size_expr = this->m_size;
+            }
+        }
+
+        if (!size_expr && this->m_size) {
+            auto this_size = this->m_size->get_integer_constant();
+            if (this_size.has_value())
+                size_expr = this->m_size;
+        }
+
+        if (!size_expr && tarr->m_size) {
+            auto type_size = tarr->m_size->get_integer_constant();
+            if (type_size.has_value())
+                size_expr = tarr->m_size;
+        }
+
+        auto tx = make_shared<ASTNodeVariableTypeArray>(this->lcontext(), composite_type, size_expr, this->m_static && tarr->m_static);
+        tx->const_ref() = this->const_ref();
+        tx->volatile_ref() = this->volatile_ref();
+        tx->restrict_ref() = this->restrict_ref();
+        return tx;
+    }
+
+    return nullptr;
+}
+
 variable_basic_type ASTNodeVariableTypeArray::basic_type() const
 {
     return variable_basic_type::ARRAY;
 }
 
-bool ASTNodeVariableTypeArray::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
+bool ASTNodeVariableTypeArray::is_object_type() const
 {
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
+    return this->m_size != nullptr;
+}
 
-    switch (type->basic_type())
+optional<size_t> ASTNodeVariableTypeArray::opsizeof() const
+{
+    if (!this->m_size || 
+        !this->m_size->get_integer_constant().has_value() ||
+        !this->m_type->opsizeof().has_value())
     {
-    case variable_basic_type::VOID:
-    {
-        if (flags.any_to_void)
-            return true;
-    } break;
-    case variable_basic_type::ARRAY:
-    {
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
-        assert(_type);
-        flags.any_to_void = false;
-
-        if (!this->elemtype()->equal_to(_type->elemtype(), flags))
-            break;;
-
-        if (_type->m_static && this->m_size < _type->m_size && flags.ignore_array_size)
-            break;
-
-        return true;
-    } break;
-    case variable_basic_type::POINTER:
-    {
-        if (!flags.array_to_pointer)
-            break;
-
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
-        assert(_type);
-        flags.any_to_void = false;
-        return this->elemtype()->equal_to(_type->deref(), flags);
-    } break;
-    case variable_basic_type::INT:
-    {
-        if (!flags.array_to_pointer || flags.pointer_to_integer)
-            break;
-
-        // TODO pointer size
-        if (type->opsizeof() < sizeof(void*))
-            break;
-
-        return true;
-    } break;
-    default:
-        break;
+        return nullopt;
     }
 
-    return false;
+    return this->m_type->opsizeof().value() * this->m_size->get_integer_constant().value();
 }
 
-size_t ASTNodeVariableTypeArray::opsizeof() const
-{
-    return sizeof(void*);
-
-    // TODO align
-    // return this->m_size * this->elemtype()->opsizeof();
-}
-
-size_t ASTNodeVariableTypeArray::opalignof() const
+optional<size_t> ASTNodeVariableTypeArray::opalignof() const
 {
     return sizeof(void*);
 
@@ -845,74 +1047,125 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeArray::copy() const
 }
 
 
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeFunction::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::POINTER)
+        return nullptr;
+
+    auto ptrtype = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
+    assert(ptrtype);
+
+    if (this->compatible_with(ptrtype->deref()))
+        return type;
+    else
+        return nullptr;
+}
+
+shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeFunction::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    const auto bt = type->basic_type();
+    if (bt == variable_basic_type::POINTER ||
+        bt == variable_basic_type::ENUM ||
+        bt == variable_basic_type::INT ||
+        bt == variable_basic_type::ARRAY)
+    {
+        return type;
+    }
+
+    return nullptr;
+}
+
+bool  ASTNodeVariableTypeFunction::equal_to(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::FUNCTION)
+        return false;
+
+    auto functype = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(type);
+    assert(functype);
+
+    if (!this->return_type()->equal_to(functype->return_type()))
+        return false;
+
+    auto l1 = this->parameter_declaration_list();
+    auto l2 = functype->parameter_declaration_list();
+    if (l1->variadic() != l2->variadic() ||
+        l1->size() != l2->size())
+    {
+        return false;
+    }
+
+    for (size_t i=0;i<l1->size();i++) {
+        auto t1 = (*l1)[i]->type();
+        auto t2 = (*l2)[i]->type();
+        if (!t1->equal_to(t2))
+            return false;
+    }
+
+    return true;
+}
+
+shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::compatible_with(shared_ptr<ASTNodeVariableType> type) const
+{
+    if (type->basic_type() != variable_basic_type::FUNCTION)
+        return nullptr;
+
+    auto tfunc = std::dynamic_pointer_cast<ASTNodeVariableTypeFunction>(type);
+    if (!this->m_return_type->compatible_with(tfunc->m_return_type))
+        return nullptr;
+
+    if (this->m_parameter_declaration_list->empty() &&
+        !this->m_parameter_declaration_list->variadic())
+    {
+        return tfunc;
+    }
+
+    if (tfunc->m_parameter_declaration_list->empty() &&
+        !tfunc->m_parameter_declaration_list->variadic())
+    {
+        return make_shared<ASTNodeVariableTypeFunction>(
+                this->lcontext(), this->m_parameter_declaration_list, this->m_return_type);
+    }
+
+    if (this->m_parameter_declaration_list->variadic() != tfunc->m_parameter_declaration_list->variadic())
+        return nullptr;
+
+    if (this->m_parameter_declaration_list->size() != tfunc->m_parameter_declaration_list->size())
+        return nullptr;
+
+    auto ret_type = this->m_return_type->compatible_with(tfunc->m_return_type);
+    if (!ret_type) return nullptr;
+
+    auto params = make_shared<ASTNodeParameterDeclarationList>(this->lcontext());
+    for (size_t i=0;i<this->m_parameter_declaration_list->size();i++)
+    {
+        auto param = (*this->m_parameter_declaration_list)[i];
+        auto tparam = (*tfunc->m_parameter_declaration_list)[i];
+        auto tparam_type = param->type()->compatible_with(tparam->type());
+        if (!tparam_type) return nullptr;
+
+        params->push_back(make_shared<ASTNodeParameterDeclaration>(
+                this->lcontext(), param->id(), tparam_type));
+    }
+
+    return make_shared<ASTNodeVariableTypeFunction>(
+            this->lcontext(), params, ret_type);
+}
+
 variable_basic_type ASTNodeVariableTypeFunction::basic_type() const
 {
     return variable_basic_type::FUNCTION;
 }
 
-bool ASTNodeVariableTypeFunction::equal_to(std::shared_ptr<ASTNodeVariableType> type, TestFlags& flags) const
-{
-    if (!ASTNodeVariableType::equal_to(type, flags))
-        return false;
-
-    switch (type->basic_type())
-    {
-    case variable_basic_type::VOID:
-    {
-        if (flags.any_to_void)
-            return true;
-    } break;
-    case variable_basic_type::FUNCTION:
-    {
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(type);
-        assert(_type);
-        flags.any_to_void = false;
-
-        if (!this->return_type()->equal_to(_type->return_type(), flags))
-            break;
-
-        auto p1 = this->parameter_declaration_list();
-        auto p2 = _type->parameter_declaration_list();
-        if (p1->size() != p2->size())
-            break;
-        if (p1->variadic() != p2->variadic())
-            break;
-
-        for (size_t i = 0; i < p1->size(); ++i)
-        {
-            if (!(*p1)[i]->type()->equal_to((*p2)[i]->type(), flags))
-                break;
-        }
-
-        return true;
-    } break;
-    case variable_basic_type::POINTER:
-    {
-        if (!flags.function_to_pointer)
-            break;
-
-        auto _type = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
-        assert(_type);
-        flags.any_to_void = flags.pointer_to_voidptr;
-        return this->equal_to(_type->deref(), flags);
-    } break;
-    default:
-        break;
-    }
-
-    return false;
-}
-
-size_t ASTNodeVariableTypeFunction::opsizeof() const
+optional<size_t> ASTNodeVariableTypeFunction::opsizeof() const
 {
     // TODO report error
-    return 0;
+    return nullopt;
 }
 
-size_t ASTNodeVariableTypeFunction::opalignof() const
+optional<size_t> ASTNodeVariableTypeFunction::opalignof() const
 {
     // TODO report error
-    return 0;
+    return nullopt;
 }
 
 std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::copy() const

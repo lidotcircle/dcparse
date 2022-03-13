@@ -23,10 +23,11 @@ private:
         std::map<std::string,std::pair<size_t,std::shared_ptr<ASTNodeStructUnionDeclarationList>>> m_unions;
         std::map<std::string,std::pair<size_t,std::shared_ptr<ASTNodeEnumeratorList>>> m_enums;
         std::shared_ptr<SemanticReporter> m_reporter;
-        std::shared_ptr<CParserContext> m_pctx;
+        std::weak_ptr<CParserContext> m_pctx;
+        inline std::shared_ptr<CParserContext> pcontext() const { return m_pctx.lock(); }
 
     public:
-        Scope(std::shared_ptr<SemanticReporter> reporter, std::shared_ptr<CParserContext> pctx);
+        Scope(std::shared_ptr<SemanticReporter> reporter, std::weak_ptr<CParserContext> pctx);
 
         std::shared_ptr<ASTNodeVariableType> lookup_variable(const std::string& varname);
         std::shared_ptr<ASTNodeVariableType> lookup_typedef (const std::string& typedef_name);
@@ -47,7 +48,7 @@ private:
         std::optional<int> resolve_enum_constant(const std::string& enumtag, const std::string& id);
     };
     std::shared_ptr<SemanticReporter> m_reporter;
-    std::shared_ptr<CParserContext> m_pctx;
+    std::weak_ptr<CParserContext> m_pctx;
     std::optional<std::shared_ptr<ASTNodeVariableType>> m_return_type;
     bool m_function_fake_scope;
     std::vector<Scope> m_scopes;
@@ -60,6 +61,7 @@ private:
     };
     std::vector<SwitchStatInfo> m_switch_info;
     size_t m_struct_level_counter;
+    inline std::shared_ptr<CParserContext> pcontext() const { return m_pctx.lock(); }
 
 public:
     CTranslationUnitContext(std::shared_ptr<SemanticReporter> reporter, std::shared_ptr<CParserContext> pctx);

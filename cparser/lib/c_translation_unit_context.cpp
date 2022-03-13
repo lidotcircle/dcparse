@@ -7,11 +7,11 @@ using namespace cparser;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
 
 
-CTranslationUnitContext::Scope::Scope(shared_ptr<SemanticReporter> reporter, shared_ptr<CParserContext> pctx):
+CTranslationUnitContext::Scope::Scope(shared_ptr<SemanticReporter> reporter, weak_ptr<CParserContext> pctx):
     m_reporter(reporter), m_pctx(pctx)
 {
     assert(reporter);
-    assert(pctx);
+    assert(pctx.lock());
 }
 
 shared_ptr<ASTNodeVariableType> CTranslationUnitContext::Scope::lookup_variable(const string& varname)
@@ -55,7 +55,7 @@ void CTranslationUnitContext::Scope::declare_variable(const string& varname, sha
     if (this->m_typedefs.find(varname) != this->m_typedefs.end()) {
         m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of typedef '" + varname + "' as different kind of symbol",
-                    type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
+                    type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
         return;
     }
 
@@ -66,7 +66,7 @@ void CTranslationUnitContext::Scope::declare_variable(const string& varname, sha
         if (!old_decl->compatible_with(type)) {
             this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                         "incompatible redefinition of variable '" + varname + "'",
-                        type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
+                        type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
             return;
         }
     }
@@ -78,7 +78,7 @@ void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name,
     if (this->m_decls.find(typedef_name) != this->m_decls.end()) {
         m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of variable '" + typedef_name + "' as different kind of symbol",
-                    type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
+                    type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
         return;
     }
 
@@ -90,7 +90,7 @@ void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name,
         if (!old_decl->equal_to(type)) {
             this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                         "typedef '" + typedef_name + "' with different type",
-                        type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
+                        type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
             return;
         }
     }
@@ -128,7 +128,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
     {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of enum '" + enum_name + "'",
-                    enum_node->start_pos(), enum_node->end_pos(), this->m_pctx->posinfo()));
+                    enum_node->start_pos(), enum_node->end_pos(), this->pcontext()->posinfo()));
         return;
     }
 
@@ -155,7 +155,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
         if (ids.find(id->id) != ids.end()) {
             this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                         "redefinition of enumerator '" + id->id + "'",
-                        id->position(), id->position() + id->length(), this->m_pctx->posinfo()));
+                        id->position(), id->position() + id->length(), this->pcontext()->posinfo()));
             continue;
         }
 
@@ -166,14 +166,14 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
             {
                 this->m_reporter->push_back(make_shared<SemanticErrorBadType>(
                             "enumerator value must be a int type",
-                            expr->start_pos(), expr->end_pos(), this->m_pctx->posinfo()));
+                            expr->start_pos(), expr->end_pos(), this->pcontext()->posinfo()));
                 continue;
             }
 
             if (!expr->is_constexpr()) {
                 this->m_reporter->push_back(make_shared<SemanticErrorBadType>(
                             "enumerator value must be a constant expression",
-                            expr->start_pos(), expr->end_pos(), this->m_pctx->posinfo()));
+                            expr->start_pos(), expr->end_pos(), this->pcontext()->posinfo()));
                 continue;
             }
         }
@@ -188,7 +188,7 @@ void CTranslationUnitContext::Scope::define_struct(const string& struct_name, sh
     {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of struct '" + struct_name + "'",
-                    struct_node->start_pos(), struct_node->end_pos(), this->m_pctx->posinfo()));
+                    struct_node->start_pos(), struct_node->end_pos(), this->pcontext()->posinfo()));
         return;
     }
 
@@ -207,7 +207,7 @@ void CTranslationUnitContext::Scope::define_union(const string& union_name,  sha
     {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of union '" + union_name + "'",
-                    union_node->start_pos(), union_node->end_pos(), this->m_pctx->posinfo()));
+                    union_node->start_pos(), union_node->end_pos(), this->pcontext()->posinfo()));
         return;
     }
 
@@ -313,7 +313,7 @@ void CTranslationUnitContext::function_begin(
     if (this->m_defined_functions.find(funcname) != this->m_defined_functions.end()) {
         this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
                     "redefinition of function '" + funcname + "'",
-                    parameter_list->start_pos(), parameter_list->end_pos(), this->m_pctx->posinfo()));
+                    parameter_list->start_pos(), parameter_list->end_pos(), this->pcontext()->posinfo()));
     }
 
     this->m_defined_functions.insert(funcname);

@@ -860,6 +860,7 @@ void ASTNodeVariableTypeStruct::check_constraints(std::shared_ptr<SemanticReport
     auto idinfo = ctx->lookup_struct(this->m_name->id);
     assert(idinfo.has_value());
     this->m_type_id = idinfo.value().first;
+    this->m_definition = idinfo.value().second;
 }
 
 void ASTNodeVariableTypeUnion::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -876,6 +877,7 @@ void ASTNodeVariableTypeUnion::check_constraints(std::shared_ptr<SemanticReporte
     auto idinfo = ctx->lookup_union(this->m_name->id);
     assert(idinfo.has_value());
     this->m_type_id = idinfo.value().first;
+    this->m_definition = idinfo.value().second;
 }
 
 void ASTNodeVariableTypeEnum::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -892,6 +894,7 @@ void ASTNodeVariableTypeEnum::check_constraints(std::shared_ptr<SemanticReporter
     auto idinfo = ctx->lookup_enum(this->m_name->id);
     assert(idinfo.has_value());
     this->m_type_id = idinfo.value().first;
+    this->m_definition = idinfo.value().second;
 }
 
 void ASTNodeVariableTypeTypedef::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -1053,15 +1056,32 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
         }
         this->alignment() = align;
         this->sizeof_() = size;
+        if (size == 0) {
+            reporter->push_back(make_shared<SemanticErrorEmptyStructUnionDefinition>(
+                        "empty struct or union isn't permitted",
+                        this->start_pos(), this->end_pos(), this->context()->posinfo()));
+        }
         return;
     }
 
+    set<string> member_names;
     size_t align = 1;
     typename std::remove_reference_t<decltype(*this)>::container_t member_decls;
     typename decltype(member_decls)::value_type flexible_array;
     for (size_t i=0;i<this->size();i++) {
         auto decl = (*this)[i];
         decl->type()->check_constraints(reporter);
+
+        if (decl->id()) {
+            if (member_names.find(decl->id()->id) != member_names.end()) {
+                reporter->push_back(make_shared<SemanticErrorDuplicateMember>(
+                            "duplicate member name",
+                            decl->start_pos(), decl->end_pos(), this->context()->posinfo()));
+            } else {
+                member_names.insert(decl->id()->id);
+            }
+        }
+
         auto opalignof = decl->type()->opalignof();
         if (!opalignof.has_value()) {
             auto thetype = decl->type();
@@ -1089,7 +1109,7 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
         }
     }
     size_t struct_size = 0, offset = 0;
-    size_t nbitused = 0, tbitwidth = 0;
+    size_t nbitused = 0, tbitwidth = 0, tbytewidth = 0, tbytealign = 1;
     bool   bitfield_is_unsigned;
     const auto advance_size_offset = [&](size_t val_size, size_t val_align) {
         if (offset % val_align != 0)
@@ -1100,25 +1120,68 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
     for (auto decl: member_decls) {
         if (decl->bit_width()) {
             auto inttype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(decl->type());
-            assert(inttype);
+            if (!inttype) {
+                reporter->push_back(make_shared<SemanticErrorRequireIntegerType>(
+                            "bit-width specifier requires integer type",
+                            decl->start_pos(), decl->end_pos(), this->context()->posinfo()));
+                continue;
+            } else if (!decl->bit_width().has_value()) {
+                reporter->push_back(make_shared<SemanticErrorNonConstant>(
+                            "non constant integer in bit-width specifier",
+                            decl->start_pos(), decl->end_pos(), this->context()->posinfo()));
+                continue;
+            } else if (inttype->opsizeof().value() * 8 < decl->bit_width().value()) {
+                reporter->push_back(make_shared<SemanticErrorBitFieldIsTooLarge>(
+                            "invalid bit-width specifier, out of max bits",
+                            decl->start_pos(), decl->end_pos(), this->context()->posinfo()));
+                continue;
+            } else if (inttype->opsizeof().value() <= 0) {
+                reporter->push_back(make_shared<SemanticErrorNegativeBitField>(
+                            "non-positive bit-field specifier",
+                            decl->start_pos(), decl->end_pos(), this->context()->posinfo()));
+                continue;
+            }
+
             auto bit_width = decl->bit_width().value();;
-            assert(inttype->opsizeof().value() * 8 <= bit_width);
-            if (tbitwidth == 0 || bitfield_is_unsigned != inttype->is_unsigned() || nbitused + bit_width < tbitwidth)
+            if (nbitused + bit_width > tbitwidth ||
+                inttype->byte_length() != tbytewidth ||
+                bitfield_is_unsigned != inttype->is_unsigned())
             {
-                tbitwidth = inttype->opsizeof().value() * 8;
+                if (tbitwidth > 0) {
+                    advance_size_offset(tbytewidth, tbytealign);
+                    offset += tbytewidth;
+                }
+
+                offset += tbitwidth / 8;
+                tbytewidth = inttype->opsizeof().value();
+                tbytealign = inttype->opalignof().value();
+                tbitwidth = tbytewidth * 8;
                 bitfield_is_unsigned = inttype->is_unsigned();
                 nbitused = 0;
-                advance_size_offset(inttype->opsizeof().value(), inttype->opalignof().value());
+            } else {
+                nbitused += bit_width;
             }
         } else {
+            if (tbitwidth > 0) {
+                advance_size_offset(tbytewidth, tbytealign);
+                offset += tbytewidth;
+            }
+
             tbitwidth = 0;
             auto ops = decl->type()->opsizeof();
             auto opa = decl->type()->opalignof();
-            if (ops.has_value() && opa.has_value())
+            if (ops.has_value() && opa.has_value()) {
                 advance_size_offset(ops.value(), opa.value());
+                offset += ops.value();
+            }
         }
         decl->offset() = offset;
     }
+    if (tbitwidth > 0) {
+        advance_size_offset(tbytewidth, tbytealign);
+        offset += tbytewidth;
+    }
+
     if (struct_size % align != 0)
         struct_size += align - (struct_size % align);
 
@@ -1126,6 +1189,12 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
         flexible_array->offset() = struct_size;
     this->alignment() = align;
     this->sizeof_() = struct_size;
+
+    if (struct_size == 0) {
+        reporter->push_back(make_shared<SemanticErrorEmptyStructUnionDefinition>(
+                    "empty struct or union isn't permitted",
+                    this->start_pos(), this->end_pos(), this->context()->posinfo()));
+    }
 }
 
 void ASTNodeEnumerationConstant::check_constraints(std::shared_ptr<SemanticReporter> reporter)

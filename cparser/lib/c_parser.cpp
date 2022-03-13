@@ -95,12 +95,14 @@ static pair<size_t,size_t> get_position_range(const vector<shared_ptr<DChar>>& c
         auto c1 = dynamic_pointer_cast<NonTermBasic>(c);
         if (c1) {
             assert(c1->astnode);
+            if (c1->astnode->start_pos() == 0 && c1->astnode->end_pos() == 0) continue;
             pos.first = MIN_AB(pos.first, c1->astnode->start_pos());
             pos.second = MAX_AB(pos.second, c1->astnode->end_pos());
             continue;
         }
         auto c2 = dynamic_pointer_cast<LexerToken>(c);
         if (c2) {
+            if (c2->position() == 0 && c2->length() == 0) continue;
             pos.first = MIN_AB(pos.first, c2->position());
             pos.second = MAX_AB(pos.second, c2->position() + c2->length());
         }
@@ -687,6 +689,13 @@ void CParser::declaration_rules()
                 }
             }
 
+            static int anonymous_id = 0;
+            if (init_decl_list_ast->empty()) {
+                auto  id = make_shared<TokenID>("#anonymous_" + to_string(anonymous_id++), LexerToken::TokenInfo());
+                auto justfordecl = make_shared<ASTNodeInitDeclarator>(c, id, decl_specast, nullptr);
+                ast->push_back(justfordecl);
+            }
+
             return makeNT(DECLARATION, ast);
         });
 
@@ -904,7 +913,7 @@ static int anonymous_struct_union_counter = 0;
             assert(ts[0]);
             auto struct_or_union = dynamic_pointer_cast<NonTermSTRUCT_OR_UNION>(ts[0]);
             assert(struct_or_union && struct_or_union->astnode);
-            const auto is_struct = dynamic_pointer_cast<struct_pesudo>(struct_or_union->astnode) == nullptr;
+            const auto is_struct = dynamic_pointer_cast<struct_pesudo>(struct_or_union->astnode) != nullptr;
 
             shared_ptr<TokenID> id = nullptr;
             if (ts[1]) {
@@ -915,11 +924,11 @@ static int anonymous_struct_union_counter = 0;
                         "#anonymous_struct_union_" + std::to_string(++anonymous_struct_union_counter),
                         LexerToken::TokenInfo());
             }
-            get_ast_if_presents(dc, STRUCT_OR_UNION_SPECIFIER, ASTNodeStructUnionDeclarationList, 3);
-            if (dcast) {
-                dcast->id() = id;
-                dcast->is_struct() = is_struct;
-            }
+            get_ast_if_presents(dc, STRUCT_DECLARATION_LIST, ASTNodeStructUnionDeclarationList, 3);
+            if (!dcast)
+                dcast = make_shared<ASTNodeStructUnionDeclarationList>(c);
+            dcast->is_struct() = is_struct;
+            dcast->id() = id;
 
             shared_ptr<ASTNodeVariableType> ast = nullptr;
             if (is_struct) {
@@ -941,7 +950,7 @@ static int anonymous_struct_union_counter = 0;
             assert(ts[0]);
             auto struct_or_union = dynamic_pointer_cast<NonTermSTRUCT_OR_UNION>(ts[0]);
             assert(struct_or_union && struct_or_union->astnode);
-            const auto is_struct = dynamic_pointer_cast<struct_pesudo>(struct_or_union->astnode) == nullptr;
+            const auto is_struct = dynamic_pointer_cast<struct_pesudo>(struct_or_union->astnode) != nullptr;
 
             auto id = dynamic_pointer_cast<TokenID>(ts[1]);
             assert(id);

@@ -37,28 +37,32 @@ public:
 
 
 #define SEMANTIC_ERROR_LIST \
-    SENTRY(None,                 ERROR, "none") \
-    SENTRY(Redefinition,         ERROR, "redefinition") \
-    SENTRY(NonConstant,          ERROR, "expect a constant") \
-    SENTRY(BadType,              ERROR, "unexpected type") \
-    SENTRY(VarNotDefined,        ERROR, "variable not defined") \
-    SENTRY(InvalidArrayIndex,    ERROR, "invalid array index") \
-    SENTRY(InvalidFunctionCall,  ERROR, "invalid function call") \
-    SENTRY(InvalidMemberAccess,  ERROR, "invalid member access") \
-    SENTRY(InvalidValueCategory, ERROR, "invalid value category") \
-    SENTRY(InvalidOperand,       ERROR, "invalid operand") \
-    SENTRY(InvalidCastFailed,    ERROR, "cast failed") \
-    SENTRY(InvalidInitializer,   ERROR, "invalid initializer expression") \
-    SENTRY(ModifyConstant,       ERROR, "try to modify a constant") \
-    SENTRY(DuplicateMember,      ERROR, "duplicate member") \
-    SENTRY(IncompleteType,       ERROR, "incomplete type") \
-    SENTRY(IncompatibleTypes,    ERROR, "incompatible types") \
-    SENTRY(DuplicateCaseLabel,   ERROR, "duplicate case label") \
-    SENTRY(UndefinedLabel,       ERROR, "undefined label") \
-    SENTRY(ContinueOutsideLoop,  ERROR, "continue statement outside loop") \
-    SENTRY(BreakOutsideLoop,     ERROR, "break statement outside loop or switch") \
-    SENTRY(MissingReturnValue,   ERROR, "missing return value") \
-    SENTRY(StaticAssertFailed,   ERROR, "static_assert failed") \
+    SENTRY(None,                       ERROR, "none") \
+    SENTRY(Redefinition,               ERROR, "redefinition") \
+    SENTRY(NonConstant,                ERROR, "expect a constant") \
+    SENTRY(BadType,                    ERROR, "unexpected type") \
+    SENTRY(VarNotDefined,              ERROR, "variable not defined") \
+    SENTRY(InvalidArrayIndex,          ERROR, "invalid array index") \
+    SENTRY(InvalidFunctionCall,        ERROR, "invalid function call") \
+    SENTRY(InvalidMemberAccess,        ERROR, "invalid member access") \
+    SENTRY(InvalidValueCategory,       ERROR, "invalid value category") \
+    SENTRY(InvalidOperand,             ERROR, "invalid operand") \
+    SENTRY(InvalidCastFailed,          ERROR, "cast failed") \
+    SENTRY(InvalidInitializer,         ERROR, "invalid initializer expression") \
+    SENTRY(ModifyConstant,             ERROR, "try to modify a constant") \
+    SENTRY(DuplicateMember,            ERROR, "duplicate member") \
+    SENTRY(IncompleteType,             ERROR, "incomplete type") \
+    SENTRY(IncompatibleTypes,          ERROR, "incompatible types") \
+    SENTRY(DuplicateCaseLabel,         ERROR, "duplicate case label") \
+    SENTRY(UndefinedLabel,             ERROR, "undefined label") \
+    SENTRY(ContinueOutsideLoop,        ERROR, "continue statement outside loop") \
+    SENTRY(BreakOutsideLoop,           ERROR, "break statement outside loop or switch") \
+    SENTRY(MissingReturnValue,         ERROR, "missing return value") \
+    SENTRY(StaticAssertFailed,         ERROR, "static_assert failed") \
+    SENTRY(EmptyStructUnionDefinition, ERROR, "empty struct or union definition") \
+    SENTRY(RequireIntegerType,         ERROR, "require integer type") \
+    SENTRY(BitFieldIsTooLarge,         ERROR, "bit-field is too large") \
+    SENTRY(NegativeBitField,           ERROR, "negative bit-field specifier") \
 
 
 #define SENTRY(name, _, __) \

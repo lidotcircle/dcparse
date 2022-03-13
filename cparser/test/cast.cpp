@@ -14,6 +14,20 @@ TEST(should_accpet, CAST) {
     vector<string> test_cases = {
         "int a;",
         "_Static_assert(1, \"\");",
+        "_Static_assert(sizeof(char) == 1, \"\");",
+        "_Static_assert(sizeof(int) == 4, \"\");",
+        "_Static_assert(sizeof(long) == 8, \"\");",
+        "_Static_assert(sizeof(long long) == 8, \"\");",
+        "_Static_assert(sizeof(short) == 2, \"\");",
+        "_Static_assert(sizeof(signed char) == 1, \"\");",
+        "_Static_assert(sizeof(unsigned char) == 1, \"\");",
+        "_Static_assert(sizeof(void*) == 4 || sizeof(void*) == 8, \"should be false\");",
+        "struct ax { char a; }; _Static_assert(sizeof(struct ax) == 1, \"\");",
+        "struct ax { char a; int b; }; _Static_assert(sizeof(struct ax) == 8, \"\");",
+        "struct ax { int a:10; int b:20; int c; }; _Static_assert(sizeof(struct ax) == 8, \"\");",
+        "struct ax { int a:1; int c; }; _Static_assert(sizeof(struct ax) == 8, \"\");",
+        "struct ax { int a:10; int b:20; int c:2; int d; }; _Static_assert(sizeof(struct ax) == 8, \"\");",
+        "struct ax { int a:1; int c; int d:1; }; _Static_assert(sizeof(struct ax) == 12, \"\");",
     };
 
     for (auto t: test_cases) {
@@ -40,7 +54,11 @@ TEST(should_reject, CAST) {
 
 #define EXPECT_REJECT_LIST \
     EENTRY("_Static_assert(0, \"hello, this is a static_assert failure\");", StaticAssertFailed) \
+    EENTRY("_Static_assert(sizeof(void*) == 0, \"should be false\");", StaticAssertFailed) \
     EENTRY("int a; double a;", Redefinition) \
+    EENTRY("struct ax {}; _Static_assert(sizeof(struct ax) == 0, \"\");", EmptyStructUnionDefinition) \
+    EENTRY("union  ax {}; _Static_assert(sizeof(union ax) == 0, \"\");", EmptyStructUnionDefinition) \
+    // EENTRY("int a; double a;", None) \
 
     shared_ptr<SemanticError> err;
     const auto eval_code = [&](string code) {

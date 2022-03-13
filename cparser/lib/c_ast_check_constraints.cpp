@@ -923,11 +923,12 @@ void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> 
 
     const auto olderrorcounter = reporter->size();
     this->m_type->check_constraints(reporter);
-    this->m_initializer->check_constraints(reporter);
+    if (this->m_initializer)
+        this->m_initializer->check_constraints(reporter);
     if (olderrorcounter != reporter->size())
         return;
 
-    if (this->initializer()) {
+    if (this->m_initializer) {
         auto initializer = this->initializer();
         if (initializer->is_expr()) {
             auto expr = initializer->expr();

@@ -188,6 +188,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeStruct::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -285,6 +286,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeUnion::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -393,6 +395,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeEnum::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -499,6 +502,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeVoid::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -566,7 +570,9 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeInt::compatible_with(shared_p
         if (this->m_is_unsigned == ENUM_COMPATIBLE_INT_IS_UNSIGNED &&
             this->m_byte_length == ENUM_COMPATIBLE_INT_BYTE_WIDTH)
         {
-            return make_shared<ASTNodeVariableTypeInt>(this->lcontext(), this->m_byte_length, this->m_is_unsigned);
+            auto ast = make_shared<ASTNodeVariableTypeInt>(this->lcontext(), this->m_byte_length, this->m_is_unsigned);
+            ast->contain(this);
+            return ast;
         } else {
             return nullptr;
         }
@@ -598,6 +604,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeInt::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -673,6 +680,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFloat::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -780,6 +788,7 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypePointer::compatible_with(shar
         ret->const_ref() = this->const_ref();
         ret->volatile_ref() = this->volatile_ref();
         ret->restrict_ref() = this->restrict_ref();
+        ret->contain(this);
         return ret;
     }
 
@@ -800,6 +809,7 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypePointer::compatible_with(shar
         ret->const_ref() = this->const_ref();
         ret->volatile_ref() = this->volatile_ref();
         ret->restrict_ref() = this->restrict_ref();
+        ret->contain(this);
         return ret;
     }
 
@@ -831,6 +841,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypePointer::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -958,6 +969,7 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeArray::compatible_with(shared
         ret->const_ref() = this->const_ref();
         ret->volatile_ref() = this->volatile_ref();
         ret->restrict_ref() = this->restrict_ref();
+        ret->contain(this);
         return ret;
     }
 
@@ -1004,6 +1016,7 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeArray::compatible_with(shared
         tx->const_ref() = this->const_ref();
         tx->volatile_ref() = this->volatile_ref();
         tx->restrict_ref() = this->restrict_ref();
+        tx->contain(this);
         return tx;
     }
 
@@ -1048,6 +1061,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeArray::copy() const
     ast->restrict_ref() = this->restrict_ref();
     const ASTNodeVariableType* _this = this;
     ast->storage_class() = _this->storage_class();
+    ast->contain(this);
     return ast;
 }
 
@@ -1127,8 +1141,10 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::compatible_with(sha
     if (tfunc->m_parameter_declaration_list->empty() &&
         !tfunc->m_parameter_declaration_list->variadic())
     {
-        return make_shared<ASTNodeVariableTypeFunction>(
+        auto ast =  make_shared<ASTNodeVariableTypeFunction>(
                 this->lcontext(), this->m_parameter_declaration_list, this->m_return_type);
+        ast->contain(this);
+        return ast;
     }
 
     if (this->m_parameter_declaration_list->variadic() != tfunc->m_parameter_declaration_list->variadic())
@@ -1141,6 +1157,7 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::compatible_with(sha
     if (!ret_type) return nullptr;
 
     auto params = make_shared<ASTNodeParameterDeclarationList>(this->lcontext());
+    params->contain(this->m_parameter_declaration_list);
     for (size_t i=0;i<this->m_parameter_declaration_list->size();i++)
     {
         auto param = (*this->m_parameter_declaration_list)[i];
@@ -1148,12 +1165,15 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::compatible_with(sha
         auto tparam_type = param->type()->compatible_with(tparam->type());
         if (!tparam_type) return nullptr;
 
-        params->push_back(make_shared<ASTNodeParameterDeclaration>(
-                this->lcontext(), param->id(), tparam_type));
+        auto p = make_shared<ASTNodeParameterDeclaration>(this->lcontext(), param->id(), tparam_type);
+        p->contain(param);
+        params->push_back(p);
     }
 
-    return make_shared<ASTNodeVariableTypeFunction>(
+    auto ret =  make_shared<ASTNodeVariableTypeFunction>(
             this->lcontext(), params, ret_type);
+    ret->contain(params, ret_type);
+    return ret;
 }
 
 variable_basic_type ASTNodeVariableTypeFunction::basic_type() const
@@ -1177,14 +1197,18 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::copy() const
 {
     auto params = make_shared<ASTNodeParameterDeclarationList>(this->lcontext());
     params->variadic() = this->parameter_declaration_list()->variadic();
+    params->contain(this->parameter_declaration_list());
     for (auto p : *this->parameter_declaration_list())
     {
         auto tc = p->type()->copy();
-        params->push_back(make_shared<ASTNodeParameterDeclaration>(this->lcontext(), p->id(), tc));
+        auto pa = make_shared<ASTNodeParameterDeclaration>(this->lcontext(), p->id(), tc);
+        pa->contain(p);
+        params->push_back(pa);
     }
     auto ret = make_shared<ASTNodeVariableTypeFunction>(this->lcontext(), params, this->return_type()->copy());
     const ASTNodeVariableType* _this = this;
     ret->storage_class() = _this->storage_class();
+    ret->contain(this);
     return ret;
 }
 

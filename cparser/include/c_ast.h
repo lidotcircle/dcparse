@@ -22,16 +22,30 @@ private:
     ASTNodeParserContext m_parser_context;
     size_t m_start_pos, m_end_pos;
     bool m_checked;
+    inline void contain_(const std::shared_ptr<ASTNode> other) { this->contain_(other.get()); }
+    void contain_(const ASTNode* other);
 
 public:
     size_t& start_pos() { return m_start_pos; }
     size_t& end_pos() { return m_end_pos; }
+
+    template<typename ...Others>
+    void contain(Others ...others)
+    {
+        int _[sizeof...(Others)] = { (this->contain_(others), 0)... };
+    }
+    template<typename ...Others>
+    void belong(Others ...others)
+    {
+        int _[sizeof...(Others)] = { (others->contain_(this), 0)... };
+    }
+
     inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_start_pos(0), m_end_pos(0), m_checked(false) {}
     std::shared_ptr<CParserContext> context() const;
     inline ASTNodeParserContext lcontext() const { return m_parser_context; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) = 0;
-    inline bool do_check() { auto ret = this->m_checked; m_checked = true; return ret; }
+    inline bool do_check() { auto ret = this->m_checked; m_checked = true; return !ret; }
     inline bool checked()  { return this->m_checked; }
     virtual std::string to_string() const;
     virtual ~ASTNode() = default;

@@ -54,7 +54,9 @@ shared_ptr<ASTNodeExpr> make_exprcast(shared_ptr<ASTNodeExpr> expr, shared_ptr<A
     auto exprtype = expr->type();
     if (exprtype->equal_to(type)) return expr;
 
-    return make_shared<ASTNodeExprCast>(expr->lcontext(), type, expr);
+    auto ast = make_shared<ASTNodeExprCast>(expr->lcontext(), type, expr);
+    ast->contain(expr);
+    return ast;
 }
 
 namespace kstype {
@@ -102,6 +104,7 @@ shared_ptr<ASTNodeVariableTypeInt> int_compatible(shared_ptr<ASTNodeVariableType
         ret->const_ref() = type->const_ref();
         ret->volatile_ref() = type->volatile_ref();
         ret->restrict_ref() = type->restrict_ref();
+        ret->contain(type);
         return ret;
     }
 
@@ -120,6 +123,7 @@ shared_ptr<ASTNodeVariableTypePointer> ptr_compatible(shared_ptr<ASTNodeVariable
         ret->const_ref() = type->const_ref();
         ret->volatile_ref() = type->volatile_ref();
         ret->restrict_ref() = type->restrict_ref();
+        ret->contain(type);
         return ret;
     }
 

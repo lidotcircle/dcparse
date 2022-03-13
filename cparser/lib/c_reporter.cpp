@@ -2,9 +2,13 @@
 #include <sstream>
 #include <iomanip>
 #include <map>
+#include <string.h>
 using namespace cparser;
 using namespace std;
 using ErrorLevel = SemanticError::ErrorLevel;
+
+
+SemanticReporter::SemanticReporter() {}
 
 
 SemanticError::SemanticError(
@@ -49,8 +53,8 @@ string SemanticError::error_message() const
     ostringstream oss;
 
     oss << ANSI_MAP["bold"] << this->_pos_info->queryLine(this->_start_pos);
-    oss << ": " << ANSI_MAP[error2color[this->error_level()]] << this->error_type() << ": ";
-    oss << ANSI_MAP["reset"] << ANSI_MAP["bold"] <<  this->what() << ANSI_MAP["reset"] << endl;
+    oss << ": " << ANSI_MAP[error2color[this->error_level()]] << this->error_level_text() << ": ";
+    oss << ANSI_MAP["reset"] << ANSI_MAP["bold"] <<  CError::what() << ANSI_MAP["reset"] << endl;
 
     auto linfo = this->_pos_info->query(this->_start_pos);
     auto lines = this->_pos_info->lines(this->_start_pos, this->_end_pos);
@@ -65,12 +69,20 @@ string SemanticError::error_message() const
     return oss.str();
 }
 
+const char* SemanticError::what() const noexcept
+{
+    auto _this = const_cast<SemanticError*>(this);
+    _this->_error_buf = this->error_message();
+    return this->_error_buf.c_str();
+}
+
 #define SENTRY(name, level, type) \
     SemanticError##name::SemanticError##name(const string& what, size_t start_pos, size_t end_pos, \
                                              shared_ptr<TokenPositionInfo> posinfo): \
         SemanticError(what, start_pos, end_pos, posinfo) {} \
     string SemanticError##name::error_type() const { return type; } \
-    ErrorLevel SemanticError##name::error_level() const { return ErrorLevel::level; }
+    ErrorLevel  SemanticError##name::error_level() const { return ErrorLevel::level; } \
+    const char* SemanticError##name::error_level_text() const { return #level; }
 SEMANTIC_ERROR_LIST
 #undef SENTRY
 

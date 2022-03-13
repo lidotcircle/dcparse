@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "c_lexer_parser.h"
+#include "c_reporter.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -11,18 +12,24 @@ TEST(should_accpet, CAST) {
     CLexerParser parser;
 
     vector<string> test_cases = {
+        "int a;",
     };
 
     for (auto t: test_cases) {
+        auto reporter = make_shared<SemanticReporter>();
         ASSERT_NO_THROW(
             for (auto c: t) {
                 parser.feed(c);
             }
 
             auto tunit = parser.end();
-            EXPECT_NE(tunit, nullptr);
+            ASSERT_NE(tunit, nullptr);
+            tunit->check_constraints(reporter);
         ) << t;
 
+        for (auto err: *reporter)
+            cerr << err->what() << endl;
+        ASSERT_EQ(reporter->size(), 0) << t;
         parser.reset();
     }
 }
@@ -30,18 +37,38 @@ TEST(should_accpet, CAST) {
 TEST(should_reject, CAST) {
     CLexerParser parser;
 
-    vector<string> test_cases = {
-    };
+#define EXPECT_REJECT_LIST \
+    EENTRY("int a; double a;", Redefinition) \
 
-    for (auto t: test_cases) {
-
-        EXPECT_ANY_THROW(
-            for (auto c: t)
+    shared_ptr<SemanticError> err;
+    const auto eval_code = [&](string code) {
+        err = nullptr;
+        auto reporter = make_shared<SemanticReporter>();
+        ASSERT_NO_THROW(
+            for (auto c: code) {
                 parser.feed(c);
+            }
+
             auto tunit = parser.end();
-        ) << t;
+            ASSERT_NE(tunit, nullptr);
+            tunit->check_constraints(reporter);
+        ) << code;
+
+        EXPECT_GT(reporter->size(), 0) << code;
+        if (reporter->size() > 0)
+            err = (*reporter)[0];
 
         parser.reset();
-    }
+    };
 
+
+#define EENTRY(str, type) \
+    { \
+        eval_code(str); \
+        ASSERT_NE(err, nullptr) << str; \
+        auto serr = dynamic_pointer_cast<SemanticError##type>(err); \
+        ASSERT_NE(serr, nullptr) << str << endl << "    " << err->what(); \
+    }
+EXPECT_REJECT_LIST
+#undef EENTRY
 }

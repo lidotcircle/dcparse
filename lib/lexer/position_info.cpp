@@ -32,8 +32,8 @@ vector<LineRange> TokenPositionInfo::lines(size_t beg_pos, size_t end_pos) const
     auto einfo = this->query(end_pos);
     vector<LineRange> ret;
 
-    for (auto bl=binfo.line;bl<einfo.line;bl++) {
-        auto l = this->queryLine(bl);
+    for (auto bl=binfo.line;bl<=einfo.line;bl++) {
+        auto l = this->query_line(bl);
         size_t b = 0, e = l.size();
         if (bl == binfo.line)
             b = binfo.column;

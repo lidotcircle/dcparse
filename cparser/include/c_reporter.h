@@ -18,6 +18,7 @@ public:
 private:
     size_t _start_pos, _end_pos;
     std::shared_ptr<TokenPositionInfo> _pos_info;
+    std::string _error_buf;
 
 public:
     SemanticError(const std::string& what,
@@ -29,11 +30,14 @@ public:
 
     virtual std::string error_type() const = 0;
     virtual ErrorLevel  error_level() const = 0;
+    virtual const char* error_level_text() const = 0;
     virtual std::string error_message() const;
+    virtual const char* what() const noexcept override;
 };
 
 
 #define SEMANTIC_ERROR_LIST \
+    SENTRY(None,                 ERROR, "none") \
     SENTRY(Redefinition,         ERROR, "redefinition") \
     SENTRY(NonConstant,          ERROR, "expect a constant") \
     SENTRY(BadType,              ERROR, "unexpected type") \
@@ -63,6 +67,7 @@ public:
                             std::shared_ptr<TokenPositionInfo> posinfo); \
         virtual std::string error_type() const override; \
         virtual ErrorLevel  error_level() const override; \
+        virtual const char* error_level_text() const override; \
     };
 SEMANTIC_ERROR_LIST
 #undef SENTRY

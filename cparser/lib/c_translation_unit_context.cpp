@@ -142,6 +142,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
 
     auto enum_id = make_shared<TokenID>(enum_name, LexerToken::TokenInfo());
     auto enum_type = make_shared<ASTNodeVariableTypeEnum>(this->m_pctx, enum_id);
+    enum_type->contain(enum_node);
     enum_type->definition() = enum_node;
 
     set<string> ids;

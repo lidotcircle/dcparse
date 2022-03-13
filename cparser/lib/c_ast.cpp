@@ -3,8 +3,21 @@
 #include <stdexcept>
 using namespace std;
 using variable_basic_type = cparser::ASTNodeVariableType::variable_basic_type;
+#define MIN_AB(a, b) ((a) < (b) ? (a) : (b))
+#define MAX_AB(a, b) ((a) > (b) ? (a) : (b))
 
 namespace cparser {
+
+
+void ASTNode::contain_(const ASTNode* other) {
+    if (this->m_start_pos == this->m_end_pos && this->m_start_pos == 0) {
+        this->m_start_pos = other->m_start_pos;
+        this->m_end_pos = other->m_end_pos;
+    } else {
+        this->m_start_pos = MIN_AB(this->m_start_pos, other->m_start_pos);
+        this->m_end_pos = MAX_AB(this->m_end_pos, other->m_end_pos);
+    }
+}
 
 shared_ptr<CParserContext> ASTNode::context() const
 {

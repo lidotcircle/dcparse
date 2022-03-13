@@ -917,6 +917,31 @@ void ASTNodeVariableTypeFloat::check_constraints(std::shared_ptr<SemanticReporte
     if (!this->do_check()) return;
 }
 
+void ASTNodeStaticAssertDeclaration::check_constraints(std::shared_ptr<SemanticReporter> reporter)
+{
+    if (!this->do_check()) return;
+
+    const auto olderrorcounter = reporter->size();
+    this->m_expr->check_constraints(reporter);
+    if (reporter->size() > olderrorcounter)
+        return;
+
+    if (!this->m_expr->type()->is_scalar_type()) {
+        reporter->push_back(make_shared<SemanticErrorInvalidOperand>(
+                    "invalid operand for _Static_assert",
+                    this->m_expr->start_pos(), this->m_expr->end_pos(), this->context()->posinfo()));
+    } else if (!this->m_expr->get_integer_constant().has_value()) {
+        reporter->push_back(make_shared<SemanticErrorInvalidOperand>(
+                    "invalid operand for _Static_assert",
+                    this->m_expr->start_pos(), this->m_expr->end_pos(), this->context()->posinfo()));
+    } else if (!this->m_expr->get_integer_constant().value()) {
+        reporter->push_back(make_shared<SemanticErrorStaticAssertFailed>(
+                    "_Static_assert failed",
+                    this->start_pos(), this->end_pos(), this->context()->posinfo()));
+        throw CErrorStaticAssert(this->m_message);
+    }
+}
+
 void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
     if (!this->do_check()) return;

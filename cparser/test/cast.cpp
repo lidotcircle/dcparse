@@ -13,6 +13,7 @@ TEST(should_accpet, CAST) {
 
     vector<string> test_cases = {
         "int a;",
+        "_Static_assert(1, \"\");",
     };
 
     for (auto t: test_cases) {
@@ -38,6 +39,7 @@ TEST(should_reject, CAST) {
     CLexerParser parser;
 
 #define EXPECT_REJECT_LIST \
+    EENTRY("_Static_assert(0, \"hello, this is a static_assert failure\");", StaticAssertFailed) \
     EENTRY("int a; double a;", Redefinition) \
 
     shared_ptr<SemanticError> err;
@@ -51,7 +53,9 @@ TEST(should_reject, CAST) {
 
             auto tunit = parser.end();
             ASSERT_NE(tunit, nullptr);
-            tunit->check_constraints(reporter);
+            try {
+                tunit->check_constraints(reporter);
+            } catch (CErrorStaticAssert&) {}
         ) << code;
 
         EXPECT_GT(reporter->size(), 0) << code;

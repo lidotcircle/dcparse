@@ -29,6 +29,7 @@ using storage_class_t = cparser::ASTNodeVariableType::storage_class_t;
     TENTRY(CONSTANT_EXPRESSION) \
     \
     TENTRY(DECLARATION) \
+    TENTRY(STATIC_ASSERT_DECLARATION) \
     TENTRY(DECLARATION_SPECIFIERS) \
     TENTRY(INIT_DECLARATOR_LIST) \
     TENTRY(INIT_DECLARATOR) \
@@ -687,6 +688,27 @@ void CParser::declaration_rules()
             }
 
             return makeNT(DECLARATION, ast);
+        });
+
+    parser( NI(DECLARATION),
+        { NI(STATIC_ASSERT_DECLARATION) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
+            get_ast(sassert, STATIC_ASSERT_DECLARATION, ASTNodeStaticAssertDeclaration, 0);
+            auto ast = make_shared<ASTNodeDeclarationList>(c);
+            ast->push_back(sassertast);
+            return makeNT(DECLARATION, ast);
+        });
+
+    parser( NI(STATIC_ASSERT_DECLARATION),
+        { KW(_Static_assert), PT(LPAREN), NI(CONSTANT_EXPRESSION), PT(COMMA), TI(StringLiteral), PT(RPAREN), PT(SEMICOLON) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 7);
+            get_ast(sassert, CONSTANT_EXPRESSION, ASTNodeExpr, 2);
+            auto str = dynamic_pointer_cast<TokenStringLiteral>(ts[4]);
+            assert(str);
+            auto ast = make_shared<ASTNodeStaticAssertDeclaration>(c, sassertast, str->value);
+            return makeNT(STATIC_ASSERT_DECLARATION, ast);
         });
 
     // exchage RHS order
@@ -1962,7 +1984,7 @@ void CParser::external_definitions()
 
                 map<string,shared_ptr<ASTNodeVariableType>> declmap;
                 for (auto decl : *decltxast) {
-                    auto declx = dynamic_pointer_cast<ASTNodeDeclaration>(decl);
+                    auto declx = dynamic_pointer_cast<ASTNodeInitDeclarator>(decl);
                     assert(declx);
                     if (!declx->id()) {
                         throw CErrorParser("old style function parameter declaration without ID, at " + 

@@ -187,6 +187,8 @@ TEST(should_accpet, CParserLexer) {
         "int main() { for(int i=0, j=0;i;i--) i--; }",
         "int main() { goto a; continue; break; return; return a; }",
         "struct { long long a; } a;",
+
+        "_Static_assert(0, \"hello\");",
     };
 
     for (auto t: test_cases) {
@@ -222,6 +224,7 @@ TEST(should_reject, CParserLexer) {
         "int hux() int b; { return a; }",
         "int hux(a) int b; { return a; }",
         "int hux(a, int b) int a; { return a; }",
+        "int hx(_Static_assert(0, \"hello\"););",
     };
 
     for (auto t: test_cases) {

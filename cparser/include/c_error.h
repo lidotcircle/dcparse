@@ -16,6 +16,7 @@ public:
 #define CErrorList \
     EEntry(CErrorLexer) \
     EEntry(CErrorParser) \
+    EEntry(CErrorStaticAssert) \
     EEntry(CErrorparserMixedType)
 
 #define EEntry(cname) \

@@ -429,7 +429,29 @@ public:
  *                              Declaration                                   *
  *                                                                            *
  ******************************************************************************/
-class ASTNodeInitDeclarator: public ASTNode {
+class ASTNodeDeclaration: public ASTNode {
+public:
+    inline ASTNodeDeclaration(ASTNodeParserContext c): ASTNode(c) {}
+};
+
+class ASTNodeStaticAssertDeclaration: public ASTNodeDeclaration {
+private:
+    std::shared_ptr<ASTNodeExpr> m_expr;
+    std::string m_message;
+
+public:
+    inline ASTNodeStaticAssertDeclaration(
+            ASTNodeParserContext c,
+            std::shared_ptr<ASTNodeExpr> expr,
+            std::string message
+            ):
+        ASTNodeDeclaration(c), m_expr(std::move(expr)),
+        m_message(std::move(message)) {}
+
+    virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
+};
+
+class ASTNodeInitDeclarator: public ASTNodeDeclaration {
 private:
     std::shared_ptr<TokenID> m_id;
     std::shared_ptr<ASTNodeVariableType> m_type;
@@ -442,7 +464,7 @@ public:
             std::shared_ptr<ASTNodeVariableType> type,
             std::shared_ptr<ASTNodeInitializer> initializer
             ):
-        ASTNode(c),
+        ASTNodeDeclaration(c),
         m_id(id),
         m_type(type),
         m_initializer(initializer) {}
@@ -455,7 +477,6 @@ public:
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
-using ASTNodeDeclaration = ASTNodeInitDeclarator;
 
 class ASTNodeStructUnionDeclaration: public ASTNode
 {

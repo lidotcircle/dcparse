@@ -75,7 +75,8 @@ struct TokenStringLiteral: public LexerToken {
     K_ENTRY(while) \
     K_ENTRY(_Bool) \
     K_ENTRY(_Complex) \
-    K_ENTRY(_Imaginary)
+    K_ENTRY(_Imaginary) \
+    K_ENTRY(_Static_assert)
 
 #define K_ENTRY(n) \
     struct TokenKeyword_##n: public LexerToken { \

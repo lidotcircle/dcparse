@@ -58,6 +58,7 @@ public:
     SENTRY(ContinueOutsideLoop,  ERROR, "continue statement outside loop") \
     SENTRY(BreakOutsideLoop,     ERROR, "break statement outside loop or switch") \
     SENTRY(MissingReturnValue,   ERROR, "missing return value") \
+    SENTRY(StaticAssertFailed,   ERROR, "static_assert failed") \
 
 
 #define SENTRY(name, _, __) \

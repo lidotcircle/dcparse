@@ -24,11 +24,17 @@ std::shared_ptr<ASTNodeExpr> make_exprcast(std::shared_ptr<ASTNodeExpr> expr, st
 namespace kstype {
 
 std::shared_ptr<ASTNodeVariableTypeVoid>    voidtype(std::shared_ptr<CParserContext> ctx);
+std::shared_ptr<ASTNodeVariableTypeInt>     booltype(std::shared_ptr<CParserContext> ctx);
 std::shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(std::shared_ptr<CParserContext> ctx);
 }
 
 std::shared_ptr<ASTNodeVariableTypePointer> ptrto(std::shared_ptr<ASTNodeVariableType> type);
 std::shared_ptr<ASTNodeVariableTypeArray>   arrayto(std::shared_ptr<ASTNodeVariableType> type);
+
+std::shared_ptr<ASTNodeVariableTypeInt>     int_compatible(std::shared_ptr<ASTNodeVariableType> type);
+std::shared_ptr<ASTNodeVariableTypePointer> ptr_compatible(std::shared_ptr<ASTNodeVariableType> type);
+
+std::shared_ptr<ASTNodeVariableType>        composite_or_promote(std::shared_ptr<ASTNodeVariableType> t1, std::shared_ptr<ASTNodeVariableType> t2);
 
 }
 

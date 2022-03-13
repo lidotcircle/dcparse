@@ -418,7 +418,7 @@ bool ASTNodeExprPointerMemberAccess::is_lvalue() const
 
 bool ASTNodeExprInitializer::is_lvalue() const
 {
-    return false;
+    return true;
 }
 
 bool ASTNodeExprUnaryOp::is_lvalue() const

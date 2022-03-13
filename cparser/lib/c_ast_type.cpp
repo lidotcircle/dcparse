@@ -4,8 +4,6 @@ using namespace std;
 using namespace cparser;
 using storage_class_t = ASTNodeVariableType::storage_class_t;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
-#define ENUM_COMPATIBLE_INT_BYTE_WIDTH  4
-#define ENUM_COMPATIBLE_INT_IS_UNSIGNED true
 
 
 bool& ASTNodeVariableType::const_ref() { return this->m_const; }
@@ -723,6 +721,12 @@ shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypePointer::implicit_cast_to(sh
         }
     }
 
+    auto functype = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(type);
+    if (functype) {
+        if (functype->compatible_with(this->m_type))
+            return functype;
+    }
+
     return nullptr;
 }
 
@@ -732,7 +736,8 @@ shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypePointer::explicit_cast_to(sh
     if (bt == variable_basic_type::POINTER ||
         bt == variable_basic_type::ENUM ||
         bt == variable_basic_type::INT ||
-        bt == variable_basic_type::ARRAY)
+        bt == variable_basic_type::ARRAY ||
+        bt == variable_basic_type::FUNCTION)
     {
         return type;
     }

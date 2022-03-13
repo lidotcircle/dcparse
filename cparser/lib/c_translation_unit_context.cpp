@@ -86,9 +86,10 @@ void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name,
         auto old_decl = this->m_typedefs.at(typedef_name);
         assert(old_decl);
 
-        if (!old_decl->compatible_with(type)) {
+        // TODO
+        if (!old_decl->equal_to(type)) {
             this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                        "incompatible redefinition of typedef '" + typedef_name + "'",
+                        "typedef '" + typedef_name + "' with different type",
                         type->start_pos(), type->end_pos(), this->m_pctx->posinfo()));
             return;
         }
@@ -243,7 +244,7 @@ CTranslationUnitContext::CTranslationUnitContext(shared_ptr<SemanticReporter> re
     this->m_scopes.emplace_back(reporter, pctx);
     this->m_function_fake_scope = false;
     this->m_loop_level_counter = 0;
-    this->m_switch_level_counter = 0;
+    this->m_struct_level_counter = 0;
 }
 
 shared_ptr<ASTNodeVariableType> CTranslationUnitContext::lookup_variable(const string& varname)
@@ -340,6 +341,7 @@ void CTranslationUnitContext::function_end()
 {
     assert(this->in_function_definition());
     this->m_return_type = nullopt;
+    this->m_idlabels.clear();
 }
 
 void CTranslationUnitContext::enter_loop()
@@ -353,20 +355,43 @@ void CTranslationUnitContext::leave_loop()
 }
 void CTranslationUnitContext::enter_switch()
 {
-    this->m_switch_level_counter++;
+    this->m_switch_info.resize(this->m_switch_info.size() + 1);
 }
 void CTranslationUnitContext::leave_switch()
 {
-    assert(this->m_switch_level_counter > 0);
-    this->m_switch_level_counter--;
+    assert(!this->m_switch_info.empty());
+    this->m_switch_info.pop_back();
 }
 bool CTranslationUnitContext::breakable()
 {
-    return this->m_loop_level_counter > 0 || this->m_switch_level_counter > 0;
+    return this->m_loop_level_counter > 0 || !this->m_switch_info.empty();
 }
 bool CTranslationUnitContext::continueable()
 {
     return this->m_loop_level_counter > 0;
+}
+
+bool CTranslationUnitContext::in_switch_statement() const
+{
+    return !this->m_switch_info.empty();
+}
+
+bool CTranslationUnitContext::add_caselabel(long long val)
+{
+    assert(this->in_switch_statement());
+    if (this->m_switch_info.back().m_case_values.find(val) != this->m_switch_info.back().m_case_values.end())
+        return false;
+    this->m_switch_info.back().m_case_values.insert(val);
+    return true;
+}
+
+bool CTranslationUnitContext::add_defaultlabel()
+{
+    assert(this->in_switch_statement());
+    if (this->m_switch_info.back().m_has_default)
+        return false;
+    this->m_switch_info.back().m_has_default = true;
+    return true;
 }
 
 void CTranslationUnitContext::enter_scope()
@@ -382,6 +407,33 @@ void CTranslationUnitContext::leave_scope()
 {
     assert(this->m_scopes.size() > 1);
     this->m_scopes.pop_back();
+}
+
+void CTranslationUnitContext::enter_struct_union_definition()
+{
+    this->m_struct_level_counter++;
+}
+
+void CTranslationUnitContext::leave_struct_union_definition()
+{
+    assert(this->m_struct_level_counter > 0);
+    this->m_struct_level_counter--;
+}
+
+bool CTranslationUnitContext::in_struct_union_definition() const
+{
+    return this->m_struct_level_counter > 0;
+}
+
+void CTranslationUnitContext::add_idlabel(const string& label)
+{
+    assert(this->in_function_definition());
+    this->m_idlabels.insert(label);
+}
+
+bool CTranslationUnitContext::is_valid_idlabel(const string& label)
+{
+    return this->m_idlabels.find(label) != this->m_idlabels.end();
 }
 
 void CTranslationUnitContext::declare_variable(const string& varname, shared_ptr<ASTNodeVariableType> type)

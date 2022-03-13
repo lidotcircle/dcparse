@@ -52,8 +52,14 @@ private:
     bool m_function_fake_scope;
     std::vector<Scope> m_scopes;
     std::set<std::string> m_defined_functions;
+    std::set<std::string> m_idlabels;
     size_t m_loop_level_counter;
-    size_t m_switch_level_counter;
+    struct SwitchStatInfo {
+        std::set<long> m_case_values;
+        bool           m_has_default;
+    };
+    std::vector<SwitchStatInfo> m_switch_info;
+    size_t m_struct_level_counter;
 
 public:
     CTranslationUnitContext(std::shared_ptr<SemanticReporter> reporter, std::shared_ptr<CParserContext> pctx);
@@ -77,8 +83,19 @@ public:
     bool breakable();
     bool continueable();
 
+    bool in_switch_statement() const;
+    bool add_caselabel(long long val);
+    bool add_defaultlabel();
+
     void enter_scope();
     void leave_scope();
+
+    void enter_struct_union_definition();
+    void leave_struct_union_definition();
+    bool in_struct_union_definition() const;
+
+    void add_idlabel(const std::string& label);
+    bool is_valid_idlabel(const std::string& label);
 
     void declare_variable(const std::string& varname, std::shared_ptr<ASTNodeVariableType> type);
     void declare_typedef (const std::string& typedef_name, std::shared_ptr<ASTNodeVariableType> type);

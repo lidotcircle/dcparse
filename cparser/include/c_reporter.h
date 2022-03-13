@@ -44,6 +44,16 @@ public:
     SENTRY(InvalidValueCategory, ERROR, "invalid value category") \
     SENTRY(InvalidOperand,       ERROR, "invalid operand") \
     SENTRY(InvalidCastFailed,    ERROR, "cast failed") \
+    SENTRY(InvalidInitializer,   ERROR, "invalid initializer expression") \
+    SENTRY(ModifyConstant,       ERROR, "try to modify a constant") \
+    SENTRY(DuplicateMember,      ERROR, "duplicate member") \
+    SENTRY(IncompleteType,       ERROR, "incomplete type") \
+    SENTRY(IncompatibleTypes,    ERROR, "incompatible types") \
+    SENTRY(DuplicateCaseLabel,   ERROR, "duplicate case label") \
+    SENTRY(UndefinedLabel,       ERROR, "undefined label") \
+    SENTRY(ContinueOutsideLoop,  ERROR, "continue statement outside loop") \
+    SENTRY(BreakOutsideLoop,     ERROR, "break statement outside loop or switch") \
+    SENTRY(MissingReturnValue,   ERROR, "missing return value") \
 
 
 #define SENTRY(name, _, __) \

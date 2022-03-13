@@ -1947,6 +1947,8 @@ void CParser::external_definitions()
             declast->set_leaf_type(specast);
             astnode_belong_to(declast, { ts[0], ts[2] });
 
+            auto funcid = declast->id();
+            assert(funcid);
             auto functype = dynamic_pointer_cast<ASTNodeVariableTypeFunction>(declast->type());
             assert(functype);
             get_ast(st, COMPOUND_STATEMENT, ASTNodeStatCompound, 3);
@@ -2010,7 +2012,7 @@ void CParser::external_definitions()
                 }
             }
 
-            auto ast = make_shared<ASTNodeFunctionDefinition>(c, functype, stast);
+            auto ast = make_shared<ASTNodeFunctionDefinition>(c, funcid, functype, stast);
             return makeNT(FUNCTION_DEFINITION, ast);
         });
 

@@ -8,6 +8,8 @@
 #include <memory>
 #include <variant>
 #include <set>
+#define ENUM_COMPATIBLE_INT_BYTE_WIDTH  4
+#define ENUM_COMPATIBLE_INT_IS_UNSIGNED true
 
 namespace cparser {
 
@@ -19,15 +21,18 @@ class ASTNode {
 private:
     ASTNodeParserContext m_parser_context;
     size_t m_start_pos, m_end_pos;
+    bool m_checked;
 
 public:
     size_t& start_pos() { return m_start_pos; }
     size_t& end_pos() { return m_end_pos; }
-    inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_start_pos(0), m_end_pos(0) {}
+    inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_start_pos(0), m_end_pos(0), m_checked(false) {}
     std::shared_ptr<CParserContext> context() const;
     inline ASTNodeParserContext lcontext() const { return m_parser_context; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) = 0;
+    inline bool do_check() { auto ret = this->m_checked; m_checked = true; return ret; }
+    inline bool checked()  { return this->m_checked; }
     virtual std::string to_string() const;
     virtual ~ASTNode() = default;
 };
@@ -455,6 +460,7 @@ public:
     inline std::shared_ptr<TokenID>& id() { return this->m_decl->id(); }
     inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_decl->type(); }
     inline std::optional<size_t>& offset() { return this->m_offset; }
+    inline std::optional<size_t>  bit_width() { if (this->m_bit_width) return this->m_bit_width->get_integer_constant(); else return std::nullopt; }
 
     void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type);
  
@@ -509,8 +515,10 @@ public:
 
 class ASTNodeStructUnionDeclarationList: public ASTNode, private std::vector<std::shared_ptr<ASTNodeStructUnionDeclaration>>
 {
-private:
+public:
     using container_t = std::vector<std::shared_ptr<ASTNodeStructUnionDeclaration>>;
+
+private:
     bool _is_struct;
     std::shared_ptr<TokenID> _id;
     std::optional<size_t> _alignment;
@@ -556,6 +564,7 @@ class ASTNodeEnumerator: public ASTNode
 private:
     std::shared_ptr<TokenID> m_id;
     std::shared_ptr<ASTNodeExpr> m_value;
+    std::optional<long long> m_value_int;
 
 public:
     inline ASTNodeEnumerator(ASTNodeParserContext c, std::shared_ptr<TokenID> id, std::shared_ptr<ASTNodeExpr> value):
@@ -563,6 +572,8 @@ public:
 
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
     inline std::shared_ptr<ASTNodeExpr> value() { return this->m_value; }
+    inline void resolve_value(long long value) { this->m_value_int = value; }
+    inline std::optional<long long> ivalue() { return this->m_value_int; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1049,6 +1060,7 @@ class ASTNodeParameterDeclarationList: public ASTNode, private std::vector<std::
 private:
     using container_t = std::vector<std::shared_ptr<ASTNodeParameterDeclaration>>;
     bool m_variadic;
+    bool m_void;
 
 public:
     using reference = container_t::reference;
@@ -1056,9 +1068,10 @@ public:
     using iterator = container_t::iterator;
     using const_iterator = container_t::const_iterator;
 
-    inline ASTNodeParameterDeclarationList(ASTNodeParserContext c): ASTNode(c), m_variadic(false) {}
+    inline ASTNodeParameterDeclarationList(ASTNodeParserContext c): ASTNode(c), m_variadic(false), m_void(false) {}
 
     inline bool& variadic() { return this->m_variadic; }
+    inline bool  bevoid()   { return this->m_void; }
 
     using container_t::begin;
     using container_t::end;
@@ -1127,6 +1140,10 @@ public:
         ASTNode(c), m_value(list) {}
 
     bool is_constexpr() const;
+    inline bool is_expr() const { return std::holds_alternative<std::shared_ptr<ASTNodeExpr>>(this->m_value); }
+    inline bool is_list() const { return std::holds_alternative<std::shared_ptr<ASTNodeInitializerList>>(this->m_value); }
+    inline std::shared_ptr<ASTNodeExpr>& expr() { return std::get<std::shared_ptr<ASTNodeExpr>>(this->m_value); }
+    inline std::shared_ptr<ASTNodeInitializerList>& list() { return std::get<std::shared_ptr<ASTNodeInitializerList>>(this->m_value); }
     
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1203,10 +1220,7 @@ public:
 
 class ASTNodeStatLabel: public ASTNodeStat {
 private:
-    using id_label_t = std::shared_ptr<TokenID>;
-    using case_label_t = std::shared_ptr<ASTNodeExpr>;
-    using default_label_t = std::nullptr_t;
-    std::variant<id_label_t,case_label_t,default_label_t> m_label;
+    std::shared_ptr<TokenID> m_id;
     std::shared_ptr<ASTNodeStat> m_stat;
 
 public:
@@ -1214,28 +1228,10 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> label,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), m_label(label), m_stat(stat) {}
-
-    ASTNodeStatLabel(
-            ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeExpr> label,
-            std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), m_label(label), m_stat(stat) {}
-
-    ASTNodeStatLabel(
-            ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), m_label(default_label_t(nullptr)), m_stat(stat) {}
+        ASTNodeStat(c), m_id(label), m_stat(stat) {}
 
     inline std::shared_ptr<ASTNodeStat>& stat() { return this->m_stat; }
-
-    inline id_label_t id_label() const { return std::get<id_label_t>(this->m_label); }
-    inline case_label_t case_label() const { return std::get<case_label_t>(this->m_label); }
-    inline default_label_t default_label() const { return std::get<default_label_t>(this->m_label); }
-
-    inline bool is_id_label() const { return std::holds_alternative<id_label_t>(this->m_label); }
-    inline bool is_case_label() const { return std::holds_alternative<case_label_t>(this->m_label); }
-    inline bool is_default_label() const { return std::holds_alternative<default_label_t>(this->m_label); }
+    inline std::shared_ptr<TokenID> id_label() const { return this->m_id; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1310,7 +1306,7 @@ public:
 };
 
 class ASTNodeStatExpr: public ASTNodeStat
-{ 
+{
 private:
     std::shared_ptr<ASTNodeExpr> _expr;
 
@@ -1487,13 +1483,15 @@ class ASTNodeFunctionDefinition: public ASTNodeExternalDeclaration
 private:
     std::shared_ptr<ASTNodeVariableTypeFunction> _decl;
     std::shared_ptr<ASTNodeStatCompound> _body;
+    std::shared_ptr<TokenID> _id;
 
 public:
     inline ASTNodeFunctionDefinition(
             ASTNodeParserContext c,
+            std::shared_ptr<TokenID> funcid,
             std::shared_ptr<ASTNodeVariableTypeFunction> decl,
             std::shared_ptr<ASTNodeStatCompound> body):
-        ASTNodeExternalDeclaration(c), _decl(decl), _body(body) {}
+        ASTNodeExternalDeclaration(c), _id(funcid), _decl(decl), _body(body) {}
 
     inline std::shared_ptr<ASTNodeVariableTypeFunction> decl() { return this->_decl; }
     inline std::shared_ptr<ASTNodeStatCompound>         body() { return this->_body; }

@@ -666,12 +666,6 @@ void DCParser::generate_table()
         auto s = q.front();
         q.pop();
 
-        for (auto c: s) {
-            assert(this->m_rules.size() > c.first);
-            auto& r = this->m_rules[c.first];
-            r.m_rule_option->seen = true;
-        }
-
         auto state = sallocator(s);
         if (mapping.size() <= state)
             mapping.resize(state+1);
@@ -838,6 +832,11 @@ DCParser::state_action(set<pair<ruleid_t,size_t>> s_next,
         {
             v_incompleted_candidates.insert(r);
         }
+    }
+
+    {
+        auto rx = this->m_rules[completed_highest_priority_rule];
+        rx.m_rule_option->seen = true;
     }
 
     // REDUCE

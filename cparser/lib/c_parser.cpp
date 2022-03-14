@@ -1384,7 +1384,7 @@ static size_t anonymous_enum_count = 0;
             dast->set_leaf_type(dsast);
             auto ast = make_shared<ASTNodeParameterDeclaration>(c, dast->id(), dast->type());
             return makeNT(PARAMETER_DECLARATION, ast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(PARAMETER_DECLARATION),
         { NI(DECLARATION_SPECIFIERS), ParserChar::beOptional(NI(ABSTRACT_DECLARATOR)) },
@@ -1400,7 +1400,7 @@ static size_t anonymous_enum_count = 0;
             }
             auto ast = make_shared<ASTNodeParameterDeclaration>(c, decl_id, dsast);
             return makeNT(PARAMETER_DECLARATION, ast);
-        });
+        }, RuleAssocitiveRight);
 
     parser( NI(IDENTIFIER_LIST),
         { TI(ID) },

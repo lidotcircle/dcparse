@@ -38,6 +38,7 @@ TEST(should_accpet, CParserLexer) {
         "int hux(a) int a; { return a; }",
         "int main() { for(int i = 0; i < 10; i++) { } }",
         "int main() { a: m = 2; }",
+        "int main(int argc, char* argv[]) {}",
 
         "char;",
         "signed char;",

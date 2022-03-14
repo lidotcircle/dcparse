@@ -28,6 +28,9 @@ TEST(should_accpet, CAST) {
         "struct ax { int a:1; int c; }; _Static_assert(sizeof(struct ax) == 8, \"\");",
         "struct ax { int a:10; int b:20; int c:2; int d; }; _Static_assert(sizeof(struct ax) == 8, \"\");",
         "struct ax { int a:1; int c; int d:1; }; _Static_assert(sizeof(struct ax) == 12, \"\");",
+        "int main() {}",
+        "int main(int argc, char* argv[]) {}",
+        "int main(int argc, char** argv) {}",
     };
 
     for (auto t: test_cases) {
@@ -58,6 +61,7 @@ TEST(should_reject, CAST) {
     EENTRY("int a; double a;", Redefinition) \
     EENTRY("struct ax {}; _Static_assert(sizeof(struct ax) == 0, \"\");", EmptyStructUnionDefinition) \
     EENTRY("union  ax {}; _Static_assert(sizeof(union ax) == 0, \"\");", EmptyStructUnionDefinition) \
+    EENTRY("int main(int argc, char** argv, void) {}", InvalidFunctionParameter) \
     // EENTRY("int a; double a;", None) \
 
     shared_ptr<SemanticError> err;

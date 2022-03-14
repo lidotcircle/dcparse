@@ -1294,7 +1294,7 @@ void ASTNodeParameterDeclarationList::check_constraints(std::shared_ptr<Semantic
             }
         }
         if (decl->type()->basic_type() == variable_basic_type::VOID) {
-            reporter->push_back(make_shared<SemanticErrorIncompatibleTypes>(
+            reporter->push_back(make_shared<SemanticErrorInvalidFunctionParameter>(
                         "'void' must be the first and only parameter if specified",
                         decl->start_pos(), decl->end_pos(), this->context()->posinfo()));
         }

@@ -53,7 +53,7 @@ string SemanticError::error_message() const
     ostringstream oss;
 
     oss << ANSI_MAP["bold"] << this->_pos_info->queryLine(this->_start_pos);
-    oss << ": " << ANSI_MAP[error2color[this->error_level()]] << this->error_level_text() << ": ";
+    oss << ": " << this->error_type() << " " << ANSI_MAP[error2color[this->error_level()]] << this->error_level_text() << ": ";
     oss << ANSI_MAP["reset"] << ANSI_MAP["bold"] <<  CError::what() << ANSI_MAP["reset"] << endl;
 
     auto linfo = this->_pos_info->query(this->_start_pos);

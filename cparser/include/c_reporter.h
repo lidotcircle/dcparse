@@ -53,6 +53,7 @@ public:
     SENTRY(DuplicateMember,            ERROR, "duplicate member") \
     SENTRY(IncompleteType,             ERROR, "incomplete type") \
     SENTRY(IncompatibleTypes,          ERROR, "incompatible types") \
+    SENTRY(InvalidFunctionParameter,   ERROR, "invalid function parameter") \
     SENTRY(DuplicateCaseLabel,         ERROR, "duplicate case label") \
     SENTRY(UndefinedLabel,             ERROR, "undefined label") \
     SENTRY(ContinueOutsideLoop,        ERROR, "continue statement outside loop") \

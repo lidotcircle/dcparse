@@ -323,8 +323,8 @@ void CTranslationUnitContext::function_begin(
     for (auto& param : *parameter_list)
     {
         auto id = param->id();
-        assert(id && param->type());
-        this->declare_variable(id->id, param->type());
+        if (id)
+            this->declare_variable(id->id, param->type());
     }
 
     this->m_function_fake_scope = true;

@@ -1085,9 +1085,6 @@ optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)
     const auto cstate = this->p_state_stack.back();
     auto nf = this->p_not_finished.value();
     auto ptoken = nf.first;
-    const auto& entry = *nf.second;
-    assert(entry.type() == PushdownEntry::STATE_TYPE_LOOKAHEAD);
-    auto& mapping = this->m_pds_mapping->val;
 
     if (this->h_debug_stream) {
         *this->h_debug_stream << "  handle_lookahead [ "
@@ -1096,12 +1093,8 @@ optional<dchar_t> DCParser::handle_lookahead(dctoken_t token)
                               << " ]" << endl;
     }
 
-    assert(mapping.size() > cstate);
-    const auto& lookup = mapping[cstate];
-    const auto charid = ptoken->charid();
-    if (lookup.find(charid) == lookup.end())
-        throw ParserUnknownToken("handle_lookahead(): unknown char: " + string(ptoken->charname()));
-
+    const auto& entry = *nf.second;
+    assert(entry.type() == PushdownEntry::STATE_TYPE_LOOKAHEAD);
     const auto& state_lookup = entry.lookup();
     if (state_lookup->find(token->charid()) == state_lookup->end())
         throw ParserUnknownToken("handle_lookahead(): unknown lookahead char: " + string(token->charname()));

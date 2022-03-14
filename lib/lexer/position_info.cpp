@@ -28,6 +28,10 @@ string TokenPositionInfo::queryLine(size_t p1, size_t p2) const
 vector<LineRange> TokenPositionInfo::lines(size_t beg_pos, size_t end_pos) const
 {
     assert(beg_pos <= end_pos);
+    if (beg_pos == end_pos)
+        return {};
+    end_pos--;
+
     auto binfo = this->query(beg_pos);
     auto einfo = this->query(end_pos);
     vector<LineRange> ret;
@@ -36,7 +40,7 @@ vector<LineRange> TokenPositionInfo::lines(size_t beg_pos, size_t end_pos) const
         auto l = this->query_line(bl);
         size_t b = 0, e = l.size();
         if (bl == binfo.line)
-            b = binfo.column;
+            b = binfo.column - 1;
         if (bl == einfo.line)
             e = einfo.column;
 

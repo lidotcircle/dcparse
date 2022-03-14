@@ -85,44 +85,18 @@ struct NonTermBasic: public NonTerminal {
     inline NonTermBasic(std::shared_ptr<cparser::ASTNode> node): astnode(node) {}
 };
 
-#define MAX_AB(a, b) ((a) > (b) ? (a) : (b))
-#define MIN_AB(a, b) ((a) < (b) ? (a) : (b))
-static pair<size_t,size_t> get_position_range(const vector<shared_ptr<DChar>>& chars)
+void cparser::ASTNode::contain_(shared_ptr<DChar> char_)
 {
-    pair<size_t,size_t> pos = {0, 0};
-    for (auto& c: chars) {
-        if (c == nullptr) continue;
-        auto c1 = dynamic_pointer_cast<NonTermBasic>(c);
-        if (c1) {
-            assert(c1->astnode);
-            if (c1->astnode->start_pos() == 0 && c1->astnode->end_pos() == 0) continue;
-            pos.first = MIN_AB(pos.first, c1->astnode->start_pos());
-            pos.second = MAX_AB(pos.second, c1->astnode->end_pos());
-            continue;
-        }
-        auto c2 = dynamic_pointer_cast<LexerToken>(c);
-        if (c2) {
-            if (c2->position() == 0 && c2->length() == 0) continue;
-            pos.first = MIN_AB(pos.first, c2->position());
-            pos.second = MAX_AB(pos.second, c2->position() + c2->length());
-        }
-    }
+    if (!char_) return;
 
-    return pos;
+    auto c1 = dynamic_pointer_cast<LexerToken>(char_);
+    if (c1) this->contain_(c1->position(), c1->position() + c1->length());
+
+    auto c2 = dynamic_pointer_cast<ASTNode>(char_);
+    if (c2) this->contain_(c2->start_pos(), c2->end_pos());
 }
-static shared_ptr<cparser::ASTNode> 
-set_astnode_position_info(shared_ptr<cparser::ASTNode> node, pair<size_t,size_t> pos)
-{
-    node->start_pos() = pos.first;
-    node->end_pos() = pos.second;
-    return node;
-}
-static void astnode_belong_to(shared_ptr<cparser::ASTNode> node, const vector<shared_ptr<DChar>>& chars)
-{
-    auto pos = get_position_range(chars);
-    node = set_astnode_position_info(node, pos);
-}
-#define makeNT(NT, node) make_shared<NonTerm##NT>(set_astnode_position_info(node, get_position_range(ts)))
+
+#define makeNT(NT, node) make_shared<NonTerm##NT>((node->contain(ts), node))
 
 #define TENTRY(n) \
     struct NonTerm##n: public NonTermBasic { \
@@ -346,7 +320,7 @@ void CParser::expression_rules()
             get_ast(func, POSTFIX_EXPRESSION, ASTNodeExpr, 0);
             auto args = dynamic_pointer_cast<NonTermARGUMENT_EXPRESSION_LIST>(ts[2]);
             auto argsast = make_shared<ASTNodeArgList>(c);
-            astnode_belong_to(argsast, { ts[1], ts[3] });
+            argsast->contain(ts[1], ts[3]);
             if (args) {
                 auto ax = dynamic_pointer_cast<ASTNodeArgList>(args->astnode);
                 assert(ax);
@@ -1230,7 +1204,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
-            astnode_belong_to(array, { ts[1], ts[4] });
+            array->contain(ts[1], ts[4]);
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1249,7 +1223,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 3);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
-            astnode_belong_to(array, { ts[1], ts[5] });
+            array->contain(ts[1], ts[5]);
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1268,7 +1242,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
-            astnode_belong_to(array, {ts[1], ts[5]});
+            array->contain(ts[1], ts[5]);
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1286,7 +1260,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
-            astnode_belong_to(array, { ts[1], ts[5] });
+            array->contain(ts[1], ts[5]);
             array->unspecified_size_vla() = true;
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
@@ -1305,7 +1279,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast(pl, PARAMETER_TYPE_LIST, ASTNodeParameterDeclarationList, 2);
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
-            astnode_belong_to(func, { ts[0], ts[3] });
+            func->contain(ts[0], ts[3]);
             ddast->set_leaf_type(func);
 
             return makeNT(DIRECT_DECLARATOR, ddast);
@@ -1317,11 +1291,11 @@ static size_t anonymous_enum_count = 0;
             assert(ts.size() == 4);
             get_ast(dd, DIRECT_DECLARATOR, ASTNodeInitDeclarator, 0);
             auto plast = make_shared<ASTNodeParameterDeclarationList>(c);
-            astnode_belong_to(plast, { ts[1], ts[3] });
+            plast->contain(ts[1], ts[3]);
             get_ast_if_presents(xpl, IDENTIFIER_LIST, ASTNodeParameterDeclarationList, 2);
             if (xplast) plast = xplast;
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
-            astnode_belong_to(func, { ts[0], ts[3] });
+            func->contain(ts[0], ts[3]);
             ddast->set_leaf_type(func);
 
             return makeNT(DIRECT_DECLARATOR, ddast);
@@ -1447,7 +1421,7 @@ static size_t anonymous_enum_count = 0;
             auto id = dynamic_pointer_cast<TokenID>(ts[2]);
             assert(id);
             auto nid = make_shared<ASTNodeParameterDeclaration>(c, id, nullptr);
-            astnode_belong_to(nid, { ts[0] });
+            nid->contain(ts[0]);
             ilast->push_back(nid);
             return makeNT(IDENTIFIER_LIST, ilast);
         });
@@ -1505,7 +1479,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast_if_presents(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 3);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, false);
-            astnode_belong_to(array, { ts[1], ts[4] });
+            array->contain(ts[1], ts[4]);
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1526,7 +1500,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 3);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
-            astnode_belong_to(array, { ts[1], ts[5] });
+            array->contain(ts[1], ts[5]);
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1547,7 +1521,7 @@ static size_t anonymous_enum_count = 0;
             get_ast(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             get_ast(size, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 4);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, sizeast, true);
-            astnode_belong_to(array, { ts[1], ts[5] });
+            array->contain(ts[1], ts[5]);
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
                 array->restrict_ref() = qlast->restrict_ref();
@@ -1567,7 +1541,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(dd, DIRECT_ABSTRACT_DECLARATOR, ASTNodeInitDeclarator, 0);
             get_ast_if_presents(ql, TYPE_QUALIFIER_LIST, ASTNodeVariableType, 2);
             auto array = make_shared<ASTNodeVariableTypeArray>(c, nullptr, nullptr, false);
-            astnode_belong_to(array, { ts[1], ts[5] });
+            array->contain(ts[1], ts[5]);
             array->unspecified_size_vla() = true;
             if (qlast) {
                 array->const_ref() = qlast->const_ref();
@@ -1590,11 +1564,11 @@ static size_t anonymous_enum_count = 0;
 
             if (!plast) {
                 plast = make_shared<ASTNodeParameterDeclarationList>(c);
-                astnode_belong_to(plast, { ts[1], ts[3] });
+                plast->contain(ts[1], ts[3]);
             }
 
             auto func = make_shared<ASTNodeVariableTypeFunction>(c, plast, nullptr);
-            astnode_belong_to(func, { ts[0], ts[3] });
+            func->contain(ts[0], ts[3]);
             ddast->set_leaf_type(func);
 
             return makeNT(DIRECT_ABSTRACT_DECLARATOR, ddast);
@@ -1617,7 +1591,7 @@ static size_t anonymous_enum_count = 0;
             get_ast_if_presents(il, INITIALIZER_LIST, ASTNodeInitializerList, 1);
             if (!ilast) {
                 ilast = make_shared<ASTNodeInitializerList>(c);
-                astnode_belong_to(ilast, { ts[0], ts[3] });
+                ilast->contain(ts[0], ts[3]);
             }
             return makeNT(INITIALIZER, make_shared<ASTNodeInitializer>(c, ilast));
         });
@@ -1758,7 +1732,7 @@ void CParser::statement_rules()
             assert(ts.size() == 3);
 
             auto list = make_shared<ASTNodeBlockItemList>(c);
-            astnode_belong_to(list, { ts[0], ts[2] });
+            list->contain(ts[0], ts[2]);
             get_ast_if_presents(bl, BLOCK_ITEM_LIST, ASTNodeBlockItemList, 1);
             if (blast) list = blast;
 
@@ -1772,7 +1746,7 @@ void CParser::statement_rules()
             assert(ts.size() == 2);
 
             auto list = make_shared<ASTNodeBlockItemList>(c);
-            astnode_belong_to(list, { ts[1] });
+            list->contain(ts[1]);
             get_ast_if_presents(bl, BLOCK_ITEM_LIST, ASTNodeBlockItemList, 0);
             if (blast) list = blast;
             get_ast(bi, BLOCK_ITEM, ASTNodeBlockItem, 1);
@@ -1976,7 +1950,7 @@ void CParser::external_definitions()
             get_ast(spec, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
             get_ast(decl, DECLARATOR, ASTNodeInitDeclarator, 1);
             declast->set_leaf_type(specast);
-            astnode_belong_to(declast, { ts[0], ts[2] });
+            declast->contain(ts[0], ts[2]);
 
             auto funcid = declast->id();
             assert(funcid);

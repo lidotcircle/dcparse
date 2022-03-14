@@ -9,13 +9,13 @@ using variable_basic_type = cparser::ASTNodeVariableType::variable_basic_type;
 namespace cparser {
 
 
-void ASTNode::contain_(const ASTNode* other) {
+void ASTNode::contain_(size_t begin, size_t end) {
     if (this->m_start_pos == this->m_end_pos && this->m_start_pos == 0) {
-        this->m_start_pos = other->m_start_pos;
-        this->m_end_pos = other->m_end_pos;
+        this->m_start_pos = begin;
+        this->m_end_pos = end;
     } else {
-        this->m_start_pos = MIN_AB(this->m_start_pos, other->m_start_pos);
-        this->m_end_pos = MAX_AB(this->m_end_pos, other->m_end_pos);
+        this->m_start_pos = MIN_AB(this->m_start_pos, begin);
+        this->m_end_pos = MAX_AB(this->m_end_pos, end);
     }
 }
 

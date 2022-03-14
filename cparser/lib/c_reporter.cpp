@@ -62,8 +62,9 @@ string SemanticError::error_message() const
     for (auto& l: lines) {
         oss << ANSI_MAP["white"] << std::setw(5) << std::setfill(' ') << ln << " | ";
         oss << ANSI_MAP["bold"] << l.line.substr(0, l.beg);
-        oss << ANSI_MAP[error2color[this->error_level()]] << l.line.substr(l.beg, l.end) << ANSI_MAP["reset"];
+        oss << ANSI_MAP[error2color[this->error_level()]] << l.line.substr(l.beg, l.end - l.beg) << ANSI_MAP["reset"];
         oss << ANSI_MAP["bold"] << l.line.substr(l.end) << ANSI_MAP["reset"] << endl;
+        ln++;
     }
 
     return oss.str();

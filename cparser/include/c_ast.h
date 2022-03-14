@@ -23,7 +23,10 @@ private:
     size_t m_start_pos, m_end_pos;
     bool m_checked;
     inline void contain_(const std::shared_ptr<ASTNode> other) { this->contain_(other.get()); }
-    void contain_(const ASTNode* other);
+    inline void contain_(const ASTNode* other) { this->contain_(other->m_start_pos, other->m_end_pos); }
+    void contain_(size_t begin, size_t end);
+    void contain_(std::shared_ptr<DChar> other);
+    inline void contain_(const std::vector<std::shared_ptr<DChar>>& other) { for (auto& node : other) this->contain_(node); }
 
 public:
     size_t& start_pos() { return m_start_pos; }

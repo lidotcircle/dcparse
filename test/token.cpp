@@ -1,16 +1,15 @@
 #include <gtest/gtest.h>
 #include "lexer/token.h"
 using namespace std;
-using TokenInfo = LexerToken::TokenInfo;
 
 class T1 : public LexerToken {
 public:
-    T1(): LexerToken(TokenInfo(0, 0, 0 , 0, "")) {}
+    T1(): LexerToken() {}
     ~T1() = default;
 };
 class T2 : public LexerToken {
 public:
-    T2(): LexerToken(TokenInfo(0, 0, 0 , 0, "")) {}
+    T2(): LexerToken() {}
     ~T2() = default;
 };
 

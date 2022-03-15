@@ -2,7 +2,7 @@
 #define _C_PARSER_PARSER_H_
 
 #include "parser/parser.h"
-#include "lexer/position_info.h"
+#include "lexer/text_info.h"
 #include "./c_ast.h"
 #include "./c_logger.h"
 #include <set>
@@ -21,13 +21,13 @@ private:
     // DCParser* can not be dynamic_casted to CParser*.
     // This member is used to store the pointer of CParser.
     CParser *m_cparser;
-    std::shared_ptr<TokenPositionInfo> m_posinfo;
+    std::shared_ptr<TextInfo> m_textinfo;
     std::shared_ptr<CTranslationUnitContext> m_tu_context;
 
 public:
     CParserContext(CParser *cparser);
 
-    inline std::shared_ptr<TokenPositionInfo>& posinfo() { return this->m_posinfo; }
+    inline std::shared_ptr<TextInfo>& textinfo() { return this->m_textinfo; }
     inline CParser* cparser() { return this->m_cparser; }
     inline const CParser* cparser() const { return this->m_cparser; }
     inline std::shared_ptr<CTranslationUnitContext> tu_context() { return this->m_tu_context; }
@@ -78,6 +78,7 @@ public:
     using DCParser::prev_possible_token_of;
     using DCParser::next_possible_token_of;
     using DCParser::query_charinfo;
+    using DCParser::SetTextinfo;
 };
 
 }

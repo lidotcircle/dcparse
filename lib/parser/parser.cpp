@@ -16,9 +16,7 @@ using reduce_callback_t = DCParser::reduce_callback_t;
 using decision_t = DCParser::decision_t;
 using priority_t = DCParser::priority_t;
 
-struct EOFChar: public LexerToken {
-    EOFChar(): LexerToken(TokenInfo()) {}
-};
+struct EOFChar: public LexerToken {};
 charid_t GetEOFChar() { return CharID<EOFChar>(); }
 
 struct RealStartSymbol: public NonTerminal {
@@ -519,6 +517,11 @@ void DCParser::setDebugStream(ostream& os)
 {
     this->h_debug_stream = &os;
     this->help_print_unseen_rules_into_debug_stream();
+}
+
+void DCParser::SetTextinfo(shared_ptr<TextInfo> textinfo)
+{
+    this->h_textinfo = textinfo;
 }
 
 void DCParser::add_rule(
@@ -1202,11 +1205,9 @@ void DCParser::feed_internal(dchar_t char_)
         {
             string posinfo;
             auto pt = dynamic_pointer_cast<LexerToken>(char_);
-            if (pt) {
-                posinfo += "pos: " + to_string(pt->position());
-                posinfo += ", line:column = " + to_string(pt->line_number());
-                posinfo += ":" + to_string(pt->column_number());
-            }
+            if (pt && this->h_textinfo)
+                posinfo = this->h_textinfo->row_col_str(*pt);
+
             throw ParserSyntaxError(this->help_when_reject_at(cstate, char_->charid()) + posinfo);
             break;
         }

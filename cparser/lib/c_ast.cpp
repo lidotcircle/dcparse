@@ -9,16 +9,6 @@ using variable_basic_type = cparser::ASTNodeVariableType::variable_basic_type;
 namespace cparser {
 
 
-void ASTNode::contain_(size_t begin, size_t end) {
-    if (this->m_start_pos == this->m_end_pos && this->m_start_pos == 0) {
-        this->m_start_pos = begin;
-        this->m_end_pos = end;
-    } else {
-        this->m_start_pos = MIN_AB(this->m_start_pos, begin);
-        this->m_end_pos = MAX_AB(this->m_end_pos, end);
-    }
-}
-
 shared_ptr<CParserContext> ASTNode::context() const
 {
     auto c1 = this->m_parser_context.lock();;
@@ -31,8 +21,13 @@ shared_ptr<CParserContext> ASTNode::context() const
 string ASTNode::to_string() const
 {
     auto ctx = this->context();
-    auto pi = ctx->posinfo();
-    return pi->query_string(this->m_start_pos, this->m_end_pos);
+    auto pi = ctx->textinfo();
+    size_t beg = 0, end = 0;
+    if (this->range()) {
+        beg = this->beg().value();
+        end = this->end().value();
+    }
+    return pi->query_string(beg, end);
 }
 
 void ASTNodeInitDeclarator::set_leaf_type(std::shared_ptr<ASTNodeVariableType> type)

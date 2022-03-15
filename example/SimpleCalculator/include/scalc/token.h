@@ -10,14 +10,14 @@
 struct TokenID: public LexerToken {
     std::string id;
 
-    inline TokenID(std::string id, LexerToken::TokenInfo info):
+    inline TokenID(std::string id, TextRange info):
         id(id), LexerToken(info) {}
 };
 
 struct TokenNUMBER: public LexerToken {
     double num;
 
-    inline TokenNUMBER(double val, LexerToken::TokenInfo info):
+    inline TokenNUMBER(double val, TextRange info):
         num(val), LexerToken(info) {}
 };
 
@@ -57,7 +57,7 @@ struct TokenNUMBER: public LexerToken {
 
 #define TENTRY(n) \
     struct Token##n: public LexerToken { \
-        inline Token##n(LexerToken::TokenInfo info): \
+        inline Token##n(TextRange info): \
             LexerToken(info) {} \
     };
 NTOKENS

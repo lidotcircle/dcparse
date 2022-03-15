@@ -10,13 +10,13 @@ using namespace std;
 using ParserChar = DCParser::ParserChar;
 
 struct TokenSSV: public LexerToken {
-    TokenSSV(LexerToken::TokenInfo info): LexerToken(info) {}
+    TokenSSV(TextRange info): LexerToken(info) {}
     virtual string str() = 0;
 };
 
 struct TokenID: public TokenSSV {
     string id;
-    TokenID(string id): TokenSSV(LexerToken::TokenInfo()), id(id) {}
+    TokenID(string id): TokenSSV(TextRange()), id(id) {}
     virtual string str() override { return id; }
 };
 
@@ -56,9 +56,9 @@ struct TokenID: public TokenSSV {
 
 #define TENTRY(n, s) \
     struct Token##n: public TokenSSV { \
-        Token##n(LexerToken::TokenInfo info): \
+        Token##n(TextRange info): \
             TokenSSV(info) {} \
-        Token##n(): TokenSSV(TokenInfo()) {} \
+        Token##n(): TokenSSV(TextRange()) {} \
         virtual string str() override { return s; } \
     };
 NTOKENS

@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <algorithm>
 #include <functional>
-#include "position_info.h"
+#include "text_info.h"
 #include "lexer_rule.hpp"
 #include "lexer_error.h"
 #include "regex/regex_char.hpp"
@@ -21,17 +21,17 @@ public:
     using encoder_t = std::function<std::string(CharType)>;
 
 private:
-    class KLexerPositionInfo: public TokenPositionInfo
+    class KLexerPositionInfo: public TextInfo
     {
     private:
         std::string _buffer;
         std::string _filename;
         std::vector<size_t> _linfo;
-        using PInfo = TokenPositionInfo::PInfo;
+        using PInfo = TextInfo::PInfo;
 
     public:
         KLexerPositionInfo(std::string fn): _filename(fn) , _linfo({ 0 }) {}
-        void push_str(const std::string& str) { _buffer += str; }
+        size_t push_str(const std::string& str) { _buffer += str; return this->len(); }
         void newline() { this->_linfo.push_back(this->_buffer.size()); }
 
         virtual const std::string& filename() const override { return _filename; }
@@ -74,7 +74,7 @@ private:
             return this->_buffer.substr(from, to - from);
         }
     };
-    std::shared_ptr<KLexerPositionInfo> m_posinfo;
+    std::shared_ptr<KLexerPositionInfo> m_textinfo;
     encoder_t m_encoder;
 
     static constexpr auto npos = std::string::npos;
@@ -86,10 +86,9 @@ private:
         RuleInfo(std::unique_ptr<LexerRule<CharType>> rule)
             : rule(std::move(rule)), feed_len(0), match_len(0) {}
 
-        void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
-                   std::optional<std::shared_ptr<LexerToken>> last)
+        void reset(size_t pos, std::optional<std::shared_ptr<LexerToken>> last)
         {
-            this->rule->reset(ln, cn, pos, fn, last);
+            this->rule->reset(pos, last);
             this->match_len = 0;
             this->feed_len = 0;
         }
@@ -100,14 +99,13 @@ private:
 
     struct CharInfo {
         CharType char_val;
-        size_t line_num, col_num, pos;
+        size_t pos, len_in_bytes;
 
-        CharInfo(CharType c, size_t ln, size_t cn, size_t pos)
-            : char_val(c),
-              line_num(ln), col_num(cn), pos(pos) {}
+        CharInfo(CharType c, size_t pos, size_t len)
+            : char_val(c), pos(pos), len_in_bytes(len) {}
     };
     std::vector<CharInfo> m_cache;
-    size_t line_num, col_num, pos;
+    size_t m_pos;
     std::string m_filename;
 
     std::vector<CharType> getcachestr(size_t len)
@@ -141,8 +139,10 @@ private:
                 if (val != nullptr)
                     tokens.push_back(val);
 
-                const auto& lp = *(this->m_cache.begin() + (len - 1));
-                this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename, val);
+                size_t reset_pos = this->m_pos;
+                if (this->m_cache.size() > len)
+                    reset_pos = this->m_cache[len].pos;
+                this->reset_rules(reset_pos, val);
                 this->m_cache.erase(this->m_cache.begin(),
                                     this->m_cache.begin() + len);
                 cache_pos = 0;
@@ -179,7 +179,7 @@ private:
                     }
 
                     ri.feed_len++;
-                    r.feed(c.char_val);
+                    r.feed(c.char_val, c.len_in_bytes);
                     if (r.dead()) {
                         if (ri.match_len > 0)
                             finished_rules.push_back(std::make_tuple(ri.match_len, j, k));
@@ -211,9 +211,7 @@ private:
         if (prevs_is_dead)
         {
             assert(!this->m_match_major_priority.has_value());
-            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " +
-                                     std::to_string(c.line_num) + ":" +
-                                     std::to_string(c.col_num));
+            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " + this->m_textinfo->row_col_str(this->m_pos));
         }
 
         return std::make_pair(std::nullopt, 0);
@@ -294,8 +292,7 @@ private:
     }
 
     std::optional<std::shared_ptr<LexerToken>> m_notnull_last_token;
-    void reset_rules(size_t ln, size_t cl, size_t pos, const std::string& fn,
-                     std::optional<std::shared_ptr<LexerToken>> last)
+    void reset_rules(size_t pos, std::optional<std::shared_ptr<LexerToken>> last)
     {
         if (last.has_value() && last.value() != nullptr)
             this->m_notnull_last_token = last;
@@ -303,7 +300,7 @@ private:
         for (auto& r1: this->m_rules) {
             for (auto& r2: r1) {
                 for (auto& ri: r2) {
-                    ri.reset(ln, cl, pos, fn, this->m_notnull_last_token);
+                    ri.reset(pos, this->m_notnull_last_token);
                 }
             }
         }
@@ -318,16 +315,10 @@ private:
         } else {
             str.push_back((char)c);
         }
-        pos += str.size();
-        this->m_posinfo->push_str(str);
+        this->m_pos = this->m_textinfo->push_str(str);
 
-        if (c == traits::NEWLINE) {
-            line_num++;
-            col_num = 1;
-            this->m_posinfo->newline();
-        } else {
-            col_num += str.size();
-        }
+        if (c == traits::NEWLINE)
+            this->m_textinfo->newline();
     }
 
     void setup_rules_set()
@@ -360,11 +351,9 @@ public:
         this->m_filename = fn;
         this->m_cache.clear();
         this->m_match_major_priority = std::nullopt;
-        this->line_num = 1;
-        this->col_num = 0;
-        this->pos = 0;
-        this->reset_rules(1, 0, 0, fn, std::nullopt);
-        this->m_posinfo = std::make_shared<KLexerPositionInfo>(this->m_filename);
+        this->m_pos = 0;
+        this->reset_rules(0, std::nullopt);
+        this->m_textinfo = std::make_shared<KLexerPositionInfo>(this->m_filename);
     }
 
     void reset()
@@ -401,8 +390,13 @@ public:
 
     std::vector<std::shared_ptr<LexerToken>> feed_char(CharType c)
     {
+        if (this->m_pos == 0)
+            this->reset_rules(0, std::nullopt);
+
+        const auto old_pos = this->m_pos;
         this->update_position_info(c);
-        this->m_cache.push_back(CharInfo(c, this->line_num, this->col_num, this->pos));
+        assert(this->m_pos > old_pos);
+        this->m_cache.push_back(CharInfo(c, old_pos, this->m_pos - old_pos));
         return this->push_cache_to_end(this->m_cache.size());
     }
 
@@ -440,8 +434,10 @@ public:
                 if (val != nullptr)
                     tokens.push_back(val);
 
-                auto& lp = *(this->m_cache.begin() + (len - 1));
-                this->reset_rules(lp.line_num, lp.col_num, lp.pos, this->m_filename, val);
+                size_t reset_pos = this->m_pos;
+                if (this->m_cache.size() > len)
+                    reset_pos = this->m_cache[len].pos;
+                this->reset_rules(reset_pos, val);
                 this->m_cache.erase(this->m_cache.begin(),
                                     this->m_cache.begin() + len);
                 
@@ -456,7 +452,7 @@ public:
         return tokens;
     }
 
-    std::shared_ptr<TokenPositionInfo> position_info() const { return this->m_posinfo; }
+    std::shared_ptr<TextInfo> position_info() const { return this->m_textinfo; }
 };
 
 #endif // _LEXER_LEXER_HPP_

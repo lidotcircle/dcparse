@@ -15,7 +15,7 @@ TEST(rulesInit, CLexerBasic) {
 string tokens2str(vector<shared_ptr<LexerToken>> tokens) {
     string result;
     for (auto token : tokens)
-        result += string(token->charname()) + "[" + to_string(token->position()) + "] ";
+        result += string(token->charname()) + "[" + to_string(token->beg().value()) + "] ";
     return result;
 }
 

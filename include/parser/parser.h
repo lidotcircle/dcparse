@@ -3,6 +3,7 @@
 
 #include "../lexer/token.h"
 #include "../lexer/simple_lexer.hpp"
+#include "../lexer/text_info.h"
 #include <ostream>
 #include <vector>
 #include <memory>
@@ -170,6 +171,7 @@ private:
     std::optional<state_t> m_start_state;
     std::vector<std::set<std::pair<ruleid_t,size_t>>> h_state2set;
     std::map<charid_t,DCharInfo> h_charinfo;
+    std::shared_ptr<TextInfo> h_textinfo;
     std::ostream* h_debug_stream;
     void      see_dchar(DCharInfo char_);
     DCharInfo get_dchar(charid_t id) const;
@@ -232,6 +234,7 @@ public:
     inline const context_t getContext() const { return this->m_context; }
 
     void setDebugStream(std::ostream& stream);
+    void SetTextinfo(std::shared_ptr<TextInfo> info);
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb,

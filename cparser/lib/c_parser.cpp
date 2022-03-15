@@ -90,10 +90,10 @@ void cparser::ASTNode::contain_(shared_ptr<DChar> char_)
     if (!char_) return;
 
     auto c1 = dynamic_pointer_cast<LexerToken>(char_);
-    if (c1) this->contain_(c1->position(), c1->position() + c1->length());
+    if (c1) this->contain_(*c1);
 
     auto c2 = dynamic_pointer_cast<ASTNode>(char_);
-    if (c2) this->contain_(c2->start_pos(), c2->end_pos());
+    if (c2) this->contain_(*c2);
 }
 
 #define makeNT(NT, node) make_shared<NonTerm##NT>((node->contain(ts), node))
@@ -183,11 +183,9 @@ using ParserChar = DCParser::ParserChar;
 static string position_info_of(shared_ptr<cparser::ASTNode> node, cparser::ASTNodeParserContext c)
 {
     using namespace cparser;
-    const auto s = node->start_pos();
-    const auto e = node->end_pos();
     get_ctx(ctx, c);
-    auto pinfo = ctx->posinfo();
-    return pinfo->queryLine(s, e) + " {" + pinfo->query_string(s, e) + "}";
+    auto pinfo = ctx->textinfo();
+    return pinfo->row_col_str(*node) + " {" + pinfo->query_string(*node) + "}";
 }
 
 namespace cparser {
@@ -665,7 +663,7 @@ void CParser::declaration_rules()
 
             static int anonymous_id = 0;
             if (init_decl_list_ast->empty()) {
-                auto  id = make_shared<TokenID>("#anonymous_" + to_string(anonymous_id++), LexerToken::TokenInfo());
+                auto  id = make_shared<TokenID>("#anonymous_" + to_string(anonymous_id++));
                 auto justfordecl = make_shared<ASTNodeInitDeclarator>(c, id, decl_specast, nullptr);
                 ast->push_back(justfordecl);
             }
@@ -704,11 +702,10 @@ void CParser::declaration_rules()
                 get_ast(ds, DECLARATION_SPECIFIERS, ASTNodeVariableType, 0);
                 if (dsast->storage_class() != storage_class_t::SC_Default) {
                     get_ctx(ctx, c);
-                    auto p = ctx->posinfo();
-                    const auto s = dsast->start_pos(), e = dsast->end_pos();
+                    auto p = ctx->textinfo();
                     ctx->warn(
                             "redefinition of storage class, using first one at [%s]:%s", 
-                            p->queryLine(s, e).c_str(), p->query_string(s, e).c_str());
+                            p->row_col_str(*dsast).c_str(), p->query_string(*dsast).c_str());
                 }
                 dsast->storage_class() = sspecast->storage_class();
                 std::swap(sspecast, dsast);
@@ -895,8 +892,7 @@ static int anonymous_struct_union_counter = 0;
                 assert(id);
             } else {
                 id = make_shared<TokenID>(
-                        "#anonymous_struct_union_" + std::to_string(++anonymous_struct_union_counter),
-                        LexerToken::TokenInfo());
+                        "#anonymous_struct_union_" + to_string(++anonymous_struct_union_counter));
             }
             get_ast_if_presents(dc, STRUCT_DECLARATION_LIST, ASTNodeStructUnionDeclarationList, 3);
             if (!dcast)
@@ -1070,8 +1066,7 @@ static size_t anonymous_enum_count = 0;
                 assert(id);
             } else {
                 id = make_shared<TokenID>(
-                        "anonymous_enum_" + std::to_string(++anonymous_enum_count),
-                        LexerToken::TokenInfo());
+                        "anonymous_enum_" + to_string(++anonymous_enum_count));
             }
 
             auto ast = make_shared<ASTNodeVariableTypeEnum>(c, id);

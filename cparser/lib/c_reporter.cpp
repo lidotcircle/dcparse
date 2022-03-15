@@ -13,14 +13,11 @@ SemanticReporter::SemanticReporter() {}
 
 SemanticError::SemanticError(
         const string& what,
-        size_t spos, size_t epos,
-        shared_ptr<TokenPositionInfo> posinfo): 
-    CError(what), _start_pos(spos), _end_pos(epos), _pos_info(posinfo)
+        const TextRangeEntity& range,
+        shared_ptr<TextInfo> textinfo): 
+    CError(what), TextRangeEntity(range), _pos_info(textinfo)
 {
 }
-
-size_t SemanticError::start_pos() const { return this->_start_pos; }
-size_t SemanticError::end_pos()   const { return this->_end_pos; }
 
 static map<string,string> ANSI_MAP = {
     {"black",     "\033[30m"},
@@ -52,12 +49,18 @@ string SemanticError::error_message() const
 {
     ostringstream oss;
 
-    oss << ANSI_MAP["bold"] << this->_pos_info->queryLine(this->_start_pos);
+    size_t beg = 0, end = 0;
+    if (this->range().has_value()) {
+        beg = this->beg().value();
+        end = this->end().value();
+    }
+
+    oss << ANSI_MAP["bold"] << this->_pos_info->row_col_str(beg);
     oss << ": " << this->error_type() << " " << ANSI_MAP[error2color[this->error_level()]] << this->error_level_text() << ": ";
     oss << ANSI_MAP["reset"] << ANSI_MAP["bold"] <<  CError::what() << ANSI_MAP["reset"] << endl;
 
-    auto linfo = this->_pos_info->query(this->_start_pos);
-    auto lines = this->_pos_info->lines(this->_start_pos, this->_end_pos);
+    auto linfo = this->_pos_info->query(beg);
+    auto lines = this->_pos_info->lines(beg, end);
     size_t ln = linfo.line;
     for (auto& l: lines) {
         oss << ANSI_MAP["white"] << std::setw(5) << std::setfill(' ') << ln << " | ";
@@ -78,9 +81,9 @@ const char* SemanticError::what() const noexcept
 }
 
 #define SENTRY(name, level, type) \
-    SemanticError##name::SemanticError##name(const string& what, size_t start_pos, size_t end_pos, \
-                                             shared_ptr<TokenPositionInfo> posinfo): \
-        SemanticError(what, start_pos, end_pos, posinfo) {} \
+    SemanticError##name::SemanticError##name(const string& what, const TextRangeEntity& range, \
+                                             shared_ptr<TextInfo> textinfo): \
+        SemanticError(what, range, textinfo) {} \
     string SemanticError##name::error_type() const { return type; } \
     ErrorLevel  SemanticError##name::error_level() const { return ErrorLevel::level; } \
     const char* SemanticError##name::error_level_text() const { return #level; }

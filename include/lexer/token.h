@@ -3,6 +3,8 @@
 
 #include <string>
 #include <type_traits>
+#include <optional>
+#include "./text_info.h"
 
 class DChar {
 public:
@@ -25,31 +27,11 @@ DCharInfo CharInfo() {
 template<typename T, typename = std::enable_if_t<std::is_base_of<DChar,T>::value>>
 size_t CharID() { return CharInfo<T>().id; }
 
-class LexerToken : public DChar {
+using TextRange = TextRangeEntity::TextRange;
+class LexerToken : public DChar, public TextRangeEntity {
 public:
-    struct TokenInfo {
-        size_t      line_num;
-        size_t      column_num;
-        size_t      pos;
-        size_t      len;
-        std::string filename;
-
-        TokenInfo() = default;
-        inline TokenInfo(size_t line_num, size_t column_num, size_t pos, size_t len, std::string filename)
-            : line_num(line_num), column_num(column_num), pos(pos), len(len), filename(std::move(filename)) {}
-    };
-
-private:
-    TokenInfo m_info;
-
-public:
-    LexerToken(TokenInfo info);
-
-    virtual size_t line_number() const;
-    virtual size_t column_number() const;
-    virtual size_t position() const;
-    virtual size_t length() const;
-    virtual const std::string& filename() const;
+    LexerToken();
+    LexerToken(TextRange info);
 
     virtual ~LexerToken() = default;
 };

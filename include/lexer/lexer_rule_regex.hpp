@@ -12,13 +12,13 @@ template<typename T>
 class LexerRuleRegex: public LexerRule<T> {
 public:
     using CharType = T;
-    using TokenInfo = LexerToken::TokenInfo;
     using DeterType = std::function<bool(std::optional<std::shared_ptr<LexerToken>>)>;
 
 private:
     using string_t = std::vector<CharType>;
-    using token_factory_t = std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TokenInfo)>;
-    TokenInfo m_info;
+    using token_factory_t = std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TextRange)>;
+    bool m_resetted;
+    TextRange m_range;
     string_t m_string;
     SimpleRegExp<CharType> m_regex;
     token_factory_t m_token_factory;
@@ -43,7 +43,7 @@ public:
             Iterator begin, Iterator end, token_factory_t factory,
             bool compile = true, bool first_match = false,
             DeterType deter = nullptr): 
-        m_regex(begin, end), m_token_factory(factory), m_deter(deter)
+        m_resetted(false), m_regex(begin, end), m_token_factory(factory), m_deter(deter)
     {
         this->apply_options(compile, first_match);
     }
@@ -68,15 +68,17 @@ public:
         this->apply_options(compile, first_match);
     }
 
-    virtual void feed(CharType c) override {
+    virtual void feed(CharType c, size_t length_in_bytes) override {
         if (this->_opt_first_match && this->m_regex.match()) {
             this->match_dead = true;
             return;
         }
 
         this->m_regex.feed(c);
-        if (!this->dead())
+        if (!this->dead()) {
             this->m_string.push_back(c);
+            this->m_range.second += length_in_bytes;
+        }
     }
     virtual bool dead() override {
         return this->match_dead || this->m_regex.dead();
@@ -85,13 +87,11 @@ public:
         return !this->match_dead && this->m_regex.match();
     };
 
-    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
-                       std::optional<std::shared_ptr<LexerToken>> last) override
+    virtual void reset(size_t pos, std::optional<std::shared_ptr<LexerToken>> last) override
     {
-        this->m_info.line_num = ln;
-        this->m_info.column_num = cn;
-        this->m_info.pos = pos;
-        this->m_info.filename = fn;
+        this->m_resetted = true;
+        this->m_range.first = pos;
+        this->m_range.second = pos;
         this->m_regex.reset();
         this->m_string.clear();
         this->match_dead = false;
@@ -101,8 +101,8 @@ public:
     }
 
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) override {
-        this->m_info.len = m_string.size();
-        return this->m_token_factory(this->m_string, this->m_info);
+        assert(this->m_resetted);
+        return this->m_token_factory(this->m_string, this->m_range);
     }
 };
 

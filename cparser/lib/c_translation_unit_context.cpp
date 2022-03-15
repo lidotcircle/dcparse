@@ -5,6 +5,8 @@
 using namespace std;
 using namespace cparser;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
+#define REPORT(error, range, msg) \
+    m_reporter->push_back(make_shared<SemanticError##error>(msg, range, this->pcontext()->textinfo()))
 
 
 CTranslationUnitContext::Scope::Scope(shared_ptr<SemanticReporter> reporter, weak_ptr<CParserContext> pctx):
@@ -53,9 +55,7 @@ optional<pair<size_t,shared_ptr<ASTNodeStructUnionDeclarationList>>> CTranslatio
 void CTranslationUnitContext::Scope::declare_variable(const string& varname, shared_ptr<ASTNodeVariableType> type)
 {
     if (this->m_typedefs.find(varname) != this->m_typedefs.end()) {
-        m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                    "redefinition of typedef '" + varname + "' as different kind of symbol",
-                    type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
+        REPORT(Redefinition, *type, "redefinition of typedef '" + varname + "' as different kind of symbol");
         return;
     }
 
@@ -64,9 +64,7 @@ void CTranslationUnitContext::Scope::declare_variable(const string& varname, sha
         assert(old_decl);
 
         if (!old_decl->compatible_with(type)) {
-            this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                        "incompatible redefinition of variable '" + varname + "'",
-                        type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
+            this->REPORT(Redefinition, *type, "incompatible redefinition of variable '" + varname + "'");
             return;
         }
     }
@@ -76,9 +74,7 @@ void CTranslationUnitContext::Scope::declare_variable(const string& varname, sha
 void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name, shared_ptr<ASTNodeVariableType> type)
 {
     if (this->m_decls.find(typedef_name) != this->m_decls.end()) {
-        m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                    "redefinition of variable '" + typedef_name + "' as different kind of symbol",
-                    type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
+        REPORT(Redefinition, *type, "redefinition of variable '" + typedef_name + "' as different kind of symbol");
         return;
     }
 
@@ -88,9 +84,7 @@ void CTranslationUnitContext::Scope::declare_typedef(const string& typedef_name,
 
         // TODO
         if (!old_decl->equal_to(type)) {
-            this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                        "typedef '" + typedef_name + "' with different type",
-                        type->start_pos(), type->end_pos(), this->pcontext()->posinfo()));
+            REPORT(Redefinition, *type, "typedef '" + typedef_name + "' with different type");
             return;
         }
     }
@@ -126,9 +120,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
     if (this->m_enums.find(enum_name) != this->m_enums.end() &&
         this->m_enums.at(enum_name).second)
     {
-        this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                    "redefinition of enum '" + enum_name + "'",
-                    enum_node->start_pos(), enum_node->end_pos(), this->pcontext()->posinfo()));
+        REPORT(Redefinition, *enum_node, "redefinition of enum '" + enum_name + "'");
         return;
     }
 
@@ -140,7 +132,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
     }
     this->m_enums[enum_name] = make_pair(type_id, enum_node);
 
-    auto enum_id = make_shared<TokenID>(enum_name, LexerToken::TokenInfo());
+    auto enum_id = make_shared<TokenID>(enum_name);
     auto enum_type = make_shared<ASTNodeVariableTypeEnum>(this->m_pctx, enum_id);
     enum_type->contain(enum_node);
     enum_type->definition() = enum_node;
@@ -153,9 +145,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
 
         assert(id);
         if (ids.find(id->id) != ids.end()) {
-            this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                        "redefinition of enumerator '" + id->id + "'",
-                        id->position(), id->position() + id->length(), this->pcontext()->posinfo()));
+            REPORT(Redefinition, *id, "redefinition of enumerator '" + id->id + "'");
             continue;
         }
 
@@ -164,16 +154,12 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
             assert(type);
             if (type->basic_type() != variable_basic_type::INT)
             {
-                this->m_reporter->push_back(make_shared<SemanticErrorBadType>(
-                            "enumerator value must be a int type",
-                            expr->start_pos(), expr->end_pos(), this->pcontext()->posinfo()));
+                REPORT(BadType, *expr, "enumerator value must be a int type");
                 continue;
             }
 
             if (!expr->is_constexpr()) {
-                this->m_reporter->push_back(make_shared<SemanticErrorBadType>(
-                            "enumerator value must be a constant expression",
-                            expr->start_pos(), expr->end_pos(), this->pcontext()->posinfo()));
+                REPORT(BadType, *expr, "enumerator value must be a constant expression");
                 continue;
             }
         }
@@ -186,9 +172,7 @@ void CTranslationUnitContext::Scope::define_struct(const string& struct_name, sh
     if (this->m_structs.find(struct_name) != this->m_structs.end() &&
         this->m_structs.at(struct_name).second)
     {
-        this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                    "redefinition of struct '" + struct_name + "'",
-                    struct_node->start_pos(), struct_node->end_pos(), this->pcontext()->posinfo()));
+        REPORT(Redefinition, *struct_node, "redefinition of struct '" + struct_name + "'");
         return;
     }
 
@@ -205,9 +189,7 @@ void CTranslationUnitContext::Scope::define_union(const string& union_name,  sha
     if (this->m_unions.find(union_name) != this->m_unions.end() &&
         this->m_unions.at(union_name).second)
     {
-        this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                    "redefinition of union '" + union_name + "'",
-                    union_node->start_pos(), union_node->end_pos(), this->pcontext()->posinfo()));
+        REPORT(Redefinition, *union_node, "redefinition of union '" + union_name + "'");
         return;
     }
 
@@ -311,9 +293,7 @@ void CTranslationUnitContext::function_begin(
     assert(!this->m_return_type.has_value());
 
     if (this->m_defined_functions.find(funcname) != this->m_defined_functions.end()) {
-        this->m_reporter->push_back(make_shared<SemanticErrorRedefinition>(
-                    "redefinition of function '" + funcname + "'",
-                    parameter_list->start_pos(), parameter_list->end_pos(), this->pcontext()->posinfo()));
+        REPORT(Redefinition, *parameter_list, "redefinition of function '" + funcname + "'");
     }
 
     this->m_defined_functions.insert(funcname);

@@ -5,9 +5,7 @@ using namespace cparser;
 
 CLexerParser::CLexerParser(): parser(), lexer()
 {
-    auto ctx = parser.getContext();
-    auto cctx = dynamic_pointer_cast<CParserContext>(ctx);
-    cctx->posinfo() = lexer.position_info();
+    this->reset();
 }
 
 void CLexerParser::feed(char c)
@@ -32,7 +30,9 @@ void CLexerParser::reset()
 
     auto ctx = parser.getContext();
     auto cctx = dynamic_pointer_cast<CParserContext>(ctx);
-    cctx->posinfo() = lexer.position_info();
+    auto textinfo = lexer.position_info();
+    cctx->textinfo() = textinfo;
+    parser.SetTextinfo(textinfo);
 }
 
 void CLexerParser::setDebugStream(ostream& os)

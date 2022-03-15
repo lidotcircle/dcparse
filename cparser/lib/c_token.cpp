@@ -59,7 +59,7 @@ static bool string_start_with(const string& str, const string& prefix)
     return str.compare(0, prefix.size(), prefix) == 0;
 }
 
-static cparser::TokenConstantInteger handle_integer_str(string str, LexerToken::TokenInfo tinfo)
+static cparser::TokenConstantInteger handle_integer_str(string str, TextRange tinfo)
 {
     assert(str.size() > 0);
 
@@ -154,12 +154,12 @@ static cparser::TokenConstantInteger handle_integer_str(string str, LexerToken::
      return ret;
 }
 
-static cparser::TokenConstantInteger handle_integer_str(vector<int> str, LexerToken::TokenInfo tinfo)
+static cparser::TokenConstantInteger handle_integer_str(vector<int> str, TextRange tinfo)
 {
     return handle_integer_str(string(str.begin(), str.end()), tinfo);
 }
 
-static cparser::TokenConstantInteger handle_character_str(vector<int> str, LexerToken::TokenInfo tinfo)
+static cparser::TokenConstantInteger handle_character_str(vector<int> str, TextRange tinfo)
 {
     assert(str.size() >= 3);
     if (str.front() == 'L')
@@ -203,10 +203,11 @@ static cparser::TokenConstantInteger handle_character_str(vector<int> str, Lexer
 namespace cparser {
 
 using token_t = typename CLexer::token_t;
+using encoder_t = typename CLexer::encoder_t;
 
 
 // setup lexer rules when initialization
-CLexer::CLexer()
+CLexer::CLexer(encoder_t encoder): Lexer<int>(encoder)
 {
     auto& lexer = *this;
 
@@ -378,7 +379,8 @@ void CLexer::reset()
     Lexer<int>::reset();
 }
 
-CLexerUTF8::CLexerUTF8() {}
+static UTF8Encoder utf8encoder;
+CLexerUTF8::CLexerUTF8(): CLexer([](int c) { return utf8encoder.encode(c); }) {}
 
 vector<token_t> CLexerUTF8::feed(char c)
 {

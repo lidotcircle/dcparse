@@ -12,30 +12,30 @@ namespace cparser {
 struct TokenID: public LexerToken {
     std::string id;
 
-    inline TokenID(std::string id, LexerToken::TokenInfo info):
-        id(id), LexerToken(info) {}
+    inline TokenID(std::string id): id(id) {}
+    inline TokenID(std::string id, TextRange range): LexerToken(range), id(id) {}
 };
 
 struct TokenConstantInteger: public LexerToken {
     unsigned long long value;
     bool is_unsigned;
 
-    inline TokenConstantInteger(unsigned long long val, LexerToken::TokenInfo info):
-        is_unsigned(false), value(val), LexerToken(info) {}
+    inline TokenConstantInteger(unsigned long long val): is_unsigned(false), value(val) {}
+    inline TokenConstantInteger(unsigned long long val, TextRange info): LexerToken(info), is_unsigned(false), value(val) {}
 };
 
 struct TokenConstantFloat: public LexerToken {
     long double value;
 
-    inline TokenConstantFloat(long double val, LexerToken::TokenInfo info):
-        value(val), LexerToken(info) {}
+    inline TokenConstantFloat(long double val): value(val) {}
+    inline TokenConstantFloat(long double val, TextRange info): LexerToken(info), value(val) {}
 };
 
 struct TokenStringLiteral: public LexerToken {
     std::string value;
 
-    inline TokenStringLiteral(std::string val, LexerToken::TokenInfo info):
-        value(std::move(val)), LexerToken(info) {}
+    inline TokenStringLiteral(std::string val): value(std::move(val)) {}
+    inline TokenStringLiteral(std::string val, TextRange info): LexerToken(info), value(std::move(val)) {}
 };
 
 #define C_KEYWORD_LIST \
@@ -80,8 +80,7 @@ struct TokenStringLiteral: public LexerToken {
 
 #define K_ENTRY(n) \
     struct TokenKeyword_##n: public LexerToken { \
-        inline TokenKeyword_##n(LexerToken::TokenInfo info): \
-            LexerToken(info) {} \
+        inline TokenKeyword_##n(TextRange info): LexerToken(info) {} \
     };
 C_KEYWORD_LIST
 #undef K_ENTRY
@@ -139,7 +138,7 @@ C_KEYWORD_LIST
 
 #define P_ENTRY(n, regex) \
     struct TokenPunc##n: public LexerToken { \
-        inline TokenPunc##n(LexerToken::TokenInfo info): \
+        inline TokenPunc##n(TextRange info): \
             LexerToken(info) {} \
     };
 C_PUNCTUATOR_LIST
@@ -150,9 +149,10 @@ class CLexer: private Lexer<int>
 {
 public:
     using token_t = std::shared_ptr<LexerToken>;
+    using encoder_t = Lexer<int>::encoder_t;
 
 public:
-    CLexer();
+    CLexer(encoder_t encoder);
 
     std::vector<token_t> feed(int c);
     std::vector<token_t> end();

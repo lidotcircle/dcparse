@@ -7,7 +7,7 @@ using namespace std;
 
 
 struct TokenSSV: public LexerToken {
-    TokenSSV(LexerToken::TokenInfo info): LexerToken(info) {}
+    TokenSSV(TextRange info): LexerToken(info) {}
     virtual string str() = 0;
 };
 
@@ -29,9 +29,9 @@ struct TokenSSV: public LexerToken {
 
 #define TENTRY(n, s) \
     struct Token##n: public TokenSSV { \
-        Token##n(LexerToken::TokenInfo info): \
+        Token##n(TextRange info): \
             TokenSSV(info) {} \
-        Token##n(): TokenSSV(TokenInfo()) {} \
+        Token##n(): TokenSSV(TextRange()) {} \
         virtual string str() override { return s; } \
     };
 NTOKENS

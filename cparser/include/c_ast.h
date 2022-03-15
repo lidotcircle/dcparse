@@ -17,21 +17,17 @@ namespace cparser {
 using ASTNodeParserContext = std::weak_ptr<DCParser::DCParserContext>;
 
 class CParserContext;
-class ASTNode {
+class ASTNode: public TextRangeEntity {
 private:
     ASTNodeParserContext m_parser_context;
-    size_t m_start_pos, m_end_pos;
     bool m_checked;
-    inline void contain_(const std::shared_ptr<ASTNode> other) { this->contain_(other.get()); }
-    inline void contain_(const ASTNode* other) { this->contain_(other->m_start_pos, other->m_end_pos); }
-    void contain_(size_t begin, size_t end);
+    inline void contain_(const std::shared_ptr<ASTNode> other) { this->contain_(*other); }
+    inline void contain_(const TextRangeEntity& other) { TextRangeEntity::contain_(other); }
+    inline void contain_(const TextRangeEntity* other) { this->contain_(*other); }
     void contain_(std::shared_ptr<DChar> other);
     inline void contain_(const std::vector<std::shared_ptr<DChar>>& other) { for (auto& node : other) this->contain_(node); }
 
 public:
-    size_t& start_pos() { return m_start_pos; }
-    size_t& end_pos() { return m_end_pos; }
-
     template<typename ...Others>
     void contain(Others ...others)
     {
@@ -43,7 +39,7 @@ public:
         int _[sizeof...(Others)] = { (others->contain_(this), 0)... };
     }
 
-    inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_start_pos(0), m_end_pos(0), m_checked(false) {}
+    inline ASTNode(ASTNodeParserContext p): m_parser_context(p), m_checked(false) {}
     std::shared_ptr<CParserContext> context() const;
     inline ASTNodeParserContext lcontext() const { return m_parser_context; }
 
@@ -103,7 +99,11 @@ private:
     std::shared_ptr<TokenID> m_id;
 
 public:
-    inline ASTNodeExprIdentifier(ASTNodeParserContext p, std::shared_ptr<TokenID> id): ASTNodeExpr(p), m_id(id) {}
+    inline ASTNodeExprIdentifier(ASTNodeParserContext p, std::shared_ptr<TokenID> id):
+        ASTNodeExpr(p), m_id(id)
+    {
+        this->contain(id);
+    }
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
     
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -117,7 +117,11 @@ private:
     std::shared_ptr<TokenStringLiteral> m_token;
 
 public:
-    inline ASTNodeExprString(ASTNodeParserContext p, std::shared_ptr<TokenStringLiteral> str): ASTNodeExpr(p), m_token(str) {}
+    inline ASTNodeExprString(ASTNodeParserContext p, std::shared_ptr<TokenStringLiteral> str):
+        ASTNodeExpr(p), m_token(str)
+    {
+        this->contain(str);
+    }
     inline std::shared_ptr<TokenStringLiteral> token() { return this->m_token; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;

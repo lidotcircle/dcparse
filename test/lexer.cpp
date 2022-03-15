@@ -11,27 +11,27 @@ using namespace std;
 class TokenID: public LexerToken {
 public:
     string id;
-    TokenID(string id, LexerToken::TokenInfo info): 
+    TokenID(string id, TextRange info): 
         LexerToken(info), id(id) {}
 };
 
 class TokenIF: public LexerToken {
 public:
-    TokenIF(LexerToken::TokenInfo info): 
+    TokenIF(TextRange info): 
         LexerToken(info) {}
 };
 
 class TokenBlockComment: public LexerToken {
 public:
     string comment;
-    TokenBlockComment(string comment, LexerToken::TokenInfo info): 
+    TokenBlockComment(string comment, TextRange info): 
         LexerToken(info), comment(comment) {}
 };
 
 class TokenStringLiteral: public LexerToken {
 public:
     string literal;
-    TokenStringLiteral(string literal, LexerToken::TokenInfo info): 
+    TokenStringLiteral(string literal, TextRange info): 
         LexerToken(info), literal(literal) {}
 };
 
@@ -149,7 +149,7 @@ TEST_F(LexerTest, StringLiteral) {
 
     auto t2 = lexer.feed_end();
     EXPECT_EQ(t2.size(), 1);
-    EXPECT_EQ(t2[0]->length(), 15);
+    EXPECT_EQ(t2[0]->length().value(), 15);
     auto stoken = std::dynamic_pointer_cast<TokenStringLiteral>(t2[0]);
     EXPECT_NE(stoken, nullptr);
     EXPECT_EQ(stoken->literal, "hello \"world");

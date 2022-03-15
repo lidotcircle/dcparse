@@ -14,12 +14,12 @@ template<typename T>
 class LexerRuleCStringLiteral: public LexerRule<T> {
 public:
     using CharType = T;
-    using TokenInfo = LexerToken::TokenInfo;
-    using token_factory_t = std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TokenInfo)>;
+    using token_factory_t = std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TextRange)>;
 
 private:
     using traits = character_traits<CharType>;
     std::vector<CharType> _literal;
+    size_t _length_in_bytes;
     enum MatchState {
         MATCH_STATE_NONE,
         MATCH_STATE_NORMAL,
@@ -27,7 +27,7 @@ private:
         MATCH_STATE_END,
         MATCH_STATE_DEAD,
     } _state;
-    TokenInfo _token_info;
+    TextRange _token_info;
     token_factory_t _token_factory;
 
     static const std::map<CharType,CharType> _escape_map;
@@ -35,11 +35,12 @@ private:
 public:
     LexerRuleCStringLiteral() = delete;
     LexerRuleCStringLiteral(token_factory_t factory):
+        _length_in_bytes(0),
         _state(MATCH_STATE_NONE), _token_factory(factory)
     {
     }
 
-    virtual void feed(CharType c) override
+    virtual void feed(CharType c, size_t length_in_bytes) override
     {
         if (this->_state == MATCH_STATE_END)
             return;
@@ -51,6 +52,7 @@ public:
             } else {
                 this->_state = MATCH_STATE_DEAD;
             }
+            this->_token_info.second += length_in_bytes;
             break;
         case MATCH_STATE_NORMAL:
             if (c == traits::DQUOTE) {
@@ -62,6 +64,7 @@ public:
             } else {
                 this->_literal.push_back(c);
             }
+            this->_token_info.second += length_in_bytes;
             break;
         case MATCH_STATE_ESCAPING:
             if (_escape_map.find(c) == _escape_map.end()) {
@@ -70,6 +73,7 @@ public:
                 this->_literal.push_back(_escape_map.at(c));
                 this->_state = MATCH_STATE_NORMAL;
             }
+            this->_token_info.second += length_in_bytes;
             break;
         case MATCH_STATE_END:
         case MATCH_STATE_DEAD:
@@ -83,20 +87,16 @@ public:
         return this->_state == MATCH_STATE_END;
     }
 
-    virtual void reset(size_t ln, size_t cn, size_t pos, const std::string& fn,
-                       std::optional<std::shared_ptr<LexerToken>> last) override
+    virtual void reset(size_t pos, std::optional<std::shared_ptr<LexerToken>> last) override
     {
         this->_state = MATCH_STATE_NONE;
         this->_literal.clear();
-        this->_token_info.line_num = ln;
-        this->_token_info.column_num = cn;
-        this->_token_info.pos = pos;
-        this->_token_info.filename = fn;
+        this->_token_info.first = pos;
+        this->_token_info.second = pos;
     }
 
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) override
     {
-        this->_token_info.len = str.size();
         return this->_token_factory(
                 std::vector<CharType>(
                     this->_literal.begin(),

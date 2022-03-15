@@ -5,28 +5,24 @@
 #include <vector>
 #include <memory>
 #include "c_error.h"
-#include "lexer/position_info.h"
+#include "lexer/text_info.h"
 
 
 namespace cparser {
 
 
-class SemanticError: public CError {
+class SemanticError: public CError, public TextRangeEntity {
 public:
     enum ErrorLevel { INFO, WARNING, ERROR };
 
 private:
-    size_t _start_pos, _end_pos;
-    std::shared_ptr<TokenPositionInfo> _pos_info;
+    std::shared_ptr<TextInfo> _pos_info;
     std::string _error_buf;
 
 public:
     SemanticError(const std::string& what,
-                  size_t start_pos, size_t end_pos, 
-                  std::shared_ptr<TokenPositionInfo> posinfo);
-
-    size_t start_pos() const;
-    size_t end_pos() const;
+                  const TextRangeEntity& range,
+                  std::shared_ptr<TextInfo> textinfo);
 
     virtual std::string error_type() const = 0;
     virtual ErrorLevel  error_level() const = 0;
@@ -69,8 +65,8 @@ public:
 #define SENTRY(name, _, __) \
     class SemanticError##name: public SemanticError { \
     public: \
-        SemanticError##name(const std::string& what, size_t start_pos, size_t end_pos, \
-                            std::shared_ptr<TokenPositionInfo> posinfo); \
+        SemanticError##name(const std::string& what, const TextRangeEntity& range, \
+                            std::shared_ptr<TextInfo> textinfo); \
         virtual std::string error_type() const override; \
         virtual ErrorLevel  error_level() const override; \
         virtual const char* error_level_text() const override; \

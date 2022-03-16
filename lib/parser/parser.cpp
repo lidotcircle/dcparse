@@ -1062,6 +1062,8 @@ optional<dchar_t> DCParser::do_reduce(ruleid_t ruleid, dchar_t char_)
         const string get = this->get_dchar(nonterm->charid()).name;
         throw ParserError("ReduceCallback: expect a valid token, but get a token with different charid, get: " + get + ", expect: " + expect);
     }
+    for (auto c: rhs_tokens)
+        nonterm->contain(*c);
 
     if (this->h_debug_stream != nullptr) {
         *this->h_debug_stream << "    do_reduce: "

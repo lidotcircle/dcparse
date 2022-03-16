@@ -4,6 +4,9 @@
 using namespace std;
 
 
+DChar::DChar() {}
+DChar::DChar(TextRange range): TextRangeEntity(range) {}
+
 const char* DChar::charname() const {
     return typeid(*this).name();
 }
@@ -14,5 +17,5 @@ size_t DChar::charid() const {
 
 
 LexerToken::LexerToken() {}
-LexerToken::LexerToken(TextRange range): TextRangeEntity(range) {}
+LexerToken::LexerToken(TextRange range): DChar(range) {}
 

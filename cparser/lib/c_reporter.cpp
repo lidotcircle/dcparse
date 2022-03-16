@@ -63,6 +63,12 @@ string SemanticError::error_message() const
     auto lines = this->_pos_info->lines(beg, end);
     size_t ln = linfo.line;
     for (auto& l: lines) {
+        if (!l.line.empty() && l.line.back() == '\n') {
+            if (l.line.size() == l.end)
+                l.end--;
+            l.line.pop_back();
+        }
+
         oss << ANSI_MAP["white"] << std::setw(5) << std::setfill(' ') << ln << " | ";
         oss << ANSI_MAP["bold"] << l.line.substr(0, l.beg);
         oss << ANSI_MAP[error2color[this->error_level()]] << l.line.substr(l.beg, l.end - l.beg) << ANSI_MAP["reset"];

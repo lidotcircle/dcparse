@@ -154,7 +154,7 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
         auto param = (*params)[i];
         auto& arg = (*this->m_args)[i];
 
-        auto paramtype = param->type();
+        auto paramtype = param->get_type();
         auto argtype = arg->type();
 
         auto ffff = argtype->implicit_cast_to(paramtype);
@@ -196,14 +196,14 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
     shared_ptr<ASTNodeVariableType> restype;
     auto structtype = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(objtype);
     auto uniontype  = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(objtype);
-    const auto def = structtype ? structtype->definition() : uniontype->definition();
+    const auto def = structtype ? structtype->get_definition() : uniontype->get_definition();
     bool found = false;
     for (auto mem: *def) {
-        auto mid = mem->id();
+        auto mid = mem->get_id();
         if (mid == nullptr) continue;
 
         if (mid->id == this->m_member->id) {
-            restype = mem->type()->copy();
+            restype = mem->get_type()->copy();
             restype->const_ref() = restype->const_ref() || objtype->const_ref();
             restype->volatile_ref() = restype->volatile_ref() || objtype->const_ref();
             restype->restrict_ref() = restype->restrict_ref() || objtype->restrict_ref();
@@ -252,14 +252,14 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
     shared_ptr<ASTNodeVariableType> restype;
     auto structtype = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(objtype);
     auto uniontype  = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(objtype);
-    const auto def = structtype ? structtype->definition() : uniontype->definition();
+    const auto def = structtype ? structtype->get_definition() : uniontype->get_definition();
     bool found = false;
     for (auto mem: *def) {
-        auto mid = mem->id();
+        auto mid = mem->get_id();
         if (mid == nullptr) continue;
 
         if (mid->id == this->m_member->id) {
-            restype = mem->type()->copy();
+            restype = mem->get_type()->copy();
             restype->const_ref() = restype->const_ref() || objtype->const_ref();
             restype->volatile_ref() = restype->volatile_ref() || objtype->const_ref();
             restype->restrict_ref() = restype->restrict_ref() || objtype->restrict_ref();
@@ -887,10 +887,10 @@ void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> 
         return;
 
     if (this->m_initializer) {
-        auto initializer = this->initializer();
+        auto initializer = this->get_initializer();
         if (initializer->is_expr()) {
             auto expr = initializer->expr();
-            if (!expr->type()->implicit_cast_to(this->type())) {
+            if (!expr->type()->implicit_cast_to(this->get_type())) {
                 REPORT(IncompatibleTypes, *expr, "incompatible types in initialization");
             }
         } else {
@@ -911,7 +911,7 @@ void ASTNodeStructUnionDeclaration::check_constraints(std::shared_ptr<SemanticRe
     this->m_decl->check_constraints(reporter);
     if (this->m_bit_width) {
         this->m_bit_width->check_constraints(reporter);
-        auto type = this->m_decl->type();
+        auto type = this->m_decl->get_type();
         if (type->basic_type() != variable_basic_type::INT) {
             REPORT(IncompatibleTypes, *this, "bit-width specifier for non-integer type");
         } else if (!this->m_bit_width->get_integer_constant().has_value()) {
@@ -952,19 +952,19 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
         set<string> member_names;
         for (auto decl: *this)
         {
-            if (decl->id()) {
-                if (member_names.find(decl->id()->id) != member_names.end()) {
+            if (decl->get_id()) {
+                if (member_names.find(decl->get_id()->id) != member_names.end()) {
                     REPORT(DuplicateMember, *decl, "duplicate member name");
                 } else {
-                    member_names.insert(decl->id()->id);
+                    member_names.insert(decl->get_id()->id);
                 }
             } else {
                 // TODO warning
             }
-            decl->type()->check_constraints(reporter);
-            decl->offset() = 0;
-            auto opsizeof = decl->type()->opsizeof();
-            auto opalignof = decl->type()->opalignof();
+            decl->get_type()->check_constraints(reporter);
+            decl->set_offset(0);
+            auto opsizeof = decl->get_type()->opsizeof();
+            auto opalignof = decl->get_type()->opalignof();
             if (!opsizeof.has_value() || !opalignof.has_value()) {
                 REPORT(IncompleteType, *decl, "member with incomplete type");
             } else {
@@ -972,8 +972,8 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
                 size += opsizeof.value();
             }
         }
-        this->alignment() = align;
-        this->sizeof_() = size;
+        this->set_alignment(align);
+        this->set_sizeof_(size);
         if (size == 0) {
             REPORT(EmptyStructUnionDefinition, *this, "empty struct or union isn't permitted");
         }
@@ -986,19 +986,19 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
     typename decltype(member_decls)::value_type flexible_array;
     for (size_t i=0;i<this->size();i++) {
         auto decl = (*this)[i];
-        decl->type()->check_constraints(reporter);
+        decl->get_type()->check_constraints(reporter);
 
-        if (decl->id()) {
-            if (member_names.find(decl->id()->id) != member_names.end()) {
+        if (decl->get_id()) {
+            if (member_names.find(decl->get_id()->id) != member_names.end()) {
                 REPORT(DuplicateMember, *decl, "duplicate member name");
             } else {
-                member_names.insert(decl->id()->id);
+                member_names.insert(decl->get_id()->id);
             }
         }
 
-        auto opalignof = decl->type()->opalignof();
+        auto opalignof = decl->get_type()->opalignof();
         if (!opalignof.has_value()) {
-            auto thetype = decl->type();
+            auto thetype = decl->get_type();
             bool is_flexible_array_member_at_end = i + 1 == this->size();
             if (is_flexible_array_member_at_end &&
                 thetype->basic_type() == variable_basic_type::ARRAY)
@@ -1031,7 +1031,7 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
 
     for (auto decl: member_decls) {
         if (decl->bit_width()) {
-            auto inttype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(decl->type());
+            auto inttype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(decl->get_type());
             if (!inttype) {
                 REPORT(RequireIntegerType, *decl, "bit-width specifier requires integer type");
                 continue;
@@ -1072,14 +1072,14 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
             }
 
             tbitwidth = 0;
-            auto ops = decl->type()->opsizeof();
-            auto opa = decl->type()->opalignof();
+            auto ops = decl->get_type()->opsizeof();
+            auto opa = decl->get_type()->opalignof();
             if (ops.has_value() && opa.has_value()) {
                 advance_size_offset(ops.value(), opa.value());
                 offset += ops.value();
             }
         }
-        decl->offset() = offset;
+        decl->set_offset(offset);
     }
     if (tbitwidth > 0) {
         advance_size_offset(tbytewidth, tbytealign);
@@ -1090,9 +1090,9 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
         struct_size += align - (struct_size % align);
 
     if (flexible_array)
-        flexible_array->offset() = struct_size;
-    this->alignment() = align;
-    this->sizeof_() = struct_size;
+        flexible_array->set_offset(struct_size);
+    this->set_alignment(align);
+    this->set_sizeof_(struct_size);
 
     if (struct_size == 0) {
         REPORT(EmptyStructUnionDefinition, *this, "empty struct or union isn't permitted");
@@ -1167,7 +1167,7 @@ void ASTNodeParameterDeclarationList::check_constraints(std::shared_ptr<Semantic
     for (auto decl: *this)
         decl->check_constraints(reporter);
 
-    if (this->size() == 1 && this->front()->type()->basic_type() == variable_basic_type::VOID)
+    if (this->size() == 1 && this->front()->get_type()->basic_type() == variable_basic_type::VOID)
     {
         if (this->variadic()) {
             REPORT(IncompatibleTypes, *this, "variadic parameter after void");
@@ -1180,14 +1180,14 @@ void ASTNodeParameterDeclarationList::check_constraints(std::shared_ptr<Semantic
     set<string> param_names;
     for (auto decl: *this)
     {
-        if (decl->id()) {
-            if (param_names.find(decl->id()->id) != param_names.end()) {
+        if (decl->get_id()) {
+            if (param_names.find(decl->get_id()->id) != param_names.end()) {
                 REPORT(DuplicateMember, *decl, "duplicate parameter name");
             } else {
-                param_names.insert(decl->id()->id);
+                param_names.insert(decl->get_id()->id);
             }
         }
-        if (decl->type()->basic_type() == variable_basic_type::VOID) {
+        if (decl->get_type()->basic_type() == variable_basic_type::VOID) {
             REPORT(InvalidFunctionParameter, *decl, "'void' must be the first and only parameter if specified");
         }
     }

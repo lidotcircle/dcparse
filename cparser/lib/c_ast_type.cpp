@@ -169,13 +169,13 @@ bool ASTNodeVariableTypeStruct::is_object_type() const
 optional<size_t> ASTNodeVariableTypeStruct::opsizeof() const
 {
     assert(this->m_definition);
-    return this->m_definition->sizeof_().value();
+    return this->m_definition->get_sizeof_().value();
 }
 
 optional<size_t> ASTNodeVariableTypeStruct::opalignof() const
 {
     assert(this->m_definition);
-    return this->m_definition->alignment().value();
+    return this->m_definition->get_alignment().value();
 }
 
 std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeStruct::copy() const
@@ -267,13 +267,13 @@ bool ASTNodeVariableTypeUnion::is_object_type() const
 optional<size_t> ASTNodeVariableTypeUnion::opsizeof() const
 {
     assert(this->m_definition);
-    return this->m_definition->sizeof_().value();
+    return this->m_definition->get_sizeof_().value();
 }
 
 optional<size_t> ASTNodeVariableTypeUnion::opalignof() const
 {
     assert(this->m_definition);
-    return this->m_definition->alignment().value();
+    return this->m_definition->get_alignment().value();
 }
 
 std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeUnion::copy() const
@@ -1114,8 +1114,8 @@ bool  ASTNodeVariableTypeFunction::equal_to(shared_ptr<ASTNodeVariableType> type
     }
 
     for (size_t i=0;i<l1->size();i++) {
-        auto t1 = (*l1)[i]->type();
-        auto t2 = (*l2)[i]->type();
+        auto t1 = (*l1)[i]->get_type();
+        auto t2 = (*l2)[i]->get_type();
         if (!t1->equal_to(t2))
             return false;
     }
@@ -1162,10 +1162,10 @@ shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::compatible_with(sha
     {
         auto param = (*this->m_parameter_declaration_list)[i];
         auto tparam = (*tfunc->m_parameter_declaration_list)[i];
-        auto tparam_type = param->type()->compatible_with(tparam->type());
+        auto tparam_type = param->get_type()->compatible_with(tparam->get_type());
         if (!tparam_type) return nullptr;
 
-        auto p = make_shared<ASTNodeParameterDeclaration>(this->lcontext(), param->id(), tparam_type);
+        auto p = make_shared<ASTNodeParameterDeclaration>(this->lcontext(), param->get_id(), tparam_type);
         p->contain(param);
         params->push_back(p);
     }
@@ -1200,8 +1200,8 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeFunction::copy() const
     params->contain(this->parameter_declaration_list());
     for (auto p : *this->parameter_declaration_list())
     {
-        auto tc = p->type()->copy();
-        auto pa = make_shared<ASTNodeParameterDeclaration>(this->lcontext(), p->id(), tc);
+        auto tc = p->get_type()->copy();
+        auto pa = make_shared<ASTNodeParameterDeclaration>(this->lcontext(), p->get_id(), tc);
         pa->contain(p);
         params->push_back(pa);
     }
@@ -1220,6 +1220,7 @@ storage_class_t& ASTNodeVariableTypeArray::storage_class()
 
 void ASTNodeVariableTypeArray::set_leaf_type(shared_ptr<ASTNodeVariableType> type)
 {
+    this->contain(type);
     if (this->m_type == nullptr) {
         this->m_type = type;
         return;
@@ -1239,6 +1240,7 @@ storage_class_t& ASTNodeVariableTypePointer::storage_class()
 
 void ASTNodeVariableTypePointer::set_leaf_type(shared_ptr<ASTNodeVariableType> type)
 {
+    this->contain(type);
     if (this->m_type == nullptr) {
         this->m_type = type;
         return;
@@ -1258,6 +1260,7 @@ storage_class_t& ASTNodeVariableTypeFunction::storage_class()
 
 void ASTNodeVariableTypeFunction::set_leaf_type(shared_ptr<ASTNodeVariableType> type)
 {
+    this->contain(type);
     if (this->m_return_type == nullptr) {
         this->m_return_type = type;
         return;

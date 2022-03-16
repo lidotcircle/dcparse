@@ -135,7 +135,7 @@ void CTranslationUnitContext::Scope::define_enum(const string& enum_name, shared
     auto enum_id = make_shared<TokenID>(enum_name);
     auto enum_type = make_shared<ASTNodeVariableTypeEnum>(this->m_pctx, enum_id);
     enum_type->contain(enum_node);
-    enum_type->definition() = enum_node;
+    enum_type->set_definition(enum_node);
 
     set<string> ids;
     for (auto& enumerator: *enum_node)
@@ -302,9 +302,9 @@ void CTranslationUnitContext::function_begin(
 
     for (auto& param : *parameter_list)
     {
-        auto id = param->id();
+        auto id = param->get_id();
         if (id)
-            this->declare_variable(id->id, param->type());
+            this->declare_variable(id->id, param->get_type());
     }
 
     this->m_function_fake_scope = true;

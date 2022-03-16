@@ -6,8 +6,11 @@
 #include <optional>
 #include "./text_info.h"
 
-class DChar {
+class DChar: public TextRangeEntity  {
 public:
+    DChar();
+    DChar(TextRange info);
+
     virtual const char* charname() const;
     virtual size_t charid() const;
     virtual ~DChar() = default;
@@ -28,7 +31,7 @@ template<typename T, typename = std::enable_if_t<std::is_base_of<DChar,T>::value
 size_t CharID() { return CharInfo<T>().id; }
 
 using TextRange = TextRangeEntity::TextRange;
-class LexerToken : public DChar, public TextRangeEntity {
+class LexerToken : public DChar {
 public:
     LexerToken();
     LexerToken(TextRange info);

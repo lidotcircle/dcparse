@@ -46,7 +46,7 @@ private:
             auto col = pos + 1;
 
             if (up != this->_linfo.end()) {
-                line = std::distance(this->_linfo.begin(), up) + 1;
+                line = std::distance(this->_linfo.begin(), up);
                 assert(up != this->_linfo.begin());
                 up--;
             } else {

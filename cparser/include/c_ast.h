@@ -21,10 +21,9 @@ class ASTNode: public TextRangeEntity {
 private:
     ASTNodeParserContext m_parser_context;
     bool m_checked;
-    inline void contain_(const std::shared_ptr<ASTNode> other) { this->contain_(*other); }
     inline void contain_(const TextRangeEntity& other) { TextRangeEntity::contain_(other); }
     inline void contain_(const TextRangeEntity* other) { this->contain_(*other); }
-    void contain_(std::shared_ptr<DChar> other);
+    inline void contain_(const std::shared_ptr<TextRangeEntity>& other) { if (other == nullptr) return; this->contain_(*other); }
     inline void contain_(const std::vector<std::shared_ptr<DChar>>& other) { for (auto& node : other) this->contain_(node); }
 
 public:
@@ -135,7 +134,10 @@ private:
     std::shared_ptr<TokenConstantInteger> m_token;
 
 public:
-    inline ASTNodeExprInteger(ASTNodeParserContext p, std::shared_ptr<TokenConstantInteger> val): ASTNodeExpr(p), m_token(val) {}
+    inline ASTNodeExprInteger(ASTNodeParserContext p, std::shared_ptr<TokenConstantInteger> val): ASTNodeExpr(p), m_token(val)
+    {
+        this->contain(val);
+    }
     inline std::shared_ptr<TokenConstantInteger> token() { return this->m_token; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -149,7 +151,10 @@ private:
     std::shared_ptr<TokenConstantFloat> m_token;
 
 public:
-    inline ASTNodeExprFloat(ASTNodeParserContext p, std::shared_ptr<TokenConstantFloat> val): ASTNodeExpr(p), m_token(val) {}
+    inline ASTNodeExprFloat(ASTNodeParserContext p, std::shared_ptr<TokenConstantFloat> val): ASTNodeExpr(p), m_token(val)
+    {
+        this->contain(val);
+    }
     inline std::shared_ptr<TokenConstantFloat> token() { return this->m_token; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -163,7 +168,13 @@ private:
     std::shared_ptr<ASTNodeExpr> m_array, m_idx;
 
 public:
-    inline ASTNodeExprIndexing(ASTNodeParserContext p, std::shared_ptr<ASTNodeExpr> array, std::shared_ptr<ASTNodeExpr> idx): ASTNodeExpr(p), m_array(array), m_idx(idx) {}
+    inline ASTNodeExprIndexing(ASTNodeParserContext p, 
+                               std::shared_ptr<ASTNodeExpr> array, 
+                               std::shared_ptr<ASTNodeExpr> idx): 
+        ASTNodeExpr(p), m_array(array), m_idx(idx)
+    {
+        this->contain(array, idx);
+    }
     inline std::shared_ptr<ASTNodeExpr> array() { return this->m_array; }
     inline std::shared_ptr<ASTNodeExpr> idx() { return this->m_idx; }
 
@@ -194,6 +205,13 @@ public:
     using container_t::operator[];
     using container_t::push_back;
 
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
+
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
 
@@ -206,7 +224,11 @@ public:
     inline ASTNodeExprFunctionCall(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> func,
-            std::shared_ptr<ASTNodeArgList> args): ASTNodeExpr(c), m_func(func), m_args(args) {}
+            std::shared_ptr<ASTNodeArgList> args): 
+        ASTNodeExpr(c), m_func(func), m_args(args)
+    {
+        this->contain(func, args);
+    }
     inline std::shared_ptr<ASTNodeExpr> func() { return this->m_func; }
     inline std::shared_ptr<ASTNodeArgList> args() { return this->m_args; }
 
@@ -226,7 +248,11 @@ public:
     inline ASTNodeExprMemberAccess(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> obj,
-            std::shared_ptr<TokenID> member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
+            std::shared_ptr<TokenID> member): 
+        ASTNodeExpr(c), m_obj(obj), m_member(member)
+    {
+        this->contain(obj, member);
+    }
     inline std::shared_ptr<ASTNodeExpr> obj() { return this->m_obj; }
     inline std::shared_ptr<TokenID> member() { return this->m_member; }
 
@@ -245,7 +271,11 @@ public:
     inline ASTNodeExprPointerMemberAccess(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> obj,
-            std::shared_ptr<TokenID> member): ASTNodeExpr(c), m_obj(obj), m_member(member) {}
+            std::shared_ptr<TokenID> member):
+        ASTNodeExpr(c), m_obj(obj), m_member(member)
+    {
+        this->contain(obj, member);
+    }
     inline std::shared_ptr<ASTNodeExpr> obj() { return this->m_obj; }
     inline std::shared_ptr<TokenID> member() { return this->m_member; }
 
@@ -265,7 +295,10 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeVariableType> type,
             std::shared_ptr<ASTNodeInitializerList> init
-            ): ASTNodeExpr(c), m_init(init), m_type(type) {}
+            ): ASTNodeExpr(c), m_init(init), m_type(type)
+    {
+        this->contain(init, type);
+    }
     inline std::shared_ptr<ASTNodeInitializerList> init() { return this->m_init; }
     inline std::shared_ptr<ASTNodeVariableType> type() { return this->m_type; }
 
@@ -298,7 +331,10 @@ public:
             std::shared_ptr<ASTNodeExpr> expr
             ):
         ASTNodeExpr(c), m_operator(optype),
-        m_expr(expr) {}
+        m_expr(expr)
+    {
+        this->contain(expr);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -315,7 +351,10 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeVariableType> type
             ):
-        ASTNodeExpr(c), m_type(type) {}
+        ASTNodeExpr(c), m_type(type)
+    {
+        this->contain(type);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -335,7 +374,10 @@ public:
             std::shared_ptr<ASTNodeExpr> expr
             ):
         ASTNodeExpr(c), m_type(type),
-        m_expr(expr) {}
+        m_expr(expr)
+    {
+        this->contain(type, expr);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -375,7 +417,10 @@ public:
             std::shared_ptr<ASTNodeExpr> right
             ):
         ASTNodeExpr(c), m_operator(optype),
-        m_left(std::move(left)), m_right(std::move(right)) {}
+        m_left(std::move(left)), m_right(std::move(right))
+    {
+        this->contain(left, right);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -395,7 +440,10 @@ public:
             std::shared_ptr<ASTNodeExpr> false_expr
             ):
         ASTNodeExpr(c), m_cond(std::move(cond)),
-        m_true(std::move(true_expr)), m_false(std::move(false_expr)) {}
+        m_true(std::move(true_expr)), m_false(std::move(false_expr))
+    {
+        this->contain(cond, true_expr, false_expr);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -422,7 +470,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -453,7 +507,10 @@ public:
             std::string message
             ):
         ASTNodeDeclaration(c), m_expr(std::move(expr)),
-        m_message(std::move(message)) {}
+        m_message(std::move(message)) 
+    {
+        this->contain(expr);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -474,11 +531,29 @@ public:
         ASTNodeDeclaration(c),
         m_id(id),
         m_type(type),
-        m_initializer(initializer) {}
+        m_initializer(initializer)
+    {
+        this->contain(id, type, initializer);
+    }
 
-    inline std::shared_ptr<TokenID>& id() { return this->m_id; }
-    inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_type; }
-    inline std::shared_ptr<ASTNodeInitializer>& initializer() { return this->m_initializer; }
+    inline std::shared_ptr<TokenID> get_id() { return this->m_id; }
+    inline void                     set_id(std::shared_ptr<TokenID> id)
+    {
+        this->m_id = id;
+        this->contain(id);
+    }
+    inline std::shared_ptr<ASTNodeVariableType> get_type() { return this->m_type; }
+    inline void                                 set_type(std::shared_ptr<ASTNodeVariableType> val)
+    {
+        this->m_type = val;
+        this->contain(val);
+    }
+    inline std::shared_ptr<ASTNodeInitializer> get_initializer() { return this->m_initializer; }
+    inline void                                set_initializer(std::shared_ptr<ASTNodeInitializer> val)
+    {
+        this->m_initializer = val;
+        this->contain(val);
+    }
 
     void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type);
 
@@ -497,11 +572,25 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeInitDeclarator> decl,
             std::shared_ptr<ASTNodeExpr> bit_width):
-        ASTNode(c), m_decl(decl), m_bit_width(bit_width) {}
+        ASTNode(c), m_decl(decl), m_bit_width(bit_width)
+    {
+        this->contain(decl, bit_width);
+    }
 
-    inline std::shared_ptr<TokenID>& id() { return this->m_decl->id(); }
-    inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_decl->type(); }
-    inline std::optional<size_t>& offset() { return this->m_offset; }
+    inline std::shared_ptr<TokenID> get_id() { return this->m_decl->get_id(); }
+    inline void                     set_id(std::shared_ptr<TokenID> val)
+    {
+        this->m_decl->set_id(val);
+        this->contain(val);
+    }
+    inline std::shared_ptr<ASTNodeVariableType> get_type() { return this->m_decl->get_type(); }
+    inline void                                 set_type(std::shared_ptr<ASTNodeVariableType> val)
+    {
+        this->m_decl->set_type(val);
+        this->contain(val);
+    }
+    inline std::optional<size_t> get_offset() { return this->m_offset; }
+    inline void                  set_offset(size_t val) { this->m_offset = val; }
     inline std::optional<size_t>  bit_width() { if (this->m_bit_width) return this->m_bit_width->get_integer_constant(); else return std::nullopt; }
 
     void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type);
@@ -527,7 +616,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -550,7 +645,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -574,16 +675,25 @@ public:
 
     inline ASTNodeStructUnionDeclarationList(ASTNodeParserContext c): ASTNode(c) {}
     inline bool& is_struct() { return this->_is_struct; }
-    inline std::shared_ptr<TokenID>& id() { return this->_id; }
-    inline std::optional<size_t>& alignment() { return this->_alignment; }
-    inline std::optional<size_t>& sizeof_() { return this->_sizeof; }
+    inline std::shared_ptr<TokenID> get_id() { return this->_id; }
+    inline void                     set_id(std::shared_ptr<TokenID> val) { this->_id = val; }
+    inline std::optional<size_t> get_alignment() { return this->_alignment; }
+    inline void                  set_alignment(std::optional<size_t> val) { this->_alignment = val; }
+    inline std::optional<size_t> get_sizeof_() { return this->_sizeof; }
+    inline void                  set_sizeof_(size_t val) { this->_sizeof = val; }
 
     using container_t::begin;
     using container_t::end;
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -594,7 +704,10 @@ private:
     std::shared_ptr<TokenID> m_id;
 
 public:
-    inline ASTNodeEnumerationConstant(ASTNodeParserContext c, std::shared_ptr<TokenID> id): ASTNode(c), m_id(id) {}
+    inline ASTNodeEnumerationConstant(ASTNodeParserContext c, std::shared_ptr<TokenID> id): ASTNode(c), m_id(id)
+    {
+        this->contain(id);
+    }
 
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
 
@@ -610,7 +723,10 @@ private:
 
 public:
     inline ASTNodeEnumerator(ASTNodeParserContext c, std::shared_ptr<TokenID> id, std::shared_ptr<ASTNodeExpr> value):
-        ASTNode(c), m_id(id), m_value(value) {}
+        ASTNode(c), m_id(id), m_value(value)
+    {
+        this->contain(id, value);
+    }
 
     inline std::shared_ptr<TokenID> id() { return this->m_id; }
     inline std::shared_ptr<ASTNodeExpr> value() { return this->m_value; }
@@ -638,7 +754,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -760,10 +882,12 @@ public:
             ): ASTNodeVariableTypePlain(c), m_name(name)
     {
         this->add_name("struct " + m_name->id);
+        this->contain(name);
     }
 
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
-    inline std::shared_ptr<ASTNodeStructUnionDeclarationList>& definition() { return this->m_definition; }
+    inline std::shared_ptr<ASTNodeStructUnionDeclarationList> get_definition() { return this->m_definition; }
+    inline void set_definition(std::shared_ptr<ASTNodeStructUnionDeclarationList> val) { this->m_definition = val; }
     inline void resolve_type_id(size_t id) { assert(!this->m_type_id.has_value()); this->m_type_id = id; }
 
     virtual variable_basic_type basic_type() const override;
@@ -799,10 +923,12 @@ public:
             ): ASTNodeVariableTypePlain(c), m_name(name)
     {
         this->add_name("union " + m_name->id);
+        this->contain(name);
     }
 
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
-    inline std::shared_ptr<ASTNodeStructUnionDeclarationList>& definition() { return this->m_definition; }
+    inline std::shared_ptr<ASTNodeStructUnionDeclarationList> get_definition() { return this->m_definition; }
+    inline void set_definition(std::shared_ptr<ASTNodeStructUnionDeclarationList> val) { this->m_definition = val; }
     inline void resolve_type_id(size_t id) { assert(!this->m_type_id.has_value()); this->m_type_id = id; }
 
     virtual variable_basic_type basic_type() const override;
@@ -839,10 +965,12 @@ public:
             ): ASTNodeVariableTypePlain(c), m_name(name)
     {
         this->add_name("enum " + m_name->id);
+        this->contain(name);
     }
 
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
-    inline std::shared_ptr<ASTNodeEnumeratorList>& definition() { return this->m_definition; }
+    inline std::shared_ptr<ASTNodeEnumeratorList> get_definition() { return this->m_definition; }
+    inline void set_definition(std::shared_ptr<ASTNodeEnumeratorList> val) { this->m_definition = val; }
     inline void resolve_type_id(size_t id) { assert(!this->m_type_id.has_value()); this->m_type_id = id; }
 
     virtual variable_basic_type basic_type() const override;
@@ -877,11 +1005,16 @@ public:
             ): ASTNodeVariableTypePlain(c), m_name(name)
     {
         this->add_name(m_name->id);
+        this->contain(name);
     }
 
     inline std::shared_ptr<TokenID> name() { return this->m_name; }
     inline std::shared_ptr<ASTNodeVariableType> type() const { return this->m_type; }
-    inline void set_type(std::shared_ptr<ASTNodeVariableType> type) { this->m_type = type; }
+    inline void set_type(std::shared_ptr<ASTNodeVariableType> type)
+    {
+        this->m_type = type;
+        this->contain(type);
+    }
 
     virtual variable_basic_type basic_type() const override;
 
@@ -1089,10 +1222,18 @@ public:
             ):
         ASTNode(c),
         m_id(id),
-        m_type(std::move(type)) {}
+        m_type(std::move(type))
+    {
+        this->contain(id, type);
+    }
 
-    inline std::shared_ptr<TokenID>& id() { return this->m_id; }
-    inline std::shared_ptr<ASTNodeVariableType>& type() { return this->m_type; }
+    inline std::shared_ptr<TokenID> get_id() { return this->m_id; }
+    inline std::shared_ptr<ASTNodeVariableType> get_type() { return this->m_type; }
+    inline void set_type(std::shared_ptr<ASTNodeVariableType> val)
+    {
+        this->m_type = val; 
+        this->contain(val);
+    }
     
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1120,7 +1261,11 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    inline void push_back(T val) {
+        this->container_t::push_back(val);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1138,10 +1283,23 @@ public:
             ):
         ASTNodeVariableType(c),
         m_parameter_declaration_list(std::move(parameter_declaration_list)),
-        m_return_type(std::move(return_type)) {}
+        m_return_type(std::move(return_type))
+    {
+        this->contain(parameter_declaration_list, return_type);
+    }
 
-    inline std::shared_ptr<ASTNodeParameterDeclarationList>& parameter_declaration_list() { return this->m_parameter_declaration_list; }
-    inline std::shared_ptr<ASTNodeVariableType>& return_type() { return this->m_return_type; }
+    inline std::shared_ptr<ASTNodeParameterDeclarationList> get_parameter_declaration_list() { return this->m_parameter_declaration_list; }
+    inline void set_parameter_declaration_list(std::shared_ptr<ASTNodeParameterDeclarationList> val)
+    {
+        this->m_parameter_declaration_list = val;
+        this->contain(val);
+    }
+    inline std::shared_ptr<ASTNodeVariableType> get_return_type() { return this->m_return_type; }
+    inline void set_return_type(std::shared_ptr<ASTNodeVariableType> val)
+    {
+        this->m_return_type = val;
+        this->contain(val);
+    }
     inline std::shared_ptr<ASTNodeParameterDeclarationList> parameter_declaration_list() const { return this->m_parameter_declaration_list; }
     inline std::shared_ptr<ASTNodeVariableType> return_type() const { return this->m_return_type; }
 
@@ -1175,17 +1333,23 @@ private:
 public:
     ASTNodeInitializer(ASTNodeParserContext c,
                        std::shared_ptr<ASTNodeExpr> expr): 
-        ASTNode(c), m_value(expr) {}
+        ASTNode(c), m_value(expr)
+    {
+        this->contain(expr);
+    }
 
     ASTNodeInitializer(ASTNodeParserContext c,
                        std::shared_ptr<ASTNodeInitializerList> list):
-        ASTNode(c), m_value(list) {}
+        ASTNode(c), m_value(list)
+    {
+        this->contain(list);
+    }
 
     bool is_constexpr() const;
     inline bool is_expr() const { return std::holds_alternative<std::shared_ptr<ASTNodeExpr>>(this->m_value); }
     inline bool is_list() const { return std::holds_alternative<std::shared_ptr<ASTNodeInitializerList>>(this->m_value); }
-    inline std::shared_ptr<ASTNodeExpr>& expr() { return std::get<std::shared_ptr<ASTNodeExpr>>(this->m_value); }
-    inline std::shared_ptr<ASTNodeInitializerList>& list() { return std::get<std::shared_ptr<ASTNodeInitializerList>>(this->m_value); }
+    inline std::shared_ptr<ASTNodeExpr> expr() { return std::get<std::shared_ptr<ASTNodeExpr>>(this->m_value); }
+    inline std::shared_ptr<ASTNodeInitializerList> list() { return std::get<std::shared_ptr<ASTNodeInitializerList>>(this->m_value); }
     
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1200,16 +1364,27 @@ private:
 public:
     ASTNodeDesignation(ASTNodeParserContext c,
                       std::shared_ptr<ASTNodeExpr> pos):
-        ASTNode(c), m_designators({ pos }) {}
+        ASTNode(c), m_designators({ pos })
+    {
+        this->contain(pos);
+    }
 
     ASTNodeDesignation(ASTNodeParserContext c, 
                       std::shared_ptr<TokenID> member):
-        ASTNode(c), m_designators({ member }) {}
+        ASTNode(c), m_designators({ member })
+    {
+        this->contain(member);
+    }
 
     ASTNodeDesignation(ASTNodeParserContext c):
         ASTNode(c), m_designators() {}
 
-    inline std::shared_ptr<ASTNodeInitializer>& initializer() { return this->m_initializer; }
+    inline std::shared_ptr<ASTNodeInitializer> get_initializer() { return this->m_initializer; }
+    inline void set_initializer(std::shared_ptr<ASTNodeInitializer> val)
+    {
+        this->m_initializer = val;
+        this->contain(val);
+    }
     inline const std::vector<std::variant<array_designator_t,member_designator_t>>& designators() const { return this->m_designators; }
     inline void add_designator(std::variant<array_designator_t,member_designator_t> designator) { this->m_designators.push_back(designator); }
     inline bool is_constexpr() const { return this->m_initializer->is_constexpr(); }
@@ -1235,7 +1410,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        container_t::push_back(v);
+        this->contain(v);
+    }
 
     inline bool is_constexpr() const 
     {
@@ -1270,9 +1451,12 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> label,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), m_id(label), m_stat(stat) {}
+        ASTNodeStat(c), m_id(label), m_stat(stat)
+    {
+        this->contain(label, stat);
+    }
 
-    inline std::shared_ptr<ASTNodeStat>& stat() { return this->m_stat; }
+    inline std::shared_ptr<ASTNodeStat> stat() { return this->m_stat; }
     inline std::shared_ptr<TokenID> id_label() const { return this->m_id; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -1288,7 +1472,10 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> expr,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), m_expr(expr), m_stat(stat) {}
+        ASTNodeStat(c), m_expr(expr), m_stat(stat)
+    {
+        this->contain(expr, stat);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1301,7 +1488,10 @@ public:
     ASTNodeStatDefault(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), m_stat(stat) {}
+        ASTNodeStat(c), m_stat(stat)
+    {
+        this->contain(stat);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1325,7 +1515,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1339,7 +1535,10 @@ public:
     inline ASTNodeStatCompound(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeBlockItemList> statlist):
-        ASTNodeStat(c), _statlist(statlist) {}
+        ASTNodeStat(c), _statlist(statlist)
+    {
+        this->contain(statlist);
+    }
 
     inline std::shared_ptr<ASTNodeBlockItemList>       StatementList()       { return this->_statlist; }
     inline const std::shared_ptr<ASTNodeBlockItemList> StatementList() const { return this->_statlist; }
@@ -1355,7 +1554,10 @@ private:
 public:
     inline ASTNodeStatExpr(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeExpr> expr): ASTNodeStat(c), _expr(expr) {}
+            std::shared_ptr<ASTNodeExpr> expr): ASTNodeStat(c), _expr(expr)
+    {
+        this->contain(expr);
+    }
 
     inline       std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline const std::shared_ptr<ASTNodeExpr> expr() const { return this->_expr; }
@@ -1376,7 +1578,10 @@ public:
             std::shared_ptr<ASTNodeStat> truestat,
             std::shared_ptr<ASTNodeStat> falsestat):
         ASTNodeStat(c), _cond(condition),
-        _truestat(truestat), _falsestat(falsestat) {}
+        _truestat(truestat), _falsestat(falsestat)
+    {
+        this->contain(condition, truestat, falsestat);
+    }
 
     inline std::shared_ptr<ASTNodeStat> trueStat()  { return this->_truestat; }
     inline std::shared_ptr<ASTNodeStat> falseStat() { return this->_falsestat; }
@@ -1396,7 +1601,10 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> expr,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), _expr(expr), _stat(stat) {}
+        ASTNodeStat(c), _expr(expr), _stat(stat)
+    {
+        this->contain(expr, stat);
+    }
 
     inline std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline std::shared_ptr<ASTNodeStat> stat()       { return this->_stat; }
@@ -1414,7 +1622,10 @@ public:
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeExpr> expr,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), _expr(expr), _stat(stat) {}
+        ASTNodeStat(c), _expr(expr), _stat(stat)
+    {
+        this->contain(expr, stat);
+    }
 
     inline std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline std::shared_ptr<ASTNodeStat> stat()       { return this->_stat; }
@@ -1435,7 +1646,10 @@ public:
             std::shared_ptr<ASTNodeExpr> cond,
             std::shared_ptr<ASTNodeExpr> post,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), _init(init), _cond(cond), _post(post), _stat(stat) {}
+        ASTNodeStat(c), _init(init), _cond(cond), _post(post), _stat(stat)
+    {
+        this->contain(init, cond, post, stat);
+    }
 
     inline std::shared_ptr<ASTNodeExpr> init()       { return this->_init; }
     inline std::shared_ptr<ASTNodeExpr> cond()       { return this->_cond; }
@@ -1459,7 +1673,10 @@ public:
             std::shared_ptr<ASTNodeExpr> cond,
             std::shared_ptr<ASTNodeExpr> post,
             std::shared_ptr<ASTNodeStat> stat):
-        ASTNodeStat(c), _decls(decls), _cond(cond), _post(post), _stat(stat) {}
+        ASTNodeStat(c), _decls(decls), _cond(cond), _post(post), _stat(stat)
+    {
+        this->contain(decls, cond, post, stat);
+    }
 
     inline std::shared_ptr<ASTNodeDeclarationList> decls() { return this->_decls; }
     inline std::shared_ptr<ASTNodeExpr>               cond()  { return this->_cond; }
@@ -1478,7 +1695,10 @@ public:
     inline ASTNodeStatGoto(
             ASTNodeParserContext c,
             std::shared_ptr<TokenID> label):
-        ASTNodeStat(c), _label(label) {}
+        ASTNodeStat(c), _label(label)
+    {
+        this->contain(label);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };
@@ -1511,7 +1731,10 @@ private:
 public:
     inline ASTNodeStatReturn(
             ASTNodeParserContext c,
-            std::shared_ptr<ASTNodeExpr> expr): ASTNodeStat(c), _expr(expr) {}
+            std::shared_ptr<ASTNodeExpr> expr): ASTNodeStat(c), _expr(expr)
+    {
+        this->contain(expr);
+    }
 
     inline       std::shared_ptr<ASTNodeExpr> expr()       { return this->_expr; }
     inline const std::shared_ptr<ASTNodeExpr> expr() const { return this->_expr; }
@@ -1533,7 +1756,10 @@ public:
             std::shared_ptr<TokenID> funcid,
             std::shared_ptr<ASTNodeVariableTypeFunction> decl,
             std::shared_ptr<ASTNodeStatCompound> body):
-        ASTNodeExternalDeclaration(c), _id(funcid), _decl(decl), _body(body) {}
+        ASTNodeExternalDeclaration(c), _id(funcid), _decl(decl), _body(body)
+    {
+        this->contain(funcid, decl, body);
+    }
 
     inline std::shared_ptr<ASTNodeVariableTypeFunction> decl() { return this->_decl; }
     inline std::shared_ptr<ASTNodeStatCompound>         body() { return this->_body; }
@@ -1560,7 +1786,13 @@ public:
     using container_t::empty;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
+
+    template<typename T>
+    void push_back(T v)
+    {
+        this->container_t::push_back(v);
+        this->contain(v);
+    }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
 };

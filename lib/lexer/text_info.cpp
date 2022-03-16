@@ -57,6 +57,10 @@ optional<size_t> TextRangeEntity::length() const {
     return m_range.value().second - m_range.value().first;
 }
 
+void TextRangeEntity::benowhere() {
+    this->m_range = nullopt;
+}
+
 string TextInfo::row_col_str(size_t pos) const
 {
     auto px = this->query(pos);

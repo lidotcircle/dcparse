@@ -25,6 +25,9 @@ public:
     std::optional<size_t> beg() const;
     std::optional<size_t> end() const;
     std::optional<size_t> length() const;
+    void benowhere();
+
+    inline void contain(const TextRangeEntity& other) { this->contain_(other); }
 };
 
 

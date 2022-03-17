@@ -56,13 +56,15 @@ public:
     SENTRY(BreakOutsideLoop,           ERROR, "break statement outside loop or switch") \
     SENTRY(MissingReturnValue,         ERROR, "missing return value") \
     SENTRY(StaticAssertFailed,         ERROR, "static_assert failed") \
-    SENTRY(EmptyStructUnionDefinition, ERROR, "empty struct or union definition") \
     SENTRY(RequireIntegerType,         ERROR, "require integer type") \
     SENTRY(BitFieldIsTooLarge,         ERROR, "bit-field is too large") \
     SENTRY(NegativeBitField,           ERROR, "negative bit-field specifier") \
     SENTRY(InvalidInitializerList,     ERROR, "invalid initializer list") \
     SENTRY(InvalidDesignation,         ERROR, "invalid initializer designation") \
     SENTRY(InvalidArrayDesignator,     ERROR, "invalid array designator") \
+    \
+    SENTRY(EmptyStructUnionDefinition, WARNING, "empty struct or union definition") \
+    SENTRY(InitializerStringTooLong,   WARNING, "initializer-string for char array is too long") \
 
 
 #define SENTRY(name, _, __) \
@@ -82,6 +84,8 @@ class SemanticReporter: private std::vector<std::shared_ptr<SemanticError>>
 {
 private:
     using container_t = std::vector<std::shared_ptr<SemanticError>>;
+    using ErrorLevel = SemanticError::ErrorLevel;
+    size_t _error_count, _warning_count, _info_count;
 
 public:
     SemanticReporter();
@@ -95,8 +99,28 @@ public:
     using container_t::end;
     using container_t::size;
     using container_t::empty;
-    using container_t::push_back;
     using container_t::operator[];
+
+    template<typename T>
+    void push_back(T v)
+    {
+        auto errlevel = v->error_level();
+        if (errlevel == ErrorLevel::ERROR)
+            this->_error_count++;
+        if (errlevel == ErrorLevel::WARNING)
+            this->_warning_count++;
+        if (errlevel == ErrorLevel::INFO)
+            this->_info_count++;
+        container_t::push_back(v);
+    }
+
+    inline size_t error_count() const { return this->_error_count; }
+    inline size_t warning_count() const { return this->_warning_count; }
+    inline size_t info_count() const { return this->_info_count; }
+
+    container_t get_errors() const;
+    container_t get_warnings() const;
+    container_t get_infos() const;
 };
 }
 

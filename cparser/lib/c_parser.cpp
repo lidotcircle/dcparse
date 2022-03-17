@@ -348,6 +348,7 @@ void CParser::expression_rules()
             assert(ts.size() == 7);
             get_ast(type, TYPE_NAME, ASTNodeVariableType, 1);
             get_ast(init, INITIALIZER_LIST, ASTNodeInitializerList, 4);
+            initast->contain(ts[3], ts[5]);
             auto ast = make_shared<ASTNodeExprCompoundLiteral>(c, typeast, initast);
             return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
@@ -887,6 +888,8 @@ static int anonymous_struct_union_counter = 0;
             get_ast_if_presents(dc, STRUCT_DECLARATION_LIST, ASTNodeStructUnionDeclarationList, 3);
             if (!dcast)
                 dcast = make_shared<ASTNodeStructUnionDeclarationList>(c);
+            dcast->contain(ts[2], ts[4]);
+
             dcast->is_struct() = is_struct;
             dcast->set_id(id);
 
@@ -1011,15 +1014,21 @@ static int anonymous_struct_union_counter = 0;
         }, RuleAssocitiveRight);
 
     parser( NI(STRUCT_DECLARATOR_LIST),
-        { ParserChar::beOptional(NI(STRUCT_DECLARATOR_LIST)), NI(STRUCT_DECLARATOR) },
+        { NI(STRUCT_DECLARATOR_LIST), PT(COMMA), NI(STRUCT_DECLARATOR) },
         [](auto c, auto ts) {
-            assert(ts.size() == 2);
+            assert(ts.size() == 3);
+            get_ast(sdl, STRUCT_DECLARATOR_LIST, ASTNodeStructUnionDeclarationList, 0);
+            get_ast(sd,  STRUCT_DECLARATOR, ASTNodeStructUnionDeclaration, 2);
+            sdlast->push_back(sdast);
+            return makeNT(STRUCT_DECLARATOR_LIST, sdlast);
+        });
+
+    parser( NI(STRUCT_DECLARATOR_LIST),
+        { NI(STRUCT_DECLARATOR) },
+        [](auto c, auto ts) {
+            assert(ts.size() == 1);
             auto sdlast = make_shared<ASTNodeStructUnionDeclarationList>(c);
-            if (ts[0]) {
-                get_ast(xsdl, STRUCT_DECLARATOR_LIST, ASTNodeStructUnionDeclarationList, 0);
-                sdlast = xsdlast;
-            }
-            get_ast(sd,  STRUCT_DECLARATOR, ASTNodeStructUnionDeclaration, 1);
+            get_ast(sd,  STRUCT_DECLARATOR, ASTNodeStructUnionDeclaration, 0);
             sdlast->push_back(sdast);
             return makeNT(STRUCT_DECLARATOR_LIST, sdlast);
         });
@@ -1061,8 +1070,11 @@ static size_t anonymous_enum_count = 0;
 
             auto ast = make_shared<ASTNodeVariableTypeEnum>(c, id);
             get_ast_if_presents(el, ENUMERATOR_LIST, ASTNodeEnumeratorList, 3);
-            if (elast)
-                ast->set_definition(elast);
+            if (!elast) {
+                elast = make_shared<ASTNodeEnumeratorList>(c);
+            }
+            elast->contain(ts[2], ts[4]);
+            ast->set_definition(elast);
 
             return makeNT(ENUM_SPECIFIER, ast);
         }, RuleAssocitiveRight);

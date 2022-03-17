@@ -59,39 +59,6 @@ shared_ptr<ASTNodeExpr> make_exprcast(shared_ptr<ASTNodeExpr> expr, shared_ptr<A
     return ast;
 }
 
-namespace kstype {
-
-shared_ptr<ASTNodeVariableTypeVoid> voidtype(shared_ptr<CParserContext> ctx)
-{
-    shared_ptr<DCParser::DCParserContext> pctx = ctx;
-    return make_shared<ASTNodeVariableTypeVoid>(pctx);
-}
-
-shared_ptr<ASTNodeVariableTypeInt> booltype(shared_ptr<CParserContext> ctx)
-{
-    shared_ptr<DCParser::DCParserContext> pctx = ctx;
-    return make_shared<ASTNodeVariableTypeInt>(pctx, 1, false);
-}
-
-shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(shared_ptr<CParserContext> ctx)
-{
-    shared_ptr<DCParser::DCParserContext> pctx = ctx;
-    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), true);
-    auto ans = ptrto(char_type);
-    ans->const_ref() = true;
-    return ans;
-}
-
-
-std::shared_ptr<ASTNodeVariableTypeInt> chartype(std::shared_ptr<CParserContext> ctx)
-{
-    shared_ptr<DCParser::DCParserContext> pctx = ctx;
-    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), true);
-    return char_type;
-}
-
-}
-
 shared_ptr<ASTNodeVariableTypePointer> ptrto(shared_ptr<ASTNodeVariableType> type)
 {
     return make_shared<ASTNodeVariableTypePointer>(type->lcontext(), type);
@@ -177,4 +144,59 @@ shared_ptr<ASTNodeVariableType> composite_or_promote(shared_ptr<ASTNodeVariableT
     return nullptr;
 }
 
+} // namespace cparser
+
+
+namespace cparser::kstype {
+
+shared_ptr<ASTNodeVariableTypeVoid> voidtype(shared_ptr<CParserContext> ctx)
+{
+    shared_ptr<DCParser::DCParserContext> pctx = ctx;
+    return make_shared<ASTNodeVariableTypeVoid>(pctx);
 }
+
+shared_ptr<ASTNodeVariableTypeInt> booltype(shared_ptr<CParserContext> ctx)
+{
+    shared_ptr<DCParser::DCParserContext> pctx = ctx;
+    return make_shared<ASTNodeVariableTypeInt>(pctx, 1, false);
+}
+
+shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(shared_ptr<CParserContext> ctx)
+{
+    shared_ptr<DCParser::DCParserContext> pctx = ctx;
+    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), true);
+    auto ans = ptrto(char_type);
+    ans->const_ref() = true;
+    return ans;
+}
+
+
+std::shared_ptr<ASTNodeVariableTypeInt> chartype(std::shared_ptr<CParserContext> ctx)
+{
+    shared_ptr<DCParser::DCParserContext> pctx = ctx;
+    // TODO char traits
+    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), false);
+    return char_type;
+}
+
+bool is_char(shared_ptr<ASTNodeVariableType> type)
+{
+    if (type->basic_type() != variable_basic_type::INT) return false;
+    auto itype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
+    assert(itype);
+    return itype->byte_length() == sizeof(char) && !itype->is_unsigned();
+}
+
+} // namespace cparser::kstype
+
+
+namespace cparser::ksexpr {
+
+bool is_string_literal(std::shared_ptr<ASTNodeExpr> expr)
+{
+    auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(expr);
+    return strexpr != nullptr;
+}
+
+} // namespace cparser::ksexpr
+

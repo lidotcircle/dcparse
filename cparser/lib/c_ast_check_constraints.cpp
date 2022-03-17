@@ -305,6 +305,19 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_int
         std::shared_ptr<ASTNodeInitializer> init,
         std::shared_ptr<SemanticReporter> reporter);
 
+static bool initialization_implicit_cast(shared_ptr<ASTNodeExpr> fromexpr, shared_ptr<ASTNodeVariableType> to)
+{
+    if (ksexpr::is_string_literal(fromexpr) &&
+        to->basic_type() == variable_basic_type::ARRAY)
+    {
+        auto to_arr  = dynamic_pointer_cast<ASTNodeVariableTypeArray>(to);
+        if (kstype::is_char(to_arr->elemtype())) return true;
+    }
+
+    auto from = fromexpr->type();
+    return from->implicit_cast_to(to) != nullptr;
+}
+
 static void check_initialization_of_object_with_intializer_list(
         std::shared_ptr<ASTNodeVariableType> type,
         std::shared_ptr<ASTNodeInitializerList> list,
@@ -312,9 +325,38 @@ static void check_initialization_of_object_with_intializer_list(
 {
     auto textinfo = type->context()->textinfo();
     switch(type->basic_type()) {
+    case variable_basic_type::ARRAY:
+    {
+        auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+        if (kstype::is_char(arrtype->elemtype()) &&
+            list->size() == 1)
+        {
+            auto init = list->front();
+            if (init->designators().size() == 0 &&
+                init->get_initializer()->is_expr() &&
+                ksexpr::is_string_literal(init->get_initializer()->expr()))
+            {
+                auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(init->get_initializer()->expr());
+                assert(strexpr);
+                const auto& str = strexpr->token()->value;
+                if (arrtype->array_size()) {
+                    auto size = arrtype->array_size()->get_integer_constant();
+                    assert(size.has_value());
+                    if (size.value() <= str.size()) {
+                        OREPORT(textinfo, InitializerStringTooLong, *init,
+                                "initializer-string for char array is too long");
+                    }
+                } else {
+                    auto valtoken = make_shared<TokenConstantInteger>(str.size() + 1);
+                    auto valast = make_shared<ASTNodeExprInteger>(type->context(), valtoken);
+                    arrtype->set_array_size(valast);
+                }
+                break;
+            }
+        }
+    }
     case variable_basic_type::STRUCT:
     case variable_basic_type::UNION:
-    case variable_basic_type::ARRAY:
     {
         auto init_tree = create_initializer_tree(type);
         auto iter = init_tree->first();
@@ -327,6 +369,8 @@ static void check_initialization_of_object_with_intializer_list(
                     OREPORT(textinfo, InvalidDesignation, *designation,
                             "can't find member with this designation");
                     break;
+                } else {
+                    iter = new_iter.value();
                 }
             }
 
@@ -340,9 +384,9 @@ static void check_initialization_of_object_with_intializer_list(
             auto init_value = designation->get_initializer();
             if (init_value->is_expr()) {
                 auto init_expr = init_value->expr();
-                auto init_expr_type = init_expr->type();
                 bool nofalse = true;
-                while (nofalse && !init_expr_type->implicit_cast_to(init_type)) {
+                while (nofalse && !initialization_implicit_cast(init_expr, init_type))
+                {
                     if (!iter.down()) {
                         OREPORT(textinfo, InvalidDesignation, *designation,
                                 "can't cast initializer to member type");
@@ -433,23 +477,28 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_int
             assert(arrtype);
             auto initexpr = init->expr();
             assert(!arrtype->elemtype()->is_incomplete_type());
-            if (!arrtype->elemtype()->equal_to(kstype::chartype(ctx))) {
+            auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(initexpr);
+            if (!kstype::is_char(arrtype->elemtype())) {
                 OREPORT(textinfo, InvalidInitializer, *init,
                         "these value can't be initialized with an expression");
+            } else if (!strexpr) {
+                OREPORT(textinfo, InvalidInitializer, *init,
+                        "bad initializer for char array");
             } else if (arrtype->is_incomplete_type()) {
-                auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(initexpr);
-                if (!strexpr) {
-                    OREPORT(textinfo, InvalidInitializer, *init,
-                            "bad initializer for char array");
-                } else {
-                    const auto& str = strexpr->token()->value;
-                    auto strsize = make_shared<TokenConstantInteger>(str.size() + 1);
-                    auto strsize_ast = make_shared<ASTNodeExprInteger>(ctx, strsize);
-                    strsize_ast->check_constraints(reporter);
-                    arrtype->set_array_size(strsize_ast);
+                const auto& str = strexpr->token()->value;
+                auto strsize = make_shared<TokenConstantInteger>(str.size() + 1);
+                auto strsize_ast = make_shared<ASTNodeExprInteger>(ctx, strsize);
+                strsize_ast->check_constraints(reporter);
+                arrtype->set_array_size(strsize_ast);
+            } else {
+                const auto& str = strexpr->token()->value;
+                auto size = arrtype->array_size()->get_integer_constant();
+                assert(size.has_value());
+                if (size.value() <= str.size()) {
+                    OREPORT(textinfo, InitializerStringTooLong, *init,
+                            "initializer-string for char array is too long");
                 }
             }
-            // TODO warning when initializer string is too long for array
         } else {
             using OT = typename ASTNodeExprBinaryOp::BinaryOperatorType;
             static int fakeid_counter = 0;

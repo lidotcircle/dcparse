@@ -34,12 +34,33 @@ TEST(should_accpet, CAST) {
         "int f1 = 1;",
         "int f1 = 1.1;",
 
+        "char a[] = \"helloworld\";",
+        "char a[][8] = { \"helloworld\", \"1234\" };",
+        "char a[] = { \"helloworld\" };",
+
         "void test1() {\n"
         "    struct s1 { struct s2 { int a; int b; } v2; struct s3 { void* a; int   b; } v3;};\n"
         "    struct s1 s1; struct s2 s2; struct s3 s3;\n"
         "    struct s1 val[] = { 1, 2, { }, { }, s2, s3, { } };\n"
         "    _Static_assert(sizeof(val) / sizeof(*val) == 4, \"\");"
-        "}"
+        "}",
+
+        "void test2() {\n"
+        "    struct s1 { struct s2 { int a; int b; struct s5 { float a; float b; } c; } v2; struct s3 { void* a; int   b; } v3; };\n"
+        "    struct s1 s1; struct s2 s2; struct s3 s3;\n"
+        "    struct s1 val[] = { 1, 2, { }, { }, s2, s3,  { } };\n"
+        "    _Static_assert(sizeof(val) / sizeof(*val) == 3, \"\");"
+        "}",
+
+        "void test3()\n"
+        "{\n"
+        "   struct s1 { struct s2 {} a1; int b1; struct s3 { struct s4 { } n1; int a, b, c; } a2; int* c1, c2; };\n"
+        "   struct s1 s1; struct s2 s2; struct s3 s3; struct s4 s4;\n"
+        "   struct s1 val1[] = { [4].b1 = 1, s4, 1, 2, 3, (void*)0 };\n"
+        "   struct s1 val2[] = { [0].b1 = 1, {}, (void*)0 };\n"
+        "   _Static_assert(sizeof(val1) / sizeof(*val1) == 5, \"\");\n"
+        "   _Static_assert(sizeof(val2) / sizeof(*val2) == 1, \"\");\n"
+        "}\n",
     };
 
 
@@ -55,9 +76,16 @@ TEST(should_accpet, CAST) {
             tunit->check_constraints(reporter);
         ) << t;
 
-        for (auto err: *reporter)
-            cerr << err->what() << endl;
-        ASSERT_EQ(reporter->size(), 0) << t;
+        auto errors = reporter->get_errors();
+        auto warnings = reporter->get_warnings();
+        auto infos = reporter->get_infos();
+        for (auto msg: errors)
+            cerr << msg->what() << endl;
+        for (auto msg: warnings)
+            cerr << msg->what() << endl;
+        for (auto msg: infos)
+            cerr << msg->what() << endl;
+        ASSERT_EQ(reporter->error_count(), 0) << t;
         parser.reset();
     }
 }
@@ -69,15 +97,17 @@ TEST(should_reject, CAST) {
     EENTRY("_Static_assert(0, \"hello, this is a static_assert failure\");", StaticAssertFailed) \
     EENTRY("_Static_assert(sizeof(void*) == 0, \"should be false\");", StaticAssertFailed) \
     EENTRY("int a; double a;", Redefinition) \
-    EENTRY("struct ax {}; _Static_assert(sizeof(struct ax) == 0, \"\");", EmptyStructUnionDefinition) \
-    EENTRY("union  ax {}; _Static_assert(sizeof(union ax) == 0, \"\");", EmptyStructUnionDefinition) \
     EENTRY("int main(int argc, char** argv, void) {}", InvalidFunctionParameter) \
     EENTRY("int f1 = \"value\";", InvalidOperand) \
     // EENTRY("int a; double a;", None) \
 
-    shared_ptr<SemanticError> err;
+#define EXPECT_WARNING_LIST \
+    EENTRY("struct ax {}; _Static_assert(sizeof(struct ax) == 0, \"\");", EmptyStructUnionDefinition) \
+    EENTRY("union  ax {}; _Static_assert(sizeof(union ax) == 0, \"\");", EmptyStructUnionDefinition) \
+
+    shared_ptr<SemanticError> error, warning, info;
     const auto eval_code = [&](string code) {
-        err = nullptr;
+        error = warning = info = nullptr;
         auto reporter = make_shared<SemanticReporter>();
         ASSERT_NO_THROW(
             for (auto c: code) {
@@ -91,9 +121,15 @@ TEST(should_reject, CAST) {
             } catch (CErrorStaticAssert&) {}
         ) << code;
 
-        EXPECT_GT(reporter->size(), 0) << code;
-        if (reporter->size() > 0)
-            err = (*reporter)[0];
+        auto errors = reporter->get_errors();
+        auto warnings = reporter->get_warnings();
+        auto infos = reporter->get_infos();
+        if (errors.size() > 0)
+            error = errors[0];
+        if (warnings.size() > 0)
+            warning = warnings[0];
+        if (infos.size() > 0)
+            info = infos[0];
 
         parser.reset();
     };
@@ -102,10 +138,21 @@ TEST(should_reject, CAST) {
 #define EENTRY(str, type) \
     { \
         eval_code(str); \
-        ASSERT_NE(err, nullptr) << str; \
-        auto serr = dynamic_pointer_cast<SemanticError##type>(err); \
-        ASSERT_NE(serr, nullptr) << str << endl << "    " << err->what(); \
+        ASSERT_NE(error, nullptr) << str; \
+        auto serr = dynamic_pointer_cast<SemanticError##type>(error); \
+        ASSERT_NE(serr, nullptr) << str << endl << "    " << error->what(); \
     }
 EXPECT_REJECT_LIST
+#undef EENTRY
+
+#define EENTRY(str, type) \
+    { \
+        eval_code(str); \
+        ASSERT_EQ(error, nullptr) << str; \
+        ASSERT_NE(warning, nullptr) << str; \
+        auto swarning = dynamic_pointer_cast<SemanticError##type>(warning); \
+        ASSERT_NE(swarning, nullptr) << str << endl << "    " << warning->what(); \
+    }
+EXPECT_WARNING_LIST
 #undef EENTRY
 }

@@ -8,9 +8,6 @@ using namespace std;
 using ErrorLevel = SemanticError::ErrorLevel;
 
 
-SemanticReporter::SemanticReporter() {}
-
-
 SemanticError::SemanticError(
         const string& what,
         const TextRangeEntity& range,
@@ -40,8 +37,8 @@ static map<string,string> ANSI_MAP = {
 };
 
 static map<ErrorLevel,string> error2color = {
-    { ErrorLevel::INFO,    "green" },
-    { ErrorLevel::WARNING, "yellow" },
+    { ErrorLevel::INFO,    "cyan" },
+    { ErrorLevel::WARNING, "magenta" },
     { ErrorLevel::ERROR,   "red" },
 };
 
@@ -96,3 +93,38 @@ const char* SemanticError::what() const noexcept
 SEMANTIC_ERROR_LIST
 #undef SENTRY
 
+
+SemanticReporter::SemanticReporter():
+    _error_count(0), _warning_count(0), _info_count(0)
+{
+}
+
+vector<shared_ptr<SemanticError>> SemanticReporter::get_errors() const
+{
+    vector<shared_ptr<SemanticError>> ret;
+    for (auto msg: *this) {
+        if (msg->error_level() == ErrorLevel::ERROR)
+            ret.push_back(msg);
+    }
+    return ret;
+}
+
+vector<shared_ptr<SemanticError>> SemanticReporter::get_warnings() const
+{
+    vector<shared_ptr<SemanticError>> ret;
+    for (auto msg: *this) {
+        if (msg->error_level() == ErrorLevel::WARNING)
+            ret.push_back(msg);
+    }
+    return ret;
+}
+
+vector<shared_ptr<SemanticError>> SemanticReporter::get_infos() const
+{
+    vector<shared_ptr<SemanticError>> ret;
+    for (auto msg: *this) {
+        if (msg->error_level() == ErrorLevel::INFO)
+            ret.push_back(msg);
+    }
+    return ret;
+}

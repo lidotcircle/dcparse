@@ -27,6 +27,15 @@ std::shared_ptr<ASTNodeVariableTypeVoid>    voidtype(std::shared_ptr<CParserCont
 std::shared_ptr<ASTNodeVariableTypeInt>     booltype(std::shared_ptr<CParserContext> ctx);
 std::shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(std::shared_ptr<CParserContext> ctx);
 std::shared_ptr<ASTNodeVariableTypeInt>     chartype(std::shared_ptr<CParserContext> ctx);
+
+bool is_char(std::shared_ptr<ASTNodeVariableType> type);
+
+}
+
+namespace ksexpr {
+
+bool is_string_literal(std::shared_ptr<ASTNodeExpr> expr);
+
 }
 
 std::shared_ptr<ASTNodeVariableTypePointer> ptrto(std::shared_ptr<ASTNodeVariableType> type);

@@ -348,7 +348,7 @@ void CParser::expression_rules()
             assert(ts.size() == 7);
             get_ast(type, TYPE_NAME, ASTNodeVariableType, 1);
             get_ast(init, INITIALIZER_LIST, ASTNodeInitializerList, 4);
-            auto ast = make_shared<ASTNodeExprInitializer>(c, typeast, initast);
+            auto ast = make_shared<ASTNodeExprCompoundLiteral>(c, typeast, initast);
             return makeNT(POSTFIX_EXPRESSION, ast);
         }, RuleAssocitiveLeft);
 
@@ -523,6 +523,7 @@ void CParser::expression_rules()
             assert(ts.size() == 1);
             get_ast(expr, ASSIGNMENT_EXPRESSION, ASTNodeExpr, 0);
             auto ast = make_shared<ASTNodeExprList>(c);
+            ast->push_back(exprast);
             return makeNT(EXPRESSION, ast);
         });
 

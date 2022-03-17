@@ -31,7 +31,17 @@ TEST(should_accpet, CAST) {
         "int main() {}",
         "int main(int argc, char* argv[]) {}",
         "int main(int argc, char** argv) {}",
+        "int f1 = 1;",
+        "int f1 = 1.1;",
+
+        "void test1() {\n"
+        "    struct s1 { struct s2 { int a; int b; } v2; struct s3 { void* a; int   b; } v3;};\n"
+        "    struct s1 s1; struct s2 s2; struct s3 s3;\n"
+        "    struct s1 val[] = { 1, 2, { }, { }, s2, s3, { } };\n"
+        "    _Static_assert(sizeof(val) / sizeof(*val) == 4, \"\");"
+        "}"
     };
+
 
     for (auto t: test_cases) {
         auto reporter = make_shared<SemanticReporter>();
@@ -62,6 +72,7 @@ TEST(should_reject, CAST) {
     EENTRY("struct ax {}; _Static_assert(sizeof(struct ax) == 0, \"\");", EmptyStructUnionDefinition) \
     EENTRY("union  ax {}; _Static_assert(sizeof(union ax) == 0, \"\");", EmptyStructUnionDefinition) \
     EENTRY("int main(int argc, char** argv, void) {}", InvalidFunctionParameter) \
+    EENTRY("int f1 = \"value\";", InvalidOperand) \
     // EENTRY("int a; double a;", None) \
 
     shared_ptr<SemanticError> err;

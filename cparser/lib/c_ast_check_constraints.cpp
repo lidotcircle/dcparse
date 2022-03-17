@@ -3,16 +3,20 @@
 #include "c_parser.h"
 #include "c_reporter.h"
 #include "c_translation_unit_context.h"
+#include "c_initializer.h"
 #include <limits>
 #include <type_traits>
 using namespace cparser;
 using namespace std;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
+using storage_class_t     = ASTNodeVariableType::storage_class_t;
 
 #define MAX_AB(a, b) ((a) > (b) ? (a) : (b))
 #define MACHINE_WORD_SIZE_IN_BIT (sizeof(void *) * CHAR_BIT)
+#define OREPORT(textinfo, error, range, msg) \
+    reporter->push_back(make_shared<SemanticError##error>(msg, range, textinfo))
 #define REPORT(error, range, msg) \
-    reporter->push_back(make_shared<SemanticError##error>(msg, range, this->context()->textinfo()))
+    OREPORT(this->context()->textinfo(), error, range, msg)
 
 
 void ASTNodeExprIdentifier::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -279,7 +283,240 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
     }
 }
 
-void ASTNodeExprInitializer::check_constraints(std::shared_ptr<SemanticReporter> reporter)
+static DesignatorList make_designator_list(std::shared_ptr<ASTNodeDesignation> designation)
+{
+    DesignatorList ret;
+    for (auto& d: designation->designators()) {
+        if (std::holds_alternative<ASTNodeDesignation::member_designator_t>(d)) {
+            auto vx = std::get<ASTNodeDesignation::member_designator_t>(d);
+            ret.emplace_back(vx->id);
+        } else {
+            auto vx = std::get<ASTNodeDesignation::array_designator_t>(d);
+            const auto cv = vx->get_integer_constant();
+            if (!cv.has_value()) continue;
+            ret.emplace_back(cv.value());
+        }
+    }
+    return ret;
+}
+
+static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_intializer(
+        std::shared_ptr<ASTNodeVariableType> type,
+        std::shared_ptr<ASTNodeInitializer> init,
+        std::shared_ptr<SemanticReporter> reporter);
+
+static void check_initialization_of_object_with_intializer_list(
+        std::shared_ptr<ASTNodeVariableType> type,
+        std::shared_ptr<ASTNodeInitializerList> list,
+        std::shared_ptr<SemanticReporter> reporter)
+{
+    auto textinfo = type->context()->textinfo();
+    switch(type->basic_type()) {
+    case variable_basic_type::STRUCT:
+    case variable_basic_type::UNION:
+    case variable_basic_type::ARRAY:
+    {
+        auto init_tree = create_initializer_tree(type);
+        auto iter = init_tree->first();
+        assert(init_tree);
+        for (auto designation: *list) {
+            auto dlist = make_designator_list(designation);
+            if (!dlist.empty()) {
+                auto new_iter = init_tree->access(dlist);
+                if (!new_iter.has_value()) {
+                    OREPORT(textinfo, InvalidDesignation, *designation,
+                            "can't find member with this designation");
+                    break;
+                }
+            }
+
+            auto init_type = iter.type();
+            if (init_type == nullptr) {
+                OREPORT(textinfo, InvalidDesignation, *designation,
+                        "no member with this designation");
+                break;
+            }
+
+            auto init_value = designation->get_initializer();
+            if (init_value->is_expr()) {
+                auto init_expr = init_value->expr();
+                auto init_expr_type = init_expr->type();
+                bool nofalse = true;
+                while (nofalse && !init_expr_type->implicit_cast_to(init_type)) {
+                    if (!iter.down()) {
+                        OREPORT(textinfo, InvalidDesignation, *designation,
+                                "can't cast initializer to member type");
+                        nofalse = false;
+                        break;
+                    }
+                    init_type = iter.type();
+                }
+                if (!nofalse) break;
+            }
+
+            auto new_expr = check_initialization_of_object_with_intializer(init_type, init_value, reporter);
+            if (new_expr.has_value()) {
+                // TODO substitue initialation expression with new value if it presents
+            }
+            iter.next();
+        }
+
+        if (type->basic_type() == variable_basic_type::ARRAY)
+        {
+            auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+            auto arrinittree =dynamic_pointer_cast<AggregateUnionObjectMemberTreeArray>(init_tree);
+            assert(arrtype && arrinittree);
+            const auto unknown_size = arrinittree->get_unknown_array_size();
+            if (unknown_size.has_value()) {
+                auto tokenval = make_shared<TokenConstantInteger>(unknown_size.value());
+                auto ast = make_shared<ASTNodeExprInteger>(arrtype->context(), tokenval);
+                ast->check_constraints(reporter);
+                arrtype->set_array_size(ast);
+            }
+        }
+    } break;
+    // the initializer for a scalar shall be a single expression, optionally enclosed in braces
+    case variable_basic_type::ENUM:
+    case variable_basic_type::FLOAT:
+    case variable_basic_type::INT:
+    case variable_basic_type::POINTER:
+    {
+        if (list->empty() || list->size() > 1)
+            OREPORT(textinfo, InvalidInitializer, *list, "invalid initializer, expected single value");
+
+        if (list->empty())
+            break;
+
+        auto init = list->front();
+        auto init__ = init->get_initializer();
+
+        if (init->designators().size() > 0) {
+            OREPORT(textinfo, InvalidInitializer, *init, "invalid initializer, unexpected designator");
+            break;
+        }
+
+        if (init__->is_list()) {
+            OREPORT(textinfo, InvalidInitializer, *init,
+                    "invalid initializer, scalar value initialization should enclosed at most one level of braces");
+            break;
+        }
+
+        auto val = check_initialization_of_object_with_intializer(type, init__, reporter);
+        if (val.has_value()) {
+            auto newinit = make_shared<ASTNodeInitializer>(init->context(), val.value());
+            newinit->check_constraints(reporter);
+            init->set_initializer(newinit);
+        }
+        return;
+    } break;
+    case variable_basic_type::VOID:
+        assert(false && "try to initialize a value with void type");
+        break;
+    case variable_basic_type::DUMMY:
+    case variable_basic_type::FUNCTION:
+        assert(false && "unreachable");
+        break;
+    }
+}
+
+static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_intializer(
+        std::shared_ptr<ASTNodeVariableType> type,
+        std::shared_ptr<ASTNodeInitializer> init,
+        std::shared_ptr<SemanticReporter> reporter)
+{
+    auto textinfo = type->context()->textinfo();
+    auto ctx = type->context();
+    if (init->is_expr()) {
+        if (type->basic_type() == variable_basic_type::ARRAY)
+        {
+            auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+            assert(arrtype);
+            auto initexpr = init->expr();
+            assert(!arrtype->elemtype()->is_incomplete_type());
+            if (!arrtype->elemtype()->equal_to(kstype::chartype(ctx))) {
+                OREPORT(textinfo, InvalidInitializer, *init,
+                        "these value can't be initialized with an expression");
+            } else if (arrtype->is_incomplete_type()) {
+                auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(initexpr);
+                if (!strexpr) {
+                    OREPORT(textinfo, InvalidInitializer, *init,
+                            "bad initializer for char array");
+                } else {
+                    const auto& str = strexpr->token()->value;
+                    auto strsize = make_shared<TokenConstantInteger>(str.size() + 1);
+                    auto strsize_ast = make_shared<ASTNodeExprInteger>(ctx, strsize);
+                    strsize_ast->check_constraints(reporter);
+                    arrtype->set_array_size(strsize_ast);
+                }
+            }
+            // TODO warning when initializer string is too long for array
+        } else {
+            using OT = typename ASTNodeExprBinaryOp::BinaryOperatorType;
+            static int fakeid_counter = 0;
+            auto fakeid = make_shared<TokenID>("#fake_" + to_string(fakeid_counter++));
+            auto fakeidast = make_shared<ASTNodeExprIdentifier>(ctx, fakeid);
+            auto tctx  = ctx->tu_context();
+            auto copytype = type->copy();
+            copytype->reset_qualifies();
+            tctx->declare_variable(fakeid->id, copytype);
+            auto assign_expr = make_shared<ASTNodeExprBinaryOp>(ctx, OT::ASSIGNMENT, fakeidast, init->expr());
+            assign_expr->check_constraints(reporter);
+            if (assign_expr->right() != init->expr())
+                return assign_expr->right();
+        }
+    } else {
+        if (type->storage_class() != storage_class_t::SC_Default) {
+            type = type->copy();
+            type->reset_storage_class();
+        }
+        check_initialization_of_object_with_intializer_list(type, init->list(), reporter);
+    }
+
+    return nullopt;
+}
+
+static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object(
+        std::shared_ptr<ASTNodeVariableType> type,
+        std::shared_ptr<ASTNodeInitializer> init,
+        std::shared_ptr<SemanticReporter> reporter)
+{
+    auto textinfo = type->context()->textinfo();
+    if (type->storage_class() == storage_class_t::SC_Static && init->is_constexpr()) {
+        OREPORT(textinfo, InvalidInitializer, *init,
+                "invalid initializer, static storage value should be initialzed by a const value");
+    }
+
+    if (type->is_function_type()) {
+        OREPORT(textinfo, InvalidInitializer, *init,
+                "invalid initializer, function type cannot be initialized");
+        return nullopt;
+    }
+
+    bool bad = false;
+    if (type->is_incomplete_type()) {
+        bad = true;
+        if (type->basic_type() == variable_basic_type::ARRAY) {
+            auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+            assert(arrtype);
+            bad = arrtype->elemtype()->is_incomplete_type();
+        }
+    } else {
+        auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
+        if (!arrtype->array_size()->get_integer_constant().has_value())
+            bad = true;
+    }
+    
+    if (bad) {
+        OREPORT(textinfo, InvalidInitializer, *init,
+                "invalid initializer, incomplete type object or variable size object cannot be initialized");
+
+        return nullopt;
+    }
+
+    return check_initialization_of_object_with_intializer(type, init, reporter);
+}
+
+void ASTNodeExprCompoundLiteral::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
     if (!this->do_check()) return;
 
@@ -289,18 +526,8 @@ void ASTNodeExprInitializer::check_constraints(std::shared_ptr<SemanticReporter>
     if (olderrorcounter != reporter->size())
         return;
 
-    auto type = this->m_type;
-    auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
-    if (arrtype) {
-        auto arraysize = arrtype->array_size();
-        if (arraysize && !arraysize->get_integer_constant().has_value())
-        {
-            REPORT(InvalidInitializer, *this, "invalid initializer, array size is not constant");
-            this->resolve_type(kstype::voidtype(this->context()));
-            return;
-        }
-    }
-    // TODO messy
+    auto init = make_shared<ASTNodeInitializer>(this->context(), this->m_init);
+    check_initialization_of_object_with_intializer(this->m_type, init, reporter);
 }
 
 void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -479,7 +706,7 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
         case OT::ASSIGNMENT_DIVISION:
         {
             auto composite = composite_or_promote(ltype, rtype);
-            if (!composite || composite->is_arithmatic_type()) {
+            if (!composite || !composite->is_arithmatic_type()) {
                 REPORT(InvalidOperand, *this, "invalid operand for multiply and division, can't convert to arithmetic type");
             }
             if (!ltype->equal_to(composite))
@@ -771,8 +998,11 @@ void ASTNodeExprList::check_constraints(std::shared_ptr<SemanticReporter> report
 {
     if (!this->do_check()) return;
 
+    assert(this->size() > 0);
     for (auto expr: *this)
         expr->check_constraints(reporter);
+
+    this->resolve_type(this->back()->type());
 }
 
 void ASTNodeVariableTypeDummy::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -888,13 +1118,10 @@ void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> 
 
     if (this->m_initializer) {
         auto initializer = this->get_initializer();
-        if (initializer->is_expr()) {
-            auto expr = initializer->expr();
-            if (!expr->type()->implicit_cast_to(this->get_type())) {
-                REPORT(IncompatibleTypes, *expr, "incompatible types in initialization");
-            }
-        } else {
-            // TODO
+        auto newval = check_initialization_of_object_with_intializer(this->m_type, initializer, reporter);
+        if (newval.has_value()) {
+            assert(newval.value());
+            this->m_initializer = make_shared<ASTNodeInitializer>(this->context(), newval.value());
         }
     }
 
@@ -1220,7 +1447,17 @@ void ASTNodeDesignation::check_constraints(std::shared_ptr<SemanticReporter> rep
 {
     if (!this->do_check()) return;
 
-    // TODO
+    for (auto d: this->designators()) {
+        if (std::holds_alternative<array_designator_t>(d)) {
+            auto& ad = std::get<array_designator_t>(d);
+            auto val = ad->get_integer_constant();
+            if (!val.has_value()) {
+                REPORT(InvalidArrayDesignator, *ad, "not constant integer in array designator");
+            }
+        }
+    }
+
+    this->m_initializer->check_constraints(reporter);
 }
 
 void ASTNodeInitializerList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -1229,8 +1466,6 @@ void ASTNodeInitializerList::check_constraints(std::shared_ptr<SemanticReporter>
 
     for (auto init: *this)
         init->check_constraints(reporter);
-
-    // TODO
 }
 
 void ASTNodeStatLabel::check_constraints(std::shared_ptr<SemanticReporter> reporter)

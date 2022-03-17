@@ -285,13 +285,13 @@ public:
     virtual bool is_lvalue() const override;
 };
 
-class ASTNodeExprInitializer: public ASTNodeExpr {
+class ASTNodeExprCompoundLiteral: public ASTNodeExpr {
 private:
     std::shared_ptr<ASTNodeInitializerList> m_init;
     std::shared_ptr<ASTNodeVariableType> m_type;
 
 public:
-    inline ASTNodeExprInitializer(
+    inline ASTNodeExprCompoundLiteral(
             ASTNodeParserContext c,
             std::shared_ptr<ASTNodeVariableType> type,
             std::shared_ptr<ASTNodeInitializerList> init
@@ -421,6 +421,9 @@ public:
     {
         this->contain(left, right);
     }
+
+    inline std::shared_ptr<ASTNodeExpr> left() { return this->m_left; }
+    inline std::shared_ptr<ASTNodeExpr> right() { return this->m_right; }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
@@ -1189,6 +1192,11 @@ public:
     virtual void set_leaf_type(std::shared_ptr<ASTNodeVariableType> type) override;
     inline std::shared_ptr<ASTNodeVariableType> elemtype() const { return this->m_type; }
     inline std::shared_ptr<ASTNodeExpr> array_size() const { return this->m_size; }
+    inline void set_array_size(std::shared_ptr<ASTNodeExpr> size)
+    {
+        assert(this->m_size == nullptr);
+        this->m_size = size;
+    }
     inline bool& unspecified_size_vla() { return this->m_unspecified_size_vla; }
 
     virtual storage_class_t& storage_class() override;
@@ -1355,9 +1363,11 @@ public:
 };
 
 class ASTNodeDesignation: public ASTNode {
-private:
+public:
     using array_designator_t = std::shared_ptr<ASTNodeExpr>;
     using member_designator_t = std::shared_ptr<TokenID>;
+
+private:
     std::vector<std::variant<array_designator_t,member_designator_t>> m_designators;
     std::shared_ptr<ASTNodeInitializer> m_initializer;
 

@@ -26,6 +26,7 @@ namespace kstype {
 std::shared_ptr<ASTNodeVariableTypeVoid>    voidtype(std::shared_ptr<CParserContext> ctx);
 std::shared_ptr<ASTNodeVariableTypeInt>     booltype(std::shared_ptr<CParserContext> ctx);
 std::shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(std::shared_ptr<CParserContext> ctx);
+std::shared_ptr<ASTNodeVariableTypeInt>     chartype(std::shared_ptr<CParserContext> ctx);
 }
 
 std::shared_ptr<ASTNodeVariableTypePointer> ptrto(std::shared_ptr<ASTNodeVariableType> type);

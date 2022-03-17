@@ -60,6 +60,9 @@ public:
     SENTRY(RequireIntegerType,         ERROR, "require integer type") \
     SENTRY(BitFieldIsTooLarge,         ERROR, "bit-field is too large") \
     SENTRY(NegativeBitField,           ERROR, "negative bit-field specifier") \
+    SENTRY(InvalidInitializerList,     ERROR, "invalid initializer list") \
+    SENTRY(InvalidDesignation,         ERROR, "invalid initializer designation") \
+    SENTRY(InvalidArrayDesignator,     ERROR, "invalid array designator") \
 
 
 #define SENTRY(name, _, __) \

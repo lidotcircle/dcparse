@@ -53,7 +53,10 @@ bool ASTNodeInitializer::is_constexpr() const
 {
     if (std::holds_alternative<std::shared_ptr<ASTNodeExpr>>(this->m_value))
     {
-        return std::get<std::shared_ptr<ASTNodeExpr>>(this->m_value)->is_constexpr();
+        auto expr = std::get<std::shared_ptr<ASTNodeExpr>>(this->m_value);
+        auto str = dynamic_pointer_cast<ASTNodeExprString>(expr);
+        if (str) return true;
+        return expr->is_constexpr();
     }
     else
     {

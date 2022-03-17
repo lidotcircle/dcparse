@@ -102,12 +102,12 @@ optional<long double> ASTNodeExprPointerMemberAccess::get_float_constant() const
     return nullopt;
 }
 
-optional<long long> ASTNodeExprInitializer::get_integer_constant() const
+optional<long long> ASTNodeExprCompoundLiteral::get_integer_constant() const
 {
     return nullopt;
 }
 
-optional<long double> ASTNodeExprInitializer::get_float_constant() const
+optional<long double> ASTNodeExprCompoundLiteral::get_float_constant() const
 {
     return nullopt;
 }
@@ -416,7 +416,7 @@ bool ASTNodeExprPointerMemberAccess::is_lvalue() const
     return true;
 }
 
-bool ASTNodeExprInitializer::is_lvalue() const
+bool ASTNodeExprCompoundLiteral::is_lvalue() const
 {
     return true;
 }

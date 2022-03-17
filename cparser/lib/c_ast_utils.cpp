@@ -82,6 +82,14 @@ shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(shared_ptr<CParserContex
     return ans;
 }
 
+
+std::shared_ptr<ASTNodeVariableTypeInt> chartype(std::shared_ptr<CParserContext> ctx)
+{
+    shared_ptr<DCParser::DCParserContext> pctx = ctx;
+    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), true);
+    return char_type;
+}
+
 }
 
 shared_ptr<ASTNodeVariableTypePointer> ptrto(shared_ptr<ASTNodeVariableType> type)

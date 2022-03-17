@@ -96,7 +96,17 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeDummy::copy() const
 
 shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeStruct::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
 {
-    return this->compatible_with(type);
+    if (type->basic_type() != variable_basic_type::STRUCT)
+        return nullptr;
+
+    auto t = std::dynamic_pointer_cast<ASTNodeVariableTypeStruct>(type);
+    assert(t);
+
+    assert(this->m_type_id.has_value() && t->m_type_id.has_value());
+    if (this->m_type_id.value() == t->m_type_id.value())
+        return type;
+    else
+        return nullptr;
 }
 
 shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeStruct::explicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
@@ -183,6 +193,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeStruct::copy() const
     assert(this->m_definition);
     auto ast = std::make_shared<ASTNodeVariableTypeStruct>(this->lcontext(), this->m_name);
     ast->m_definition = this->m_definition;
+    ast->m_type_id = this->m_type_id;
     ast->const_ref() = this->const_ref();
     ast->volatile_ref() = this->volatile_ref();
     ast->restrict_ref() = this->restrict_ref();
@@ -281,6 +292,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeUnion::copy() const
     assert(this->m_definition);
     auto ast = std::make_shared<ASTNodeVariableTypeUnion>(this->lcontext(), this->m_name);
     ast->m_definition = this->m_definition;
+    ast->m_type_id = this->m_type_id;
     ast->const_ref() = this->const_ref();
     ast->volatile_ref() = this->volatile_ref();
     ast->restrict_ref() = this->restrict_ref();
@@ -390,6 +402,7 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeEnum::copy() const
 {
     auto ast = std::make_shared<ASTNodeVariableTypeEnum>(this->lcontext(), this->m_name);
     ast->m_definition = this->m_definition;
+    ast->m_type_id = this->m_type_id;
     ast->const_ref() = this->const_ref();
     ast->volatile_ref() = this->volatile_ref();
     ast->restrict_ref() = this->restrict_ref();
@@ -509,15 +522,8 @@ std::shared_ptr<ASTNodeVariableType> ASTNodeVariableTypeVoid::copy() const
 
 shared_ptr<ASTNodeVariableType>  ASTNodeVariableTypeInt::implicit_cast_to(shared_ptr<ASTNodeVariableType> type) const
 {
-    if (this->is_arithmatic_type())
+    if (type->is_arithmatic_type() || type->basic_type() == variable_basic_type::ENUM)
         return type;
-
-    if (type->basic_type() == variable_basic_type::ENUM &&
-        this->m_byte_length == ENUM_COMPATIBLE_INT_BYTE_WIDTH &&
-        this->m_is_unsigned == ENUM_COMPATIBLE_INT_IS_UNSIGNED)
-    {
-        return type;
-    }
 
     return nullptr;
 }

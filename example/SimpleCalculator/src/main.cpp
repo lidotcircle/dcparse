@@ -85,13 +85,11 @@ int main(int argc, char* argv[])
     string line;
     cout << "> ";
     while (getline(cin, line)) {
-        line = trimstring(line);
+        line = trimstring(line) + "\n\n";
 
         try {
             for (auto c: line)
                 exec.feed(c);
-            if (!line.empty() && line.back() == ';')
-                exec.feed(';');
         } catch  (const std::runtime_error& e) {
             cerr << "Error: " << e.what() << endl;
             exec.reset();

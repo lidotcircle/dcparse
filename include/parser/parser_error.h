@@ -18,6 +18,11 @@ public:
     ParserSyntaxError(const std::string& what);
 };
 
+class ParserRejectTokenError : public ParserSyntaxError {
+public:
+    ParserRejectTokenError(const std::string& what);
+};
+
 class ParserUnknownToken : public ParserError {
 public:
     ParserUnknownToken(const std::string& what);

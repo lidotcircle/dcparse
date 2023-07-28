@@ -7,5 +7,7 @@ ParserGrammarError::ParserGrammarError(const std::string& what) : ParserError(wh
 
 ParserSyntaxError::ParserSyntaxError(const std::string& what) : ParserError(what) {}
 
+ParserRejectTokenError::ParserRejectTokenError(const std::string& what) : ParserSyntaxError(what) {}
+
 ParserUnknownToken::ParserUnknownToken(const std::string& what) : ParserError(what) {}
 

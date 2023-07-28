@@ -1210,7 +1210,7 @@ void DCParser::feed_internal(dchar_t char_)
             if (pt && this->h_textinfo)
                 posinfo = this->h_textinfo->row_col_str(*pt);
 
-            throw ParserSyntaxError(this->help_when_reject_at(cstate, char_->charid()) + posinfo);
+            throw ParserRejectTokenError(this->help_when_reject_at(cstate, char_->charid()) + posinfo);
             break;
         }
         default:
@@ -1243,14 +1243,76 @@ void DCParser::feed(dctoken_t token)
         *this->h_debug_stream << "feed: " << token->charname() << endl;
     }
 
-    while (this->p_not_finished.has_value()) {
-        auto v = this->handle_lookahead(token);
+    try {
+        m_prevSave.push_back(token);
+        if (m_need_recover) {
+            auto rt = this->recover_from_reject();
+            if (rt.has_value()) {
+                auto err = m_need_recover;
+                m_need_recover = std::nullopt;
+                if (!rt.value()) {
+                    throw err;
+                }
+            } else {
+                return;
+            }
+        }
 
-        if (v.has_value())
-            this->feed_internal(v.value());
+        while (!m_prevSave.empty()) {
+            auto tt = m_prevSave.front();
+            m_prevSave.erase(m_prevSave.begin());
+            while (this->p_not_finished.has_value()) {
+                auto v = this->handle_lookahead(tt);
+
+                if (v.has_value())
+                    this->feed_internal(v.value());
+            }
+
+            this->feed_internal(tt);
+        }
+    } catch (ParserRejectTokenError& err) {
+        assert(!m_need_recover.has_value());
+        m_need_recover = err;
+        m_prevSave.push_back(token);
+        auto rt = this->recover_from_reject();
+        if (rt.has_value()) {
+            m_need_recover = std::nullopt;
+            if (!rt.value()) {
+                throw err;
+            }
+        }
     }
 
-    this->feed_internal(token);
+    if (!m_need_recover.has_value() && !m_prevSave.empty()) {
+        auto t = m_prevSave.front();
+        m_prevSave.erase(m_prevSave.begin());
+        this->feed(t);
+    }
+}
+
+std::optional<bool> DCParser::recover_from_reject()
+{
+    if (m_recFn) {
+        const auto ans = m_recFn(p_char_stack, m_prevSave);
+        if (ans.has_value()) {
+            assert(m_prevSave.size() <= ans.value().second);
+            m_prevSave.erase(m_prevSave.begin(), m_prevSave.begin() + ans.value().second);
+
+            const auto rm = ans.value().first;
+            if (rm >= 0) {
+                assert(p_state_stack.size() > rm);
+                assert(p_char_stack.size() > rm);
+                p_state_stack.resize(p_state_stack.size() - rm);
+                p_char_stack.resize(p_char_stack.size() - rm);
+                return true;
+            } else {
+                return false;
+            }
+        }
+    } else {
+        return false;
+    }
+    return std::nullopt;
 }
 
 dnonterm_t DCParser::end()
@@ -1261,11 +1323,28 @@ dnonterm_t DCParser::end()
     assert(!this->p_state_stack.empty());
     assert(!this->p_char_stack.empty() || this->p_not_finished.has_value());
 
-    while (this->p_not_finished.has_value()) {
-        auto v = this->handle_lookahead(std::make_shared<EOFChar>());
+    auto eos = std::make_shared<EOFChar>();
+    m_prevSave.push_back(eos);
+    if (m_need_recover) {
+        auto rt = this->recover_from_reject();
+        auto err = m_need_recover;
+        m_need_recover = std::nullopt;
+        if (!rt.has_value() || !rt.value()) {
+            throw err;
+        }
+    }
 
-        if (v.has_value())
-            this->feed_internal(v.value());
+    while (!m_prevSave.empty()) {
+        auto tt = m_prevSave.front();
+        m_prevSave.erase(m_prevSave.begin());
+        while (this->p_not_finished.has_value()) {
+            auto v = this->handle_lookahead(tt);
+
+            if (v.has_value())
+                this->feed_internal(v.value());
+
+            if (tt != eos) this->feed_internal(tt);
+        }
     }
 
     assert (!this->p_char_stack.empty());

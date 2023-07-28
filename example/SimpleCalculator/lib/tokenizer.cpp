@@ -41,7 +41,8 @@ inline static auto u2s(std::vector<int> cps) { return UTF8Encoder::strencode(cps
     TENTRY(RETURN,       "return") \
     \
     TENTRY(COMMA,        ",") \
-    TENTRY(SEMICOLON,    ";")
+    TENTRY(SEMICOLON,    ";") \
+    TENTRY(NEWLINE,      "\n")
 
 
 CalcLexer::CalcLexer()
@@ -103,7 +104,7 @@ KEYWORD_TOKEN
                 static const CalcParser calcparser(false);
                 static const auto possible_prev = calcparser.prev_possible_token_of(CharID<TokenNUMBER>());
 
-                if (!last.has_value())
+                if (!last.has_value() || dynamic_pointer_cast<TokenNEWLINE>(last.value()))
                     return true;
 
                 auto last_token = last.value();
@@ -119,7 +120,7 @@ KEYWORD_TOKEN
     // space, tab, newline
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("( |\t|\r|\n)+"),
+            s2u("( |\t|\r)+"),
             [](auto str, auto info) {
             return nullptr;
         })

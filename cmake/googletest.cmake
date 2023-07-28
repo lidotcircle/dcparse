@@ -4,7 +4,7 @@ CPMAddPackage(
     NAME googletest
     GITHUB_REPOSITORY google/googletest
     DOWNLOAD_ONLY ON
-    GIT_TAG 05CC6081FCBD0071053DE78238E136B3
+    GIT_TAG v1.13.0
 )
 
 if(googletest_ADDED)

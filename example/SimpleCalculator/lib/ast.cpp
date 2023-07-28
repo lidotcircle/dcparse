@@ -190,12 +190,14 @@ void ASTNodeExprStat::execute()
     auto out = ccontext->output();
     const auto isoutest = context->in_outest_scope();
 
+    bool printn = false;
     const auto exprlistlen = this->_exprlist->size();
     for (size_t i=0;i<exprlistlen;i++) {
         auto expr = (*this->_exprlist)[i];
         auto val = expr->evaluate();
 
-        if (out && isoutest) {
+        if (out && isoutest && (exprlistlen > 1 || !expr->used())) {
+            printn = true;
             *out << val;
 
             if (i != exprlistlen - 1)
@@ -203,7 +205,7 @@ void ASTNodeExprStat::execute()
         }
     }
 
-    if (out && isoutest && exprlistlen > 0)
+    if (printn)
         *out << endl;
 }
 

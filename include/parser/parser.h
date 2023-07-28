@@ -4,6 +4,7 @@
 #include "../lexer/token.h"
 #include "../lexer/simple_lexer.hpp"
 #include "../lexer/text_info.h"
+#include "parser_error.h"
 #include <ostream>
 #include <vector>
 #include <memory>
@@ -218,6 +219,12 @@ private:
                            reduce_callback_t reduce_cb, RuleAssocitive associative,
                            decision_t decision, std::set<size_t> positions, priority_t priority);
 
+    using RecoverFromRejectFn = std::function<std::optional<std::pair<int,size_t>>(const std::vector<dchar_t>& symbolStack, const std::vector<dctoken_t>& nextNTokens)>;
+    RecoverFromRejectFn  m_recFn;
+    std::vector<dctoken_t> m_prevSave;
+    std::optional<ParserRejectTokenError> m_need_recover;
+    std::optional<bool> recover_from_reject();
+
 public:
     DCParser(bool lookahead_rule_propagation = true);
     DCParser(const DCParser&) = delete;
@@ -235,6 +242,8 @@ public:
 
     void setDebugStream(std::ostream& stream);
     void SetTextinfo(std::shared_ptr<TextInfo> info);
+
+    void setRecoverFn(RecoverFromRejectFn fn) { m_recFn = fn; }
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb,

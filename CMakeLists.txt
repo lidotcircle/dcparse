@@ -6,6 +6,8 @@ include("cmake/googletest.cmake")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+set(CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "-std=c++17")
 
 file(GLOB_RECURSE dcparse_SOURCES CONFIGURE_DEPENDS ./lib/**.cpp)
 add_library(dcparse STATIC ${dcparse_SOURCES})

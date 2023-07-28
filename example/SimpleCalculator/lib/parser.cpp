@@ -191,7 +191,25 @@ void CalcParser::statement_rules()
                 return make_shared<NonTermExprStatement>(ast);
             });
 
+    parser( NI(ExprStatement), { NI(ExprList), TI(NEWLINE) },
+            [] (auto c, auto ts) {
+                assert(ts.size() == 2);
+                pnonterm(ExprList, ASTNodeExprList, 0, exprlist);
+
+                auto ast = make_shared<ASTNodeExprStat>(c, exprlistast);
+                return make_shared<NonTermExprStatement>(ast);
+            });
+
     parser( NI(ExprStatement), { TI(SEMICOLON) },
+            [] (auto c, auto ts) {
+                assert(ts.size() == 1);
+
+                auto exprlistast = make_shared<ASTNodeExprList>(c);
+                auto ast = make_shared<ASTNodeExprStat>(c, exprlistast);
+                return make_shared<NonTermExprStatement>(ast);
+            });
+
+    parser( NI(ExprStatement), { TI(NEWLINE) },
             [] (auto c, auto ts) {
                 assert(ts.size() == 1);
 
@@ -415,6 +433,13 @@ CalcParser::CalcParser(bool execute)
     parser.__________();
 
     this->expression_rules();
+    parser.setRecoverFn([](auto&, auto& next) {
+        assert(!next.empty());
+        if (std::dynamic_pointer_cast<TokenNEWLINE>(next.front())) {
+            return std::make_pair(0, 1);
+        }
+        return std::make_pair(-1, 1);
+    });
 
     parser.add_start_symbol(NI(CalcUnit).id);
     parser.generate_table();

@@ -53,7 +53,8 @@ struct TokenNUMBER: public LexerToken {
     TENTRY(RETURN) \
     \
     TENTRY(COMMA) \
-    TENTRY(SEMICOLON)
+    TENTRY(SEMICOLON) \
+    TENTRY(NEWLINE)
 
 #define TENTRY(n) \
     struct Token##n: public LexerToken { \

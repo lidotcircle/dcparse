@@ -25,6 +25,7 @@ public:
     inline ASTNodeExpr(ASTNodeParserContext p): ASTNode(p) {}
 
     virtual double evaluate() = 0;
+    virtual bool used() { return false; }
 };
 
 class UnaryOperatorExpr: public ASTNodeExpr {
@@ -77,6 +78,7 @@ public:
         m_left(std::move(left)), m_right(std::move(right)) {}
 
     virtual double evaluate() override;
+    bool used() override { return m_operator == ASSIGNMENT; }
 };
 
 class IDExpr: public ASTNodeExpr

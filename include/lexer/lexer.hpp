@@ -123,7 +123,7 @@ private:
         assert(cache_pos > 0 && cache_pos <= this->m_cache.size());
         std::vector<std::shared_ptr<LexerToken>> tokens;
 
-        for (auto ci = this->m_cache[cache_pos - 1];
+        for (CharInfo ci = this->m_cache[cache_pos - 1];
              cache_pos <= this->m_cache.size();
                cache_pos++, 
                ci=(cache_pos <= this->m_cache.size()) ? this->m_cache[cache_pos-1] : ci)
@@ -211,7 +211,7 @@ private:
         if (prevs_is_dead)
         {
             assert(!this->m_match_major_priority.has_value());
-            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " + this->m_textinfo->row_col_str(this->m_pos));
+            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " + this->m_textinfo->row_col_str(c.pos));
         }
 
         return std::make_pair(std::nullopt, 0);

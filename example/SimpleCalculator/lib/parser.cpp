@@ -300,6 +300,15 @@ void CalcParser::statement_rules()
                 return make_shared<NonTermReturnStatement>(ast);
             });
 
+    parser ( NI(ReturnStatement), { TI(RETURN), NI(Expr), TI(NEWLINE) },
+            [] (auto c, auto ts) {
+                assert(ts.size() == 3);
+                pnonterm(Expr, ASTNodeExpr, 1, expr);
+                auto ast = make_shared<ASTNodeReturnStat>(c, exprast);
+
+                return make_shared<NonTermReturnStatement>(ast);
+            });
+
 #define to_statement(type) \
     parser ( NI(Statement), { NI(type) }, \
             [] (auto c, auto ts) { \

@@ -469,10 +469,75 @@ string DCParser::help_print_state(state_t state, size_t count, char paddingchar)
     return oss.str();
 }
 
+void DCParser::collect_expected_next_chars(state_t state, std::set<charid_t>& expectedNextTokens) const
+{
+    const auto& statesets = this->h_state2set.at(state);
+    for (auto& p: statesets) {
+        const auto& r = this->m_rules[p.first];
+        assert(r.m_rhs.size() > p.second);
+        auto rx = r.m_rhs.at(p.second);
+        if (m_terms.count(rx)) expectedNextTokens.insert(rx);
+    }
+}
+
+std::set<charid_t> DCParser::get_expected_chars() const
+{
+    assert(p_state_stack.size() > 0);
+    std::set<charid_t> expected;
+
+    if (p_not_finished.has_value()) {
+        std::set<state_t> nextStates;
+
+        std::function<void(size_t,const PushdownStateLookup&)> handle_la;
+        std::function<void(size_t,charid_t)> handle_feed;
+
+        handle_la = [&](size_t rm, const PushdownStateLookup& lookup) {
+            std::set<ruleid_t> reduce_cases;
+            for (auto& n: lookup) {
+                if (h_charinfo.count(n.first) == 0) continue;
+                const auto type = n.second.type();
+                assert(type == PushdownEntry::STATE_TYPE_REDUCE || type == PushdownEntry::STATE_TYPE_SHIFT);
+
+                if (type == PushdownEntry::STATE_TYPE_REDUCE) {
+                    reduce_cases.insert(n.second.rule());
+                } else {
+                    nextStates.insert(n.second.state());
+                }
+            }
+            for (auto& ruleid: reduce_cases) {
+                const auto& r = m_rules.at(ruleid);
+                const auto rn = r.m_rhs.size();
+                handle_feed(rm + rn - 1, r.m_lhs);
+            }
+        };
+
+        handle_feed = [&](size_t rm, charid_t cid) {
+            assert(rm <= p_state_stack.size());
+            auto& ee = this->m_pds_mapping->val.at(*(p_state_stack.end() - rm)).at(cid);
+            if (ee.type() == PushdownEntry::STATE_TYPE_SHIFT) {
+                nextStates.insert(ee.state());
+            } else if (ee.type() == PushdownEntry::STATE_TYPE_REDUCE) {
+                const auto& r = m_rules.at(ee.rule());
+                const auto rn = r.m_rhs.size();
+                handle_feed(rm + rn - 1, r.m_lhs);
+            } else if (ee.type() == PushdownEntry::STATE_TYPE_LOOKAHEAD) {
+                handle_la(rm, *ee.lookup());
+            }
+        };
+
+        handle_la(0, *p_not_finished.value().second->lookup());
+        for (auto& s: nextStates) this->collect_expected_next_chars(s, expected);
+    } else {
+        this->collect_expected_next_chars(p_state_stack.back(), expected);
+    }
+    return expected;
+}
+
 string DCParser::help_when_reject_at(state_t state, charid_t char_) const
 {
     ostringstream oss;
     assert(this->h_state2set.size() > state);
+    assert(p_state_stack.back() == state);
 
     oss << endl;
     auto& statesets = this->h_state2set[state];
@@ -1238,6 +1303,15 @@ void DCParser::feed(dctoken_t token)
         }
     }
 
+    if (this->m_preAction) {
+        auto a = this->m_preAction(this->p_char_stack, token);
+        if (a.has_value()) {
+            token = a.value();
+        } else {
+            return;
+        }
+    }
+
     if (this->h_debug_stream) {
         *this->h_debug_stream << endl;
         *this->h_debug_stream << "feed: " << token->charname() << endl;
@@ -1348,12 +1422,19 @@ dnonterm_t DCParser::end()
     }
 
     assert (!this->p_char_stack.empty());
-    if (this->p_char_stack.size() != 1)
-        throw ParserSyntaxError("unexpected end of token stream");
+    if (this->p_char_stack.size() != 1) {
+        std::string charstackdump;
+        for (auto& c: p_char_stack) {
+            charstackdump += "  ";
+            charstackdump += c->charname();
+            charstackdump += "\n";
+        }
+        throw ParserSyntaxError("unexpected end of token stream, char stack:\n" + charstackdump);
+    }
 
     assert(this->p_state_stack.size() >= 1);
     if (this->p_state_stack.size() > 1)
-        throw ParserSyntaxError("unexpected end of token stream");
+        throw ParserSyntaxError("unexpected end of token stream, state");
 
     auto char_ = this->p_char_stack.back();
     auto realstart = dynamic_pointer_cast<RealStartSymbol>(char_);

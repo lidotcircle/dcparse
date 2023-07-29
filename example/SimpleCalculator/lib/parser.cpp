@@ -1,7 +1,6 @@
 #include "scalc/parser.h"
 #include "scalc/token.h"
 #include "scalc/context.h"
-#include <iostream>
 using namespace std;
 
 
@@ -201,15 +200,6 @@ void CalcParser::statement_rules()
             });
 
     parser( NI(ExprStatement), { TI(SEMICOLON) },
-            [] (auto c, auto ts) {
-                assert(ts.size() == 1);
-
-                auto exprlistast = make_shared<ASTNodeExprList>(c);
-                auto ast = make_shared<ASTNodeExprStat>(c, exprlistast);
-                return make_shared<NonTermExprStatement>(ast);
-            });
-
-    parser( NI(ExprStatement), { TI(NEWLINE) },
             [] (auto c, auto ts) {
                 assert(ts.size() == 1);
 
@@ -433,6 +423,16 @@ CalcParser::CalcParser(bool execute)
     parser.__________();
 
     this->expression_rules();
+
+    parser.setPreAction([&](auto& stack, std::shared_ptr<LexerToken> token) {
+        if (std::dynamic_pointer_cast<TokenNEWLINE>(token)) {
+            if (parser.get_expected_chars().count(token->charid()) == 0) {
+                return std::optional<std::shared_ptr<LexerToken>>(std::nullopt);
+            }
+        }
+        return std::optional<std::shared_ptr<LexerToken>>(token);
+    });
+
     parser.setRecoverFn([](auto&, auto& next) {
         assert(!next.empty());
         if (std::dynamic_pointer_cast<TokenNEWLINE>(next.front())) {

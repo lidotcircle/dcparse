@@ -38,7 +38,12 @@ TEST(SimpleCalculator, AcceptText) {
 
 string to_string2(double d) {
     stringstream ss;
-    ss << d;
+    double intpart;
+    if (std::modf(d, &intpart) == 0) {
+        ss << std::fixed << std::setprecision(0) << d;
+    } else {
+        ss << std::fixed << d;
+    }
     return ss.str();
 }
 

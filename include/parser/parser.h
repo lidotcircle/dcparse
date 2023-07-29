@@ -219,6 +219,10 @@ private:
                            reduce_callback_t reduce_cb, RuleAssocitive associative,
                            decision_t decision, std::set<size_t> positions, priority_t priority);
 
+    using PreAction = std::function<std::optional<dctoken_t>(const std::vector<dchar_t>& symbolStack, dctoken_t)>;
+    PreAction m_preAction;
+    void collect_expected_next_chars(state_t state, std::set<charid_t>& expectedNextTokens) const;
+
     using RecoverFromRejectFn = std::function<std::optional<std::pair<int,size_t>>(const std::vector<dchar_t>& symbolStack, const std::vector<dctoken_t>& nextNTokens)>;
     RecoverFromRejectFn  m_recFn;
     std::vector<dctoken_t> m_prevSave;
@@ -243,7 +247,10 @@ public:
     void setDebugStream(std::ostream& stream);
     void SetTextinfo(std::shared_ptr<TextInfo> info);
 
+    void setPreAction(PreAction fn) { m_preAction = fn; }
     void setRecoverFn(RecoverFromRejectFn fn) { m_recFn = fn; }
+
+    std::set<charid_t> get_expected_chars() const;
 
     void add_rule(DCharInfo leftside, std::vector<ParserChar> rightside,
                   reduce_callback_t reduce_cb,

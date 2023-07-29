@@ -4,6 +4,7 @@
 #include "scalc/scalc_error.h"
 #include "scalc/defer.hpp"
 #include <math.h>
+#include <iomanip>
 using namespace std;
 
 #define GetContext(var, node) \
@@ -198,7 +199,16 @@ void ASTNodeExprStat::execute()
 
         if (out && isoutest && (exprlistlen > 1 || !expr->used())) {
             printn = true;
-            *out << val;
+            double intpart;
+            if (std::modf(val, &intpart) == 0.0) {
+                *out << std::fixed << std::setprecision(0) << intpart;
+            } else {
+                if (std::abs(val) < 1e10 && std::abs(val) > 1e-10) {
+                    *out << std::fixed << val;
+                } else {
+                    *out << val;
+                }
+            }
 
             if (i != exprlistlen - 1)
                 *out << ", ";

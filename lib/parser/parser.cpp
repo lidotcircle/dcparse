@@ -513,7 +513,7 @@ std::set<charid_t> DCParser::get_expected_chars() const
 
         handle_feed = [&](size_t rm, charid_t cid) {
             assert(rm <= p_state_stack.size());
-            auto& ee = this->m_pds_mapping->val.at(*(p_state_stack.end() - rm)).at(cid);
+            auto& ee = this->m_pds_mapping->val.at(*(p_state_stack.end() - rm - 1)).at(cid);
             if (ee.type() == PushdownEntry::STATE_TYPE_SHIFT) {
                 nextStates.insert(ee.state());
             } else if (ee.type() == PushdownEntry::STATE_TYPE_REDUCE) {

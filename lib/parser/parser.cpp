@@ -201,7 +201,7 @@ public:
     }
     static shared_ptr<PushdownEntry> decide(decision_info_t decision_info)
     {
-        return shared_ptr<PushdownEntry>(new PushdownEntry(make_shared<decision_info_t>(move(decision_info))));
+        return shared_ptr<PushdownEntry>(new PushdownEntry(make_shared<decision_info_t>(std::move(decision_info))));
     }
 
     ~PushdownEntry()
@@ -388,7 +388,7 @@ int DCParser::add_rule_internal(
     RuleInfo ri;
     ri.m_lhs = lh;
     ri.m_rhs = rh;
-    ri.m_rhs_optional = move(rhop);
+    ri.m_rhs_optional = std::move(rhop);
     ri.m_reduce_callback = cb;
     ri.m_rule_option = std::make_shared<RuleOption>();
     auto ruleopt = ri.m_rule_option;
@@ -397,7 +397,7 @@ int DCParser::add_rule_internal(
     ruleopt->priority = this->m_priority;
     if (priority) ruleopt->priority = priority->priority();
     ruleopt->decision = decision;
-    ruleopt->decision_pos = move(positions);
+    ruleopt->decision_pos = std::move(positions);
     ruleopt->seen = false;
     ruleopt->ruleid = this->m_rules.size() + 0x999;
 
@@ -744,7 +744,7 @@ void DCParser::generate_table()
             auto s_next = this->stateset_move(s, ch);
             auto action = this->state_action(s_next, true, sallocator, next_states);
             assert(action);
-            state_mapping[ch] = move(*action);
+            state_mapping[ch] = std::move(*action);
 
             for (auto& s: next_states) {
                 if (visited.find(s) == visited.end()) {
@@ -758,7 +758,7 @@ void DCParser::generate_table()
     assert(mapping.size() == sallocator.max_state());
 
     this->m_start_state = start_state;
-    this->m_pds_mapping = std::make_shared<PushdownStateMapping>(move(mapping));
+    this->m_pds_mapping = std::make_shared<PushdownStateMapping>(std::move(mapping));
 
     this->h_state2set.clear();
     this->h_state2set.resize(sallocator.max_state());
@@ -806,7 +806,7 @@ DCParser::state_action(set<pair<ruleid_t,size_t>> s_next,
             eval_action[s.value()] = action;
         }
 
-        return PushdownEntry::decide(move(decision_info));
+        return PushdownEntry::decide(std::move(decision_info));
     }
 
     // REJECT
@@ -931,7 +931,7 @@ DCParser::state_action(set<pair<ruleid_t,size_t>> s_next,
         }
     }
 
-    return PushdownEntry::lookahead(std::make_shared<PushdownStateLookup>(move(lookahead_table)));
+    return PushdownEntry::lookahead(std::make_shared<PushdownStateLookup>(std::move(lookahead_table)));
 }
 
 void DCParser::compute_posible_prev_next()

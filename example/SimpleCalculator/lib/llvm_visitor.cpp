@@ -22,6 +22,41 @@ ASTNodeVisitorLLVMGen::ASTNodeVisitorLLVMGen(const std::string& filename) :
     m_prevValue(nullptr),
     m_globalscope(true)
 {
+    { // snprintf
+        std::vector<llvm::Type*> argstype;
+        argstype.push_back(llvm::Type::getInt8PtrTy(*m_context));
+        argstype.push_back(llvm::Type::getInt64Ty(*m_context));
+        argstype.push_back(llvm::Type::getInt8PtrTy(*m_context));
+        llvm::FunctionType* ft = llvm::FunctionType::get(llvm::Type::getDoubleTy(*m_context), argstype, true);
+        llvm::Function* f = llvm::Function::Create(ft, llvm::Function::LinkageTypes::ExternalLinkage, "snprintf", m_module.get());
+        f->addFnAttr(llvm::Attribute::AttrKind::NoUnwind);
+    }
+
+    { // puts
+        std::vector<llvm::Type*> argstype;
+        argstype.push_back(llvm::Type::getInt8PtrTy(*m_context));
+        llvm::FunctionType* ft = llvm::FunctionType::get(llvm::Type::getDoubleTy(*m_context), argstype, false);
+        llvm::Function* f = llvm::Function::Create(ft, llvm::Function::LinkageTypes::ExternalLinkage, "puts", m_module.get());
+    }
+
+    { // double print(double)
+        std::vector<llvm::Type*> argstype(1, llvm::Type::getDoubleTy(*m_context));;
+        llvm::FunctionType* ft = llvm::FunctionType::get(llvm::Type::getDoubleTy(*m_context), argstype, false);
+        llvm::Function* f = llvm::Function::Create(ft, llvm::Function::LinkageTypes::ExternalLinkage, "print", m_module.get());
+        llvm::BasicBlock* gblock = llvm::BasicBlock::Create(*m_context, "main_entry", f);
+        m_builder->SetInsertPoint(gblock);
+        llvm::Value* val = f->getArg(0);
+        val->setName("value");
+        auto buf = m_builder->CreateAlloca(llvm::ArrayType::get(m_builder->getInt8Ty(), 50), nullptr, "buf");
+        llvm::Value* zeroIndex = m_builder->getInt64(0);
+        llvm::Value* charArrayPtr = m_builder->CreateInBoundsGEP(buf->getAllocatedType(), buf, {zeroIndex, zeroIndex}, "buf_ptr");
+        llvm::Value* format_str = m_builder->CreateGlobalString("%f", "format_str");
+        auto snprintf = m_module->getFunction("snprintf");
+        m_builder->CreateCall(snprintf, {charArrayPtr, m_builder->getInt64(50), format_str, val});
+        auto puts = m_module->getFunction("puts");
+        m_builder->CreateCall(puts, {charArrayPtr});
+        m_builder->CreateRet(val);
+    }
 }
 
 void ASTNodeVisitorLLVMGen::visitExpr(const ASTNodeExpr& expr)

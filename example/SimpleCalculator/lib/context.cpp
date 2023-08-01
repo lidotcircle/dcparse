@@ -1,5 +1,4 @@
 #include "scalc/context.h"
-#include "scalc/ast.h"
 #include "scalc/scalc_error.h"
 #include "scalc/defer.hpp"
 #include <assert.h>

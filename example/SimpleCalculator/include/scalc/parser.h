@@ -9,6 +9,7 @@
     TENTRY(CalcUnit) \
     TENTRY(ArgList) \
     TENTRY(FunctionDef) \
+    TENTRY(FunctionDecl) \
     \
     TENTRY(IfStatement) \
     TENTRY(ForStatement) \

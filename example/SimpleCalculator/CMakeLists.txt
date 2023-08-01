@@ -1,8 +1,16 @@
+find_package(LLVM REQUIRED CONFIG)
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 file(GLOB_RECURSE scalclib_SOURCES CONFIGURE_DEPENDS ./lib/**.cpp)
 add_library(scalclib STATIC ${scalclib_SOURCES})
 set_property(TARGET scalclib PROPERTY CXX_STANDARD 17)
 target_link_libraries(scalclib PUBLIC dcparse)
+target_link_libraries(scalclib PUBLIC ${llvm_libs})
 target_include_directories(scalclib PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
 
 add_executable(scalc ./src/main.cpp)

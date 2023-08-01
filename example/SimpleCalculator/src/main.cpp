@@ -1,5 +1,4 @@
 #include "scalc/lexer_parser.h"
-#include "scalc/scalc_error.h"
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -32,18 +31,26 @@ static string trimstring(string str)
 
 int main(int argc, char* argv[])
 {
-    CalcLexerParser exec(true);
-    auto ctx = exec.getContext();
-    ctx->set_output(&cout);
-
     if (argc > 3) {
         usage(argv[0]);
         return 1;
     }
 
+    string modulename = "";
     string input;
     if (argc == 3) {
         if (string(argv[1]) == "-f") {
+            ifstream ifs(argv[2]);
+            if (!ifs) {
+                cerr << "File not found: " << argv[2] << endl;
+                return 1;
+            }
+            stringstream ss;
+            ss << ifs.rdbuf();
+            input = ss.str();
+            if (input.empty()) input = ";";
+        } else if (string(argv[1]) == "-c") {
+            modulename = argv[2];
             ifstream ifs(argv[2]);
             if (!ifs) {
                 cerr << "File not found: " << argv[2] << endl;
@@ -68,12 +75,27 @@ int main(int argc, char* argv[])
             input += ';';
     }
 
+    CalcLexerParser exec(modulename.empty());
+    auto ctx = exec.getContext();
+    ctx->set_output(&cout);
+    const std::string preamble = 
+    "function sin(x);"
+    "function cos(x);";
     if (!input.empty()) {
+        input = preamble + input;
         try {
             for (auto c: input)
                 exec.feed(c);
 
             exec.end();
+            if (!modulename.empty()) {
+                const auto ir = exec.genllvm(modulename);
+                const auto pos = modulename.find_last_of('.');
+                const auto of = modulename.substr(0, pos) + ".ll";
+                std::fstream fs(of, std::ios::binary | std::ios::out);
+                fs.write(ir.c_str(), ir.size());
+                if (fs.bad()) cerr << "fail write to file: " << std::endl << ir << std::endl;
+            }
             return 0;
         } catch  (const runtime_error& e) {
             cerr << "Error: " << e.what() << endl;

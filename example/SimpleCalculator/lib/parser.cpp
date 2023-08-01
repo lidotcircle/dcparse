@@ -348,6 +348,23 @@ void CalcParser::function_rules()
                 return make_shared<NonTermFunctionDef>(ast);
             });
 
+    parser( NI(FunctionDecl), { TI(FUNCTION), NI(Expr), TI(LPAREN), ParserChar::beOptional(NI(ArgList)), TI(RPAREN), TI(SEMICOLON) },
+            [] (auto c, auto ts) {
+                assert(ts.size() == 6);
+                pnonterm(Expr, ASTNodeExpr, 1, func);
+
+                std::shared_ptr<ASTNodeArgList> argsast;
+                if (ts[3]) {
+                    pnonterm(ArgList, ASTNodeArgList, 3, argsx);
+                    argsast = argsxast;
+                } else {
+                    argsast = make_shared<ASTNodeArgList>(c);
+                }
+
+                auto ast = make_shared<ASTNodeFunctionDecl>(c, funcast, argsast);
+                return make_shared<NonTermFunctionDecl>(ast);
+            });
+
     parser( NI(ArgList), { TI(ID) },
             [] (auto c, auto ts) {
                 assert(ts.size() == 1);
@@ -416,6 +433,27 @@ void CalcParser::calcunit_rules()
                 pnonterm(FunctionDef, ASTNodeFunctionDef, 1, func);
 
                 unitast->push_function(funcast);
+                return make_shared<NonTermCalcUnit>(unitast);
+            });
+
+    parser( NI(CalcUnit), { NI(FunctionDecl) },
+            [] (auto c, auto ts) {
+                assert(ts.size() == 1);
+                pnonterm(FunctionDecl, ASTNodeFunctionDecl, 0, func);
+
+                auto ast = make_shared<ASTNodeCalcUnit>(c);
+                ast->push_function_decl(funcast);
+
+                return make_shared<NonTermCalcUnit>(ast);
+            });
+
+    parser( NI(CalcUnit), { NI(CalcUnit), NI(FunctionDecl) },
+            [] (auto c, auto ts) {
+                assert(ts.size() == 2);
+                pnonterm(CalcUnit,  ASTNodeCalcUnit, 0, unit);
+                pnonterm(FunctionDecl, ASTNodeFunctionDecl, 1, func);
+
+                unitast->push_function_decl(funcast);
                 return make_shared<NonTermCalcUnit>(unitast);
             });
 }

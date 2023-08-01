@@ -2,12 +2,41 @@
 #define _SIMPLE_CALCULATOR_AST_H_
 
 #include "parser/parser.h"
-#include "./token.h"
 #include <string>
 #include <memory>
+#include <variant>
 
 
 using ASTNodeParserContext = std::weak_ptr<DCParser::DCParserContext>;
+
+class ASTNodeExpr;
+class ASTNodeExprList;
+class ASTNodeBlockStat;
+class ASTNodeStat;
+class ASTNodeStatList;
+class ASTNodeIFStat;
+class ASTNodeFunctionDef;
+class ASTNodeFunctionDecl;
+class ASTNodeCalcUnit;
+using UnitItem = std::variant<
+    std::shared_ptr<ASTNodeFunctionDef>,
+    std::shared_ptr<ASTNodeFunctionDecl>,
+    std::shared_ptr<ASTNodeStat>>;
+
+
+class ASTNodeVisitor {
+public:
+    virtual void visitExpr(const ASTNodeExpr&) = 0;
+    virtual void visitExprStat(const ASTNodeExprList&) = 0;
+    virtual void visitBlockStat(const ASTNodeStatList&) = 0;
+    virtual void visitStatList(const std::vector<std::shared_ptr<ASTNodeStat>>&) = 0;
+    virtual void visitForStat(const ASTNodeExprList*, const ASTNodeExpr*, const ASTNodeExprList*, const ASTNodeStat&) = 0;
+    virtual void visitIfStat(const ASTNodeExpr&, const ASTNodeStat&, const ASTNodeStat*) = 0;
+    virtual void visitReturnStat(const ASTNodeExpr&) = 0;
+    virtual void visitFuncDef(const std::string&, const std::vector<std::string>&, const ASTNodeBlockStat&) = 0;
+    virtual void visitFuncDecl(const std::string&, const std::vector<std::string>&) = 0;
+    virtual void visitCalcUnit(const std::vector<UnitItem>& items) = 0;
+};
 
 class ASTNode {
 private:
@@ -17,6 +46,7 @@ public:
     inline ASTNode(ASTNodeParserContext p): m_parser_context(p) {}
     inline ASTNodeParserContext context() { return this->m_parser_context; }
     virtual ~ASTNode() = default;
+    virtual void accept(ASTNodeVisitor& visitor) const = 0;
 };
 
 
@@ -26,6 +56,7 @@ public:
 
     virtual double evaluate() = 0;
     virtual bool used() { return false; }
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitExpr(*this); }
 };
 
 class UnaryOperatorExpr: public ASTNodeExpr {
@@ -47,6 +78,9 @@ public:
             ):
         ASTNodeExpr(c), m_operator(optype),
         m_expr(expr) {}
+
+    UnaryOperatorType op() const { return m_operator; }
+    const ASTNodeExpr& cc() const { return *m_expr; }
 
     virtual double evaluate() override;
 };
@@ -76,6 +110,10 @@ public:
             ):
         ASTNodeExpr(c), m_operator(optype),
         m_left(std::move(left)), m_right(std::move(right)) {}
+    
+    BinaryOperatorType op() const { return m_operator; }
+    const ASTNodeExpr& left() const { return *m_left; }
+    const ASTNodeExpr& right() const { return *m_right; }
 
     virtual double evaluate() override;
     bool used() override { return m_operator == ASSIGNMENT; }
@@ -129,6 +167,7 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+    virtual void accept(ASTNodeVisitor& visitor) const { assert(false); }
 };
 
 class FunctionCallExpr: public ASTNodeExpr {
@@ -180,6 +219,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitStatList(*this); }
 };
 
 class ASTNodeBlockStat: public ASTNodeStat
@@ -197,6 +238,7 @@ public:
     inline const std::shared_ptr<ASTNodeStatList> StatementList() const { return this->_statlist; }
 
     virtual void execute() override;
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitBlockStat(*_statlist); }
 };
 
 class ASTNodeExprStat: public ASTNodeStat
@@ -213,6 +255,7 @@ public:
     inline const std::shared_ptr<ASTNodeExprList> exprList() const { return this->_exprlist; }
 
     virtual void execute() override;
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitExprStat(*_exprlist); }
 };
 
 class ASTNodeReturnStat: public ASTNodeStat
@@ -229,6 +272,7 @@ public:
     inline const std::shared_ptr<ASTNodeExpr> expr() const { return this->_expr; }
 
     virtual void execute() override;
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitReturnStat(*_expr); }
 };
 
 class ASTNodeIFStat: public ASTNodeStat
@@ -251,6 +295,7 @@ public:
     inline std::shared_ptr<ASTNodeExpr> condition() { return this->_cond; }
 
     virtual void execute() override;
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitIfStat(*_cond, *_truestat, _falsestat.get()); }
 };
 
 class ASTNodeFORStat: public ASTNodeStat
@@ -276,6 +321,7 @@ public:
     inline std::shared_ptr<ASTNodeExprList> post() { return this->_post; }
 
     virtual void execute() override;
+    void accept(ASTNodeVisitor& visitor) const override { visitor.visitForStat(_pre.get(), _cond.get(), _post.get(), *_stat); }
 };
 
 /*
@@ -312,6 +358,8 @@ public:
     using container_t::size;
     using container_t::operator[];
     using container_t::push_back;
+
+    virtual void accept(ASTNodeVisitor& visitor) const { assert(false); }
 };
 
 class ASTNodeFunctionDef: public ASTNode
@@ -334,19 +382,52 @@ public:
     inline std::shared_ptr<ASTNodeBlockStat> blockStat() { return this->blockstat; }
 
     void call(std::vector<double> parameters);
+    void accept(ASTNodeVisitor& visitor) const override {
+        std::vector<std::string> args;
+        for (auto& a: *arglist) args.push_back(a);
+        visitor.visitFuncDef(static_cast<IDExpr*>(func.get())->id(), args, *blockstat);
+    }
+};
+
+class ASTNodeFunctionDecl: public ASTNode
+{
+private:
+    std::shared_ptr<ASTNodeExpr> func;
+    std::shared_ptr<ASTNodeArgList> arglist;
+
+public:
+    inline ASTNodeFunctionDecl(
+            ASTNodeParserContext c,
+            std::shared_ptr<ASTNodeExpr> func,
+            std::shared_ptr<ASTNodeArgList> args):
+        ASTNode(c), func(func), arglist(args) {}
+
+    inline std::shared_ptr<ASTNodeExpr>      function()  { return this->func; }
+    inline std::shared_ptr<ASTNodeArgList>   argList()   { return this->arglist; }
+
+    void accept(ASTNodeVisitor& visitor) const override {
+        std::vector<std::string> args;
+        for (auto& a: *arglist) args.push_back(a);
+        visitor.visitFuncDecl(static_cast<IDExpr*>(func.get())->id(), args);
+    }
 };
 
 class ASTNodeCalcUnit: public ASTNode
 {
 private:
-    std::vector<std::shared_ptr<ASTNodeFunctionDef>> functions;
-    std::vector<std::shared_ptr<ASTNodeStat>> statements;
+    std::vector<UnitItem> m_unititem;
 
 public:
     inline ASTNodeCalcUnit(ASTNodeParserContext c): ASTNode(c) {}
 
     void push_function(std::shared_ptr<ASTNodeFunctionDef> func) ;
+    void push_function_decl(std::shared_ptr<ASTNodeFunctionDecl> func) ;
     void push_statement(std::shared_ptr<ASTNodeStat> stat);
+
+    virtual void accept(ASTNodeVisitor& visitor) const
+    {
+        visitor.visitCalcUnit(m_unititem);
+    }
 };
 
 #endif // _SIMPLE_CALCULATOR_AST_H_

@@ -41,7 +41,7 @@ public:
 
 void ASTNodeCalcUnit::push_function(shared_ptr<ASTNodeFunctionDef> func)
 {
-    this->functions.push_back(func);
+    this->m_unititem.push_back(func);
 
     auto funcname = func->function();
     auto funcnamet = dynamic_pointer_cast<IDExpr>(funcname);
@@ -52,9 +52,14 @@ void ASTNodeCalcUnit::push_function(shared_ptr<ASTNodeFunctionDef> func)
     context->add_function(funcnamet->id(), make_shared<ASTNodeFunctionExec>(func));
 }
 
+void ASTNodeCalcUnit::push_function_decl(shared_ptr<ASTNodeFunctionDecl> func)
+{
+    this->m_unititem.push_back(func);
+}
+
 void ASTNodeCalcUnit::push_statement(shared_ptr<ASTNodeStat> stat)
 {
-    this->statements.push_back(stat);
+    this->m_unititem.push_back(stat);
 
     auto context = this->context();
     auto ptr = context.lock();

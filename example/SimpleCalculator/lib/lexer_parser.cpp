@@ -1,4 +1,5 @@
 #include "scalc/lexer_parser.h"
+#include "scalc/llvm_visitor.h"
 using namespace std;
 
 
@@ -22,6 +23,7 @@ std::shared_ptr<ASTNode> CalcLexerParser::end()
 
     auto nonterm = this->parser.end();
     auto calcunit = dynamic_pointer_cast<NonTermCalcUnit>(nonterm);
+    m_calunit = calcunit->astnode;
     return calcunit->astnode;
 }
 
@@ -29,6 +31,14 @@ void CalcLexerParser::reset()
 {
     this->lexer.reset();
     this->parser.reset();
+}
+
+std::string CalcLexerParser::genllvm(const std::string& modulename) const
+{
+    assert(m_calunit);
+    ASTNodeVisitorLLVMGen visitor(modulename);
+    m_calunit->accept(visitor);
+    return visitor.codegen();
 }
 
 std::shared_ptr<SCalcParserContext> CalcLexerParser::getContext()

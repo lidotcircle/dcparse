@@ -1,6 +1,5 @@
 #include "scalc/token.h"
 #include "scalc/parser.h"
-#include "lexer/lexer_rule.hpp"
 #include "lexer/lexer_rule_regex.hpp"
 #include <string>
 using namespace std;
@@ -59,7 +58,7 @@ CalcLexer::CalcLexer()
 
     lexer(
         std::make_unique<LexerRuleRegex<int>>(
-            s2u("//[^\n]*"),
+            s2u("//[^\n]*\n"),
             [](auto str, auto info) {
                 return nullptr;
             }, false, true)

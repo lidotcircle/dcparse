@@ -1,7 +1,6 @@
 #include "c_lexer_parser.h"
 #include "c_parser.h"
 #include <gtest/gtest.h>
-#include <iostream>
 #include <string>
 #include <vector>
 using namespace cparser;

@@ -425,6 +425,15 @@ class ASTNodeExprUnaryOp : public ASTNodeExpr
         this->contain(expr);
     }
 
+    inline UnaryOperatorType get_operator() const
+    {
+        return m_operator;
+    }
+    inline std::shared_ptr<ASTNodeExpr> get_expr() const
+    {
+        return m_expr;
+    }
+
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
     virtual std::optional<long double> get_float_constant() const override;
@@ -441,6 +450,11 @@ class ASTNodeExprSizeof : public ASTNodeExpr
         : ASTNodeExpr(c), m_type(type)
     {
         this->contain(type);
+    }
+
+    inline std::shared_ptr<ASTNodeVariableType> get_type() const
+    {
+        return m_type;
     }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -462,6 +476,15 @@ class ASTNodeExprCast : public ASTNodeExpr
         : ASTNodeExpr(c), m_type(type), m_expr(expr)
     {
         this->contain(type, expr);
+    }
+
+    inline std::shared_ptr<ASTNodeVariableType> get_type() const
+    {
+        return m_type;
+    }
+    inline std::shared_ptr<ASTNodeExpr> get_expr() const
+    {
+        return m_expr;
     }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -529,6 +552,11 @@ class ASTNodeExprBinaryOp : public ASTNodeExpr
         return this->m_right;
     }
 
+    inline BinaryOperatorType get_operator() const
+    {
+        return m_operator;
+    }
+
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
     virtual std::optional<long long> get_integer_constant() const override;
     virtual std::optional<long double> get_float_constant() const override;
@@ -551,6 +579,19 @@ class ASTNodeExprConditional : public ASTNodeExpr
           m_false(std::move(false_expr))
     {
         this->contain(cond, true_expr, false_expr);
+    }
+
+    inline std::shared_ptr<ASTNodeExpr> get_cond() const
+    {
+        return m_cond;
+    }
+    inline std::shared_ptr<ASTNodeExpr> get_true() const
+    {
+        return m_true;
+    }
+    inline std::shared_ptr<ASTNodeExpr> get_false() const
+    {
+        return m_false;
     }
 
     virtual void check_constraints(std::shared_ptr<SemanticReporter> reporter) override;
@@ -2159,6 +2200,10 @@ class ASTNodeFunctionDefinition : public ASTNodeExternalDeclaration
         this->contain(funcid, decl, body);
     }
 
+    inline std::shared_ptr<TokenID> get_id() const
+    {
+        return _id;
+    }
     inline std::shared_ptr<ASTNodeVariableTypeFunction> decl()
     {
         return this->_decl;

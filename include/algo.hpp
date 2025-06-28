@@ -2,6 +2,7 @@
 #define _DCPARSER_ALGO_HPP_
 
 #include <algorithm>
+#include <cassert>
 #include <map>
 #include <optional>
 #include <set>

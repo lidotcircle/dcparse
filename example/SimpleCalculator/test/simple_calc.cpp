@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "scalc/lexer_parser.h"
+#include <iomanip>
 #include <sstream>
 #include <string>
 

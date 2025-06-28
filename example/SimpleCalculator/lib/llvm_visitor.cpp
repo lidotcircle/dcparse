@@ -1,4 +1,3 @@
-#include <cmath>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/BasicBlock.h>
@@ -24,9 +23,10 @@ ASTNodeVisitorLLVMGen::ASTNodeVisitorLLVMGen(const std::string& filename) :
 {
     { // snprintf
         std::vector<llvm::Type*> argstype;
-        argstype.push_back(llvm::Type::getInt8PtrTy(*m_context));
+        // TODO llvm::Type::getInt8PtrTy is deprecated
+        argstype.push_back(llvm::Type::getInt8Ty(*m_context));
         argstype.push_back(llvm::Type::getInt64Ty(*m_context));
-        argstype.push_back(llvm::Type::getInt8PtrTy(*m_context));
+        argstype.push_back(llvm::Type::getInt8Ty(*m_context));
         llvm::FunctionType* ft = llvm::FunctionType::get(llvm::Type::getDoubleTy(*m_context), argstype, true);
         llvm::Function* f = llvm::Function::Create(ft, llvm::Function::LinkageTypes::ExternalLinkage, "snprintf", m_module.get());
         f->addFnAttr(llvm::Attribute::AttrKind::NoUnwind);
@@ -34,7 +34,7 @@ ASTNodeVisitorLLVMGen::ASTNodeVisitorLLVMGen(const std::string& filename) :
 
     { // puts
         std::vector<llvm::Type*> argstype;
-        argstype.push_back(llvm::Type::getInt8PtrTy(*m_context));
+        argstype.push_back(llvm::Type::getInt8Ty(*m_context));
         llvm::FunctionType* ft = llvm::FunctionType::get(llvm::Type::getDoubleTy(*m_context), argstype, false);
         llvm::Function* f = llvm::Function::Create(ft, llvm::Function::LinkageTypes::ExternalLinkage, "puts", m_module.get());
     }

@@ -1,0 +1,107 @@
+---
+# Based on existing code style from parser.cpp, parser.h, and regex_char.hpp
+BasedOnStyle: LLVM
+
+# Indentation (4 spaces observed throughout the code)
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# Column limit (based on longer lines in the code)
+ColumnLimit: 100
+
+# Braces - mixed style observed: Allman for functions, Attach for control structures
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: false
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: true
+  AfterUnion: true
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+BreakBeforeBraces: Custom
+
+# Access modifiers (observed to be indented in classes)
+AccessModifierOffset: -2
+IndentAccessModifiers: false
+
+# Pointer and reference alignment (observed style)
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Spacing
+SpaceAfterCStyleCast: true
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Function parameters and arguments
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllArgumentsOnNextLine: true
+BinPackArguments: false
+BinPackParameters: false
+
+# Template formatting
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeConceptDeclarations: true
+
+# Include sorting and formatting
+SortIncludes: true
+IncludeBlocks: Preserve
+
+# Control statement formatting
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Constructor initializer lists
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 4
+
+# Namespace indentation
+NamespaceIndentation: None
+
+# Preprocessor directives
+IndentPPDirectives: None
+
+# Line breaking
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: true
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignOperands: true
+AlignTrailingComments: true
+
+# Empty lines
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 2
+
+# C++ specific
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+Standard: c++17 

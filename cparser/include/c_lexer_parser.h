@@ -1,18 +1,19 @@
 #ifndef _C_PARSER_LEXER_PARSER_H_
 #define _C_PARSER_LEXER_PARSER_H_
 
-#include "./c_token.h"
-#include "./c_parser.h"
 #include "./c_ast.h"
+#include "./c_parser.h"
+#include "./c_token.h"
 
 namespace cparser {
 
-class CLexerParser {
-private:
+class CLexerParser
+{
+  private:
     CParser parser;
     CLexerUTF8 lexer;
 
-public:
+  public:
     CLexerParser();
 
     void feed(char c);
@@ -21,5 +22,5 @@ public:
     void setDebugStream(std::ostream& os);
 };
 
-}
+} // namespace cparser
 #endif //_C_PARSER_LEXER_PARSER_H_

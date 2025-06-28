@@ -1,28 +1,29 @@
 #include "scalc/ast.h"
-#include "scalc/parser.h"
 #include "scalc/context.h"
-#include "scalc/scalc_error.h"
 #include "scalc/defer.hpp"
-#include <math.h>
+#include "scalc/parser.h"
+#include "scalc/scalc_error.h"
 #include <iomanip>
+#include <math.h>
 using namespace std;
 
-#define GetContext(var, node) \
-    assert(node && !node->context().expired()); \
-    auto ptr = node->context().lock(); \
-    assert(ptr); \
-    auto c##var = dynamic_pointer_cast<SCalcParserContext>(ptr); \
-    assert(c##var && "get parser context failed"); \
+#define GetContext(var, node)                                                                      \
+    assert(node && !node->context().expired());                                                    \
+    auto ptr = node->context().lock();                                                             \
+    assert(ptr);                                                                                   \
+    auto c##var = dynamic_pointer_cast<SCalcParserContext>(ptr);                                   \
+    assert(c##var && "get parser context failed");                                                 \
     auto var = c##var->ExecutionContext()
 
 
-class ASTNodeFunctionExec: public SCalcFunction
+class ASTNodeFunctionExec : public SCalcFunction
 {
-private:
+  private:
     shared_ptr<ASTNodeFunctionDef> funcdef;
 
-public:
-    ASTNodeFunctionExec(shared_ptr<ASTNodeFunctionDef> def): funcdef(def) {}
+  public:
+    ASTNodeFunctionExec(shared_ptr<ASTNodeFunctionDef> def) : funcdef(def)
+    {}
 
     virtual double call(std::vector<double> parameters) const override
     {
@@ -116,7 +117,7 @@ double BinaryOperatorExpr::evaluate()
     }
 
     auto l = this->m_left->evaluate();
-    auto r  = this->m_right->evaluate();
+    auto r = this->m_right->evaluate();
 
     switch (this->m_operator) {
     case BinaryOperatorType::PLUS:
@@ -155,7 +156,7 @@ double IDExpr::evaluate()
     return context->get_id(this->id());
 }
 
-double  NumberExpr::evaluate()
+double NumberExpr::evaluate()
 {
     return this->val;
 }
@@ -182,9 +183,7 @@ void ASTNodeBlockStat::execute()
     GetContext(context, this);
 
     context->push_scope();
-    auto d1 = defer([&]() {
-        context->pop_scope();
-    });
+    auto d1 = defer([&]() { context->pop_scope(); });
 
     for (auto stat : *this->_statlist)
         stat->execute();
@@ -198,7 +197,7 @@ void ASTNodeExprStat::execute()
 
     bool printn = false;
     const auto exprlistlen = this->_exprlist->size();
-    for (size_t i=0;i<exprlistlen;i++) {
+    for (size_t i = 0; i < exprlistlen; i++) {
         auto expr = (*this->_exprlist)[i];
         auto val = expr->evaluate();
 
@@ -246,13 +245,13 @@ void ASTNodeIFStat::execute()
 
 void ASTNodeFORStat::execute()
 {
-    for (auto expr: *this->pre())
+    for (auto expr : *this->pre())
         expr->evaluate();
 
-    for (;this->condition()->evaluate()!=0;) {
+    for (; this->condition()->evaluate() != 0;) {
         this->stat()->execute();
 
-        for (auto expr: *this->post())
+        for (auto expr : *this->post())
             expr->evaluate();
     }
 }
@@ -263,10 +262,11 @@ void ASTNodeFunctionDef::call(vector<double> parameters)
     GetContext(context, this);
 
     if (this->arglist->size() != parameters.size())
-        throw SCalcBadFunctionArgumentCount("expect " + to_string(this->arglist->size()) + " arguments");
+        throw SCalcBadFunctionArgumentCount("expect " + to_string(this->arglist->size()) +
+                                            " arguments");
 
     auto list = this->argList();
-    for (size_t i=0;i<parameters.size();i++) {
+    for (size_t i = 0; i < parameters.size(); i++) {
         auto id = list->operator[](i);
         context->set_argument(id, parameters[i]);
     }

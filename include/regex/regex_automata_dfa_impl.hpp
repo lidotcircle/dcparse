@@ -26,13 +26,13 @@ NodeNFA<CharT> RegexDFA<CharT>::toNodeNFA() const
     const NFAState_t startstate = this->m_start_state;
     const NFAState_t nfinals = this->m_transitions.size();
     NodeNFATransitionTable table;
-    for (size_t s=0;s<this->m_transitions.size();s++) {
+    for (size_t s = 0; s < this->m_transitions.size(); s++) {
         if (this->m_final_states.find(s) != this->m_final_states.end()) {
-            table[s].push_back(NodeNFAEntry(epsilon_symbol, epsilon_symbol, { nfinals }));
+            table[s].push_back(NodeNFAEntry(epsilon_symbol, epsilon_symbol, {nfinals}));
         }
 
         auto& t = this->m_transitions[s];
-        for (auto& e: t) {
+        for (auto& e : t) {
             if (this->m_dead_states.find(e.state) != this->m_dead_states.end())
                 continue;
 

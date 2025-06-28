@@ -3,8 +3,9 @@
 
 #include <stdexcept>
 
-class LexerError : public std::runtime_error {
-public:
+class LexerError : public std::runtime_error
+{
+  public:
     LexerError(const std::string& what);
 };
 

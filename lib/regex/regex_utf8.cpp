@@ -1,13 +1,12 @@
-#include <regex/regex_utf8.h>
-#include <regex/regex.hpp>
 #include <assert.h>
+#include <regex/regex.hpp>
+#include <regex/regex_utf8.h>
 #include <stdexcept>
 using namespace std;
 
 
-RegExpUTF8::RegExpUTF8(const string& pattern): SimpleRegExp<int>(UTF8Decoder::strdecode(pattern))
-{
-}
+RegExpUTF8::RegExpUTF8(const string& pattern) : SimpleRegExp<int>(UTF8Decoder::strdecode(pattern))
+{}
 
 void RegExpUTF8::feed(char c)
 {
@@ -22,7 +21,8 @@ void RegExpUTF8::feed(int c)
     SimpleRegExp<int>::feed(c);
 }
 
-bool RegExpUTF8::test(const std::string& str) {
+bool RegExpUTF8::test(const std::string& str)
+{
     return this->test(str.begin(), str.end());
 }
 

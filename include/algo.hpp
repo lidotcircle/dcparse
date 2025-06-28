@@ -1,24 +1,23 @@
 #ifndef _DCPARSER_ALGO_HPP_
 #define _DCPARSER_ALGO_HPP_
 
+#include <algorithm>
 #include <map>
+#include <optional>
 #include <set>
 #include <vector>
-#include <optional>
-#include <algorithm>
 
 template<typename T>
-std::map<T,std::set<T>>
-transitive_closure(std::map<T,std::set<T>> graph)
+std::map<T, std::set<T>> transitive_closure(std::map<T, std::set<T>> graph)
 {
-    std::map<T,std::set<T>> result;
-    for (const auto& kv: graph) {
+    std::map<T, std::set<T>> result;
+    for (const auto& kv : graph) {
         const auto& key = kv.first;
         result[key].insert(key);
 
-        for (const auto& j: graph[key]) {
+        for (const auto& j : graph[key]) {
             result[key].insert(j);
-            for (const auto& k: graph[j]) {
+            for (const auto& k : graph[j]) {
                 result[key].insert(k);
             }
         }
@@ -29,7 +28,7 @@ transitive_closure(std::map<T,std::set<T>> graph)
 template<typename T>
 class SubsetOf
 {
-private:
+  private:
     std::set<T> _set;
     std::vector<bool> _vec;
     bool finished;
@@ -47,10 +46,8 @@ private:
         return false;
     }
 
-public:
-    SubsetOf(std::set<T> set)
-        : _set(std::move(set)), _vec(_set.size(), false),
-          finished(false)
+  public:
+    SubsetOf(std::set<T> set) : _set(std::move(set)), _vec(_set.size(), false), finished(false)
     {
         assert(_set.size() == _vec.size());
     }

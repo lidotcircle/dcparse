@@ -1,41 +1,41 @@
 #ifndef _SIMPLE_CALCULATOR_CONTEXT_H_
 #define _SIMPLE_CALCULATOR_CONTEXT_H_
 
-#include <memory>
 #include <map>
-#include <vector>
+#include <memory>
 #include <optional>
+#include <vector>
 
 class ScopeContext;
 class SCalcLoopStatState;
 
 class SCalcFunction
 {
-public:
+  public:
     virtual double call(std::vector<double> parameters) const = 0;
     virtual ~SCalcFunction() = default;
 };
 
 class SCalcContext
 {
-private:
+  private:
     std::vector<std::shared_ptr<ScopeContext>> _stack;
-    std::map<std::string,std::shared_ptr<SCalcFunction>> _funcs;
+    std::map<std::string, std::shared_ptr<SCalcFunction>> _funcs;
     void setup_builtin_functions_and_constants();
 
-public:
+  public:
     SCalcContext();
     virtual ~SCalcContext();
 
     double get_id(const std::string& id) const;
-    void   set_id(const std::string& id, double val);
+    void set_id(const std::string& id, double val);
 
     void set_argument(const std::string& argname, double val);
 
     void push_scope();
     void pop_scope();
 
-    void   add_function (const std::string& id, std::shared_ptr<SCalcFunction> func);
+    void add_function(const std::string& id, std::shared_ptr<SCalcFunction> func);
     double call_function(const std::string& id, std::vector<double> parameters);
 
     std::optional<double> return_value() const;

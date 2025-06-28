@@ -2,12 +2,16 @@
 using namespace std;
 
 
-SCalcError::SCalcError(const string& what): runtime_error(what) {}
-SCalcError::SCalcError(const char*   what): runtime_error(what) {}
+SCalcError::SCalcError(const string& what) : runtime_error(what)
+{}
+SCalcError::SCalcError(const char* what) : runtime_error(what)
+{}
 
 
-#define EEntry(cname) \
-    cname::cname(const string& what): SCalcError(what) {} \
-    cname::cname(): SCalcError(#cname) {}
+#define EEntry(cname)                                                                              \
+    cname::cname(const string& what) : SCalcError(what)                                            \
+    {}                                                                                             \
+    cname::cname() : SCalcError(#cname)                                                            \
+    {}
 SCalcErrorList
 #undef EEntry

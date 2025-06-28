@@ -1,19 +1,24 @@
-#include <gtest/gtest.h>
 #include "lexer/token.h"
+#include <gtest/gtest.h>
 using namespace std;
 
-class T1 : public LexerToken {
-public:
-    T1(): LexerToken() {}
+class T1 : public LexerToken
+{
+  public:
+    T1() : LexerToken()
+    {}
     ~T1() = default;
 };
-class T2 : public LexerToken {
-public:
-    T2(): LexerToken() {}
+class T2 : public LexerToken
+{
+  public:
+    T2() : LexerToken()
+    {}
     ~T2() = default;
 };
 
-TEST(token, tokenid_basic) {
+TEST(token, tokenid_basic)
+{
     T1 t1;
     T2 t2;
 
@@ -21,4 +26,3 @@ TEST(token, tokenid_basic) {
     EXPECT_EQ(CharID<T1>(), t1.charid());
     EXPECT_EQ(CharID<T2>(), t2.charid());
 }
-

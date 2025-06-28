@@ -1,12 +1,6 @@
 #ifndef _DC_PARSER_REGEX_INTERNAL_HPP_
 #define _DC_PARSER_REGEX_INTERNAL_HPP_
 
-#include <algorithm>
-#include <vector>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include "./regex_char.hpp"
 #include "./regex_automata.hpp"
 #include "./regex_automata_dfa.hpp"
 #include "./regex_automata_dfa_impl.hpp"
@@ -14,19 +8,25 @@
 #include "./regex_automata_nfa_impl.hpp"
 #include "./regex_automata_node_nfa.hpp"
 #include "./regex_automata_node_nfa_impl.hpp"
-#include "./regex_expr_node.hpp"
+#include "./regex_char.hpp"
 #include "./regex_expr.hpp"
+#include "./regex_expr_node.hpp"
+#include <algorithm>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 
 template<typename CharT>
-class SimpleRegExp: public AutomataMatcher<CharT>
+class SimpleRegExp : public AutomataMatcher<CharT>
 {
-private:
+  private:
     using traits = character_traits<CharT>;
     using char_type = CharT;
     std::shared_ptr<AutomataMatcher<char_type>> m_matcher;
 
-public:
+  public:
     SimpleRegExp() = delete;
 
     template<typename Iterator>
@@ -39,17 +39,30 @@ public:
         this->m_matcher = std::make_shared<NFAMatcher<char_type>>(rnfa_ptr);
     }
 
-    SimpleRegExp(const std::vector<char_type>& regex) {
+    SimpleRegExp(const std::vector<char_type>& regex)
+    {
         auto nfa = NodeNFA<char_type>::from_regex(regex);
         auto rnfa = nfa.toRegexNFA();
         auto rnfa_ptr = std::make_shared<RegexNFA<char_type>>(std::move(rnfa));
         this->m_matcher = std::make_shared<NFAMatcher<char_type>>(rnfa_ptr);
     }
 
-    virtual void feed(char_type c) override { this->m_matcher->feed(c); }
-    virtual bool match() const override { return this->m_matcher->match(); }
-    virtual bool dead() const override { return this->m_matcher->dead(); }
-    virtual void reset() override { this->m_matcher->reset(); }
+    virtual void feed(char_type c) override
+    {
+        this->m_matcher->feed(c);
+    }
+    virtual bool match() const override
+    {
+        return this->m_matcher->match();
+    }
+    virtual bool dead() const override
+    {
+        return this->m_matcher->dead();
+    }
+    virtual void reset() override
+    {
+        this->m_matcher->reset();
+    }
     void compile()
     {
         auto nfa_matcher = std::dynamic_pointer_cast<NFAMatcher<char_type>>(m_matcher);

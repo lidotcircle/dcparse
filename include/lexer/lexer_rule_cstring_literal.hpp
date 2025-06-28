@@ -3,24 +3,27 @@
 
 #include "./lexer_rule.hpp"
 #include "regex/regex_char.hpp"
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
-#include <map>
-#include <functional>
 
 
 template<typename T>
-class LexerRuleCStringLiteral: public LexerRule<T> {
-public:
+class LexerRuleCStringLiteral : public LexerRule<T>
+{
+  public:
     using CharType = T;
-    using token_factory_t = std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TextRange)>;
+    using token_factory_t =
+        std::function<std::shared_ptr<LexerToken>(std::vector<CharType> str, TextRange)>;
 
-private:
+  private:
     using traits = character_traits<CharType>;
     std::vector<CharType> _literal;
     size_t _length_in_bytes;
-    enum MatchState {
+    enum MatchState
+    {
         MATCH_STATE_NONE,
         MATCH_STATE_NORMAL,
         MATCH_STATE_ESCAPING,
@@ -30,15 +33,13 @@ private:
     TextRange _token_info;
     token_factory_t _token_factory;
 
-    static const std::map<CharType,CharType> _escape_map;
+    static const std::map<CharType, CharType> _escape_map;
 
-public:
+  public:
     LexerRuleCStringLiteral() = delete;
-    LexerRuleCStringLiteral(token_factory_t factory):
-        _length_in_bytes(0),
-        _state(MATCH_STATE_NONE), _token_factory(factory)
-    {
-    }
+    LexerRuleCStringLiteral(token_factory_t factory)
+        : _length_in_bytes(0), _state(MATCH_STATE_NONE), _token_factory(factory)
+    {}
 
     virtual void feed(CharType c, size_t length_in_bytes) override
     {
@@ -80,10 +81,12 @@ public:
             this->_state = MATCH_STATE_DEAD;
         }
     }
-    virtual bool dead() override {
+    virtual bool dead() override
+    {
         return this->_state == MATCH_STATE_DEAD;
     }
-    virtual bool match() override {
+    virtual bool match() override
+    {
         return this->_state == MATCH_STATE_END;
     }
 
@@ -98,20 +101,17 @@ public:
     virtual std::shared_ptr<LexerToken> token(std::vector<CharType> str) override
     {
         return this->_token_factory(
-                std::vector<CharType>(
-                    this->_literal.begin(),
-                    this->_literal.end()),
-                this->_token_info);
+            std::vector<CharType>(this->_literal.begin(), this->_literal.end()), this->_token_info);
     }
 };
 
 template<typename T>
-const std::map<T,T> LexerRuleCStringLiteral<T>::_escape_map = {
-    { traits::DQUOTE, traits::DQUOTE },
-    { traits::BACKSLASH, traits::BACKSLASH },
-    { traits::LOWER_N, traits::NEWLINE },
-    { traits::LOWER_R, traits::RETURN },
-    { traits::LOWER_T, traits::TAB },
+const std::map<T, T> LexerRuleCStringLiteral<T>::_escape_map = {
+    {traits::DQUOTE, traits::DQUOTE},
+    {traits::BACKSLASH, traits::BACKSLASH},
+    {traits::LOWER_N, traits::NEWLINE},
+    {traits::LOWER_R, traits::RETURN},
+    {traits::LOWER_T, traits::TAB},
 };
 
 #endif // _LEXER_LEXER_RULE_CSTRING_LITERAL_HPP_

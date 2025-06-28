@@ -1,13 +1,14 @@
 #ifndef _LEXER_TOKEN_H_
 #define _LEXER_TOKEN_H_
 
+#include "./text_info.h"
+#include <optional>
 #include <string>
 #include <type_traits>
-#include <optional>
-#include "./text_info.h"
 
-class DChar: public TextRangeEntity  {
-public:
+class DChar : public TextRangeEntity
+{
+  public:
     DChar();
     DChar(TextRange info);
 
@@ -16,23 +17,29 @@ public:
     virtual ~DChar() = default;
 };
 
-struct DCharInfo {
+struct DCharInfo
+{
     size_t id;
     const char* name;
 };
 
-template<typename T,typename = std::enable_if_t<std::is_base_of<DChar,T>::value>>
-DCharInfo CharInfo() {
+template<typename T, typename = std::enable_if_t<std::is_base_of<DChar, T>::value>>
+DCharInfo CharInfo()
+{
     auto& typeinfo = typeid(T);
-    return { typeinfo.hash_code(), typeinfo.name() };
+    return {typeinfo.hash_code(), typeinfo.name()};
 }
 
-template<typename T, typename = std::enable_if_t<std::is_base_of<DChar,T>::value>>
-size_t CharID() { return CharInfo<T>().id; }
+template<typename T, typename = std::enable_if_t<std::is_base_of<DChar, T>::value>>
+size_t CharID()
+{
+    return CharInfo<T>().id;
+}
 
 using TextRange = TextRangeEntity::TextRange;
-class LexerToken : public DChar {
-public:
+class LexerToken : public DChar
+{
+  public:
     LexerToken();
     LexerToken(TextRange info);
 

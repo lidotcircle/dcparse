@@ -3,7 +3,7 @@ using namespace std;
 using namespace cparser;
 
 
-CLexerParser::CLexerParser(): parser(), lexer()
+CLexerParser::CLexerParser() : parser(), lexer()
 {
     this->reset();
 }
@@ -11,14 +11,14 @@ CLexerParser::CLexerParser(): parser(), lexer()
 void CLexerParser::feed(char c)
 {
     auto ts = lexer.feed(c);
-    for (auto& t: ts)
+    for (auto& t : ts)
         parser.feed(t);
 }
 
-shared_ptr<ASTNodeTranslationUnit> CLexerParser::end() 
+shared_ptr<ASTNodeTranslationUnit> CLexerParser::end()
 {
     auto ts = lexer.end();
-    for (auto& t: ts)
+    for (auto& t : ts)
         parser.feed(t);
     return parser.end();
 }

@@ -7,28 +7,27 @@
 namespace cparser {
 
 
-class CError : public std::runtime_error {
-public:
+class CError : public std::runtime_error
+{
+  public:
     CError(const std::string& what);
     CError(const char* what);
 };
 
-#define CErrorList \
-    EEntry(CErrorLexer) \
-    EEntry(CErrorParser) \
-    EEntry(CErrorStaticAssert) \
-    EEntry(CErrorparserMixedType)
+#define CErrorList                                                                                 \
+    EEntry(CErrorLexer) EEntry(CErrorParser) EEntry(CErrorStaticAssert)                            \
+        EEntry(CErrorparserMixedType)
 
-#define EEntry(cname) \
-    class cname: public CError \
-    { \
-    public: \
-        cname(); \
-        cname(const std::string& what); \
+#define EEntry(cname)                                                                              \
+    class cname : public CError                                                                    \
+    {                                                                                              \
+      public:                                                                                      \
+        cname();                                                                                   \
+        cname(const std::string& what);                                                            \
     };
 CErrorList
 #undef EEntry
 
-}
+} // namespace cparser
 
 #endif // _C_PARSER_C_ERROR_H_

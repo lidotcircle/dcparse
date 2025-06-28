@@ -1,9 +1,10 @@
-#include <gtest/gtest.h>
 #include "algo.hpp"
+#include <gtest/gtest.h>
 using namespace std;
 
 
-TEST(subset, subsetalgo) {
+TEST(subset, subsetalgo)
+{
     SubsetOf<int> s({1, 2, 3});
 
     set<set<int>> subsetOfs = {
@@ -17,7 +18,7 @@ TEST(subset, subsetalgo) {
         {},
     };
 
-    for (auto s1 = s(); s1.has_value() ; s1=s()) {
+    for (auto s1 = s(); s1.has_value(); s1 = s()) {
         EXPECT_NE(subsetOfs.find(s1.value()), subsetOfs.end());
         subsetOfs.erase(s1.value());
     }

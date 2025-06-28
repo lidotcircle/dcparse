@@ -11,7 +11,8 @@ namespace cparser {
 
 shared_ptr<CParserContext> ASTNode::context() const
 {
-    auto c1 = this->m_parser_context.lock();;
+    auto c1 = this->m_parser_context.lock();
+    ;
     assert(c1);
     auto ret = dynamic_pointer_cast<CParserContext>(c1);
     assert(ret);
@@ -44,24 +45,23 @@ void ASTNodeInitDeclarator::set_leaf_type(std::shared_ptr<ASTNodeVariableType> t
 void ASTNodeStructUnionDeclaration::set_leaf_type(std::shared_ptr<ASTNodeVariableType> type)
 {
     if (this->m_decl == nullptr)
-        this->m_decl = make_shared<ASTNodeInitDeclarator>(this->context(), nullptr, nullptr, nullptr);
+        this->m_decl =
+            make_shared<ASTNodeInitDeclarator>(this->context(), nullptr, nullptr, nullptr);
 
     this->m_decl->set_leaf_type(type);
 }
 
 bool ASTNodeInitializer::is_constexpr() const
 {
-    if (std::holds_alternative<std::shared_ptr<ASTNodeExpr>>(this->m_value))
-    {
+    if (std::holds_alternative<std::shared_ptr<ASTNodeExpr>>(this->m_value)) {
         auto expr = std::get<std::shared_ptr<ASTNodeExpr>>(this->m_value);
         auto str = dynamic_pointer_cast<ASTNodeExprString>(expr);
-        if (str) return true;
+        if (str)
+            return true;
         return expr->is_constexpr();
-    }
-    else
-    {
+    } else {
         return std::get<std::shared_ptr<ASTNodeInitializerList>>(this->m_value)->is_constexpr();
     }
 }
 
-};
+}; // namespace cparser

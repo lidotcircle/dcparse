@@ -9,8 +9,7 @@ using variable_basic_type = ASTNodeVariableType::variable_basic_type;
 
 bool ASTNodeExpr::is_constexpr() const
 {
-    return this->get_integer_constant().has_value() ||
-           this->get_float_constant().has_value();
+    return this->get_integer_constant().has_value() || this->get_float_constant().has_value();
 }
 
 optional<long long> ASTNodeExprIdentifier::get_integer_constant() const
@@ -116,33 +115,29 @@ optional<long long> ASTNodeExprUnaryOp::get_integer_constant() const
 {
     using OT = ASTNodeExprUnaryOp::UnaryOperatorType;
     switch (this->m_operator) {
-        case OT::MINUS:
-        {
-            auto val = this->m_expr->get_integer_constant();
-            if (val.has_value())
-                return -val.value();
-        } break;
-        case OT::PLUS:
-            return this->m_expr->get_integer_constant();
-        case OT::BITWISE_NOT:
-        {
-            auto val = this->m_expr->get_integer_constant();
-            if (val.has_value())
-                return ~val.value();
-        } break;
-        case OT::LOGICAL_NOT:
-        {
-            auto val = this->m_expr->get_integer_constant();
-            if (val.has_value())
-                return !val.value();
-        } break;
-        case OT::SIZEOF:
-        {
-            auto type = this->m_expr->type();
-            return type->opsizeof();
-        } break;
-        default:
-            break;
+    case OT::MINUS: {
+        auto val = this->m_expr->get_integer_constant();
+        if (val.has_value())
+            return -val.value();
+    } break;
+    case OT::PLUS:
+        return this->m_expr->get_integer_constant();
+    case OT::BITWISE_NOT: {
+        auto val = this->m_expr->get_integer_constant();
+        if (val.has_value())
+            return ~val.value();
+    } break;
+    case OT::LOGICAL_NOT: {
+        auto val = this->m_expr->get_integer_constant();
+        if (val.has_value())
+            return !val.value();
+    } break;
+    case OT::SIZEOF: {
+        auto type = this->m_expr->type();
+        return type->opsizeof();
+    } break;
+    default:
+        break;
     }
     return nullopt;
 }
@@ -151,22 +146,20 @@ optional<long double> ASTNodeExprUnaryOp::get_float_constant() const
 {
     using OT = ASTNodeExprUnaryOp::UnaryOperatorType;
     switch (this->m_operator) {
-        case OT::MINUS:
-        {
-            auto val = this->m_expr->get_float_constant();
-            if (val.has_value())
-                return -val.value();
-        } break;
-        case OT::PLUS:
-            return this->m_expr->get_float_constant();
-        case OT::LOGICAL_NOT:
-        {
-            auto val = this->m_expr->get_float_constant();
-            if (val.has_value())
-                return !val.value();
-        } break;
-        default:
-            return this->get_integer_constant();
+    case OT::MINUS: {
+        auto val = this->m_expr->get_float_constant();
+        if (val.has_value())
+            return -val.value();
+    } break;
+    case OT::PLUS:
+        return this->m_expr->get_float_constant();
+    case OT::LOGICAL_NOT: {
+        auto val = this->m_expr->get_float_constant();
+        if (val.has_value())
+            return !val.value();
+    } break;
+    default:
+        return this->get_integer_constant();
     }
     return nullopt;
 }
@@ -196,17 +189,17 @@ optional<long long> ASTNodeExprCast::get_integer_constant() const
     assert(inttype);
     long long _val = val.has_value() ? val.value() : val2.value();
     if (inttype->is_unsigned())
-        _val = (long long unsigned)_val;
+        _val = (long long unsigned) _val;
 
     switch (inttype->byte_length()) {
-        case 1: 
-            return _val & 0xFF;
-        case 2:
-            return _val & 0xFFFF;
-        case 4:
-            return _val & 0xFFFFFFFF;
-        case 8:
-            return _val;
+    case 1:
+        return _val & 0xFF;
+    case 2:
+        return _val & 0xFFFF;
+    case 4:
+        return _val & 0xFFFFFFFF;
+    case 8:
+        return _val;
     }
 
     return nullopt;
@@ -229,86 +222,6 @@ optional<long long> ASTNodeExprBinaryOp::get_integer_constant() const
         auto _r = right.value();
         using OT = ASTNodeExprBinaryOp::BinaryOperatorType;
         switch (this->m_operator) {
-            case OT::PLUS:
-                return _l + _r;
-            case OT::MINUS:
-                return _l - _r;
-            case OT::MULTIPLY:
-                return _l * _r;
-            case OT::DIVISION:
-                return _l / _r;
-            case OT::REMAINDER:
-                return _l % _r;
-            case OT::BITWISE_AND:
-                return _l & _r;
-            case OT::BITWISE_OR:
-                return _l | _r;
-            case OT::BITWISE_XOR:
-                return _l ^ _r;
-            case OT::LEFT_SHIFT:
-                return _l << _r;
-            case OT::RIGHT_SHIFT:
-                return _l >> _r;
-            case OT::LESS_THAN:
-                return _l < _r;
-            case OT::LESS_THAN_EQUAL:
-                return _l <= _r;
-            case OT::GREATER_THAN:
-                return _l > _r;
-            case OT::GREATER_THAN_EQUAL:
-                return _l >= _r;
-            case OT::EQUAL:
-                return _l == _r;
-            case OT::NOT_EQUAL:
-                return _l != _r;
-            case OT::LOGICAL_AND:
-                return _l && _r;
-            case OT::LOGICAL_OR:
-                return _l || _r;
-            default:
-                return nullopt;
-        }
-    }
-
-    auto left2 = this->m_left->get_float_constant();
-    auto right2 = this->m_right->get_float_constant();
-    if (left2.has_value() && right2.has_value()) {
-        auto _l = left2.value();
-        auto _r = right2.value();
-        using OT = ASTNodeExprBinaryOp::BinaryOperatorType;
-        switch (this->m_operator) {
-            case OT::LESS_THAN:
-                return _l < _r;
-            case OT::LESS_THAN_EQUAL:
-                return _l <= _r;
-            case OT::GREATER_THAN:
-                return _l > _r;
-            case OT::GREATER_THAN_EQUAL:
-                return _l >= _r;
-            case OT::EQUAL:
-                return _l == _r;
-            case OT::NOT_EQUAL:
-                return _l != _r;
-            case OT::LOGICAL_AND:
-            default:
-                return nullopt;
-        }
-    }
-
-    return nullopt;
-}
-
-optional<long double> ASTNodeExprBinaryOp::get_float_constant() const
-{
-    auto left = this->m_left->get_float_constant();
-    auto right = this->m_right->get_integer_constant();
-    if (!left.has_value() || !right.has_value())
-        return nullopt;
-
-    auto _l = left.value();
-    auto _r = right.value();
-    using OT = ASTNodeExprBinaryOp::BinaryOperatorType;
-    switch (this->m_operator) {
         case OT::PLUS:
             return _l + _r;
         case OT::MINUS:
@@ -317,6 +230,18 @@ optional<long double> ASTNodeExprBinaryOp::get_float_constant() const
             return _l * _r;
         case OT::DIVISION:
             return _l / _r;
+        case OT::REMAINDER:
+            return _l % _r;
+        case OT::BITWISE_AND:
+            return _l & _r;
+        case OT::BITWISE_OR:
+            return _l | _r;
+        case OT::BITWISE_XOR:
+            return _l ^ _r;
+        case OT::LEFT_SHIFT:
+            return _l << _r;
+        case OT::RIGHT_SHIFT:
+            return _l >> _r;
         case OT::LESS_THAN:
             return _l < _r;
         case OT::LESS_THAN_EQUAL:
@@ -334,7 +259,75 @@ optional<long double> ASTNodeExprBinaryOp::get_float_constant() const
         case OT::LOGICAL_OR:
             return _l || _r;
         default:
-            return this->get_integer_constant();
+            return nullopt;
+        }
+    }
+
+    auto left2 = this->m_left->get_float_constant();
+    auto right2 = this->m_right->get_float_constant();
+    if (left2.has_value() && right2.has_value()) {
+        auto _l = left2.value();
+        auto _r = right2.value();
+        using OT = ASTNodeExprBinaryOp::BinaryOperatorType;
+        switch (this->m_operator) {
+        case OT::LESS_THAN:
+            return _l < _r;
+        case OT::LESS_THAN_EQUAL:
+            return _l <= _r;
+        case OT::GREATER_THAN:
+            return _l > _r;
+        case OT::GREATER_THAN_EQUAL:
+            return _l >= _r;
+        case OT::EQUAL:
+            return _l == _r;
+        case OT::NOT_EQUAL:
+            return _l != _r;
+        case OT::LOGICAL_AND:
+        default:
+            return nullopt;
+        }
+    }
+
+    return nullopt;
+}
+
+optional<long double> ASTNodeExprBinaryOp::get_float_constant() const
+{
+    auto left = this->m_left->get_float_constant();
+    auto right = this->m_right->get_integer_constant();
+    if (!left.has_value() || !right.has_value())
+        return nullopt;
+
+    auto _l = left.value();
+    auto _r = right.value();
+    using OT = ASTNodeExprBinaryOp::BinaryOperatorType;
+    switch (this->m_operator) {
+    case OT::PLUS:
+        return _l + _r;
+    case OT::MINUS:
+        return _l - _r;
+    case OT::MULTIPLY:
+        return _l * _r;
+    case OT::DIVISION:
+        return _l / _r;
+    case OT::LESS_THAN:
+        return _l < _r;
+    case OT::LESS_THAN_EQUAL:
+        return _l <= _r;
+    case OT::GREATER_THAN:
+        return _l > _r;
+    case OT::GREATER_THAN_EQUAL:
+        return _l >= _r;
+    case OT::EQUAL:
+        return _l == _r;
+    case OT::NOT_EQUAL:
+        return _l != _r;
+    case OT::LOGICAL_AND:
+        return _l && _r;
+    case OT::LOGICAL_OR:
+        return _l || _r;
+    default:
+        return this->get_integer_constant();
     }
 
     return nullopt;
@@ -424,14 +417,13 @@ bool ASTNodeExprCompoundLiteral::is_lvalue() const
 bool ASTNodeExprUnaryOp::is_lvalue() const
 {
     using OP = ASTNodeExprUnaryOp::UnaryOperatorType;
-    switch (this->m_operator)
-    {
-        case OP::DEREFERENCE:
-        case OP::PREFIX_INC:
-        case OP::PREFIX_DEC:
-            return true;
-        default:
-            return false;
+    switch (this->m_operator) {
+    case OP::DEREFERENCE:
+    case OP::PREFIX_INC:
+    case OP::PREFIX_DEC:
+        return true;
+    default:
+        return false;
     }
 }
 

@@ -1,12 +1,13 @@
 #include "scalc/lexer_parser.h"
-#include <iostream>
-#include <string>
 #include <fstream>
+#include <iostream>
 #include <sstream>
+#include <string>
 using namespace std;
 
 
-static void usage(string cmd) {
+static void usage(string cmd)
+{
     auto pos = cmd.find_last_of("/\\");
     if (pos != string::npos)
         cmd = cmd.substr(pos + 1);
@@ -48,7 +49,8 @@ int main(int argc, char* argv[])
             stringstream ss;
             ss << ifs.rdbuf();
             input = ss.str();
-            if (input.empty()) input = ";";
+            if (input.empty())
+                input = ";";
         } else if (string(argv[1]) == "-c") {
             modulename = argv[2];
             ifstream ifs(argv[2]);
@@ -59,7 +61,8 @@ int main(int argc, char* argv[])
             stringstream ss;
             ss << ifs.rdbuf();
             input = ss.str();
-            if (input.empty()) input = ";";
+            if (input.empty())
+                input = ";";
         } else {
             usage(argv[0]);
             return 1;
@@ -78,13 +81,12 @@ int main(int argc, char* argv[])
     CalcLexerParser exec(modulename.empty());
     auto ctx = exec.getContext();
     ctx->set_output(&cout);
-    const std::string preamble = 
-    "function sin(x);"
-    "function cos(x);";
+    const std::string preamble = "function sin(x);"
+                                 "function cos(x);";
     if (!input.empty()) {
         input = preamble + input;
         try {
-            for (auto c: input)
+            for (auto c : input)
                 exec.feed(c);
 
             exec.end();
@@ -94,10 +96,11 @@ int main(int argc, char* argv[])
                 const auto of = modulename.substr(0, pos) + ".ll";
                 std::fstream fs(of, std::ios::binary | std::ios::out);
                 fs.write(ir.c_str(), ir.size());
-                if (fs.bad()) cerr << "fail write to file: " << std::endl << ir << std::endl;
+                if (fs.bad())
+                    cerr << "fail write to file: " << std::endl << ir << std::endl;
             }
             return 0;
-        } catch  (const runtime_error& e) {
+        } catch (const runtime_error& e) {
             cerr << "Error: " << e.what() << endl;
             return 1;
         }
@@ -110,9 +113,9 @@ int main(int argc, char* argv[])
         line = trimstring(line) + "\n\n";
 
         try {
-            for (auto c: line)
+            for (auto c : line)
                 exec.feed(c);
-        } catch  (const std::runtime_error& e) {
+        } catch (const std::runtime_error& e) {
             cerr << "Error: " << e.what() << endl;
             exec.reset();
         }

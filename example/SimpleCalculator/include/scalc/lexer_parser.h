@@ -1,17 +1,18 @@
 #ifndef _SIMPLE_CALCULATOR_LEXER_PARSER_H_
 #define _SIMPLE_CALCULATOR_LEXER_PARSER_H_
 
-#include "./token.h"
 #include "./parser.h"
+#include "./token.h"
 
 
-class CalcLexerParser {
-private:
+class CalcLexerParser
+{
+  private:
     CalcParser parser;
-    CalcLexer  lexer;
+    CalcLexer lexer;
     std::shared_ptr<ASTNode> m_calunit;
 
-public:
+  public:
     CalcLexerParser(bool execute);
 
     void feed(char c);
@@ -20,7 +21,10 @@ public:
     std::string genllvm(const std::string& modulename) const;
 
     std::shared_ptr<SCalcParserContext> getContext();
-    inline void setDebugStream(std::ostream& out) { this->parser.setDebugStream(out); }
+    inline void setDebugStream(std::ostream& out)
+    {
+        this->parser.setDebugStream(out);
+    }
 };
 
 #endif // _SIMPLE_CALCULATOR_LEXER_PARSER_H_

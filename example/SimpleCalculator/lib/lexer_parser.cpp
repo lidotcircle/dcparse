@@ -3,22 +3,20 @@
 using namespace std;
 
 
-CalcLexerParser::CalcLexerParser(bool execute):
-    parser(execute)
-{
-}
+CalcLexerParser::CalcLexerParser(bool execute) : parser(execute)
+{}
 
 void CalcLexerParser::feed(char c)
 {
     auto tokens = this->lexer.feed(c);
-    for (auto t: tokens)
+    for (auto t : tokens)
         this->parser.feed(t);
 }
 
 std::shared_ptr<ASTNode> CalcLexerParser::end()
 {
     auto tokens = this->lexer.end();
-    for (auto t: tokens)
+    for (auto t : tokens)
         this->parser.feed(t);
 
     auto nonterm = this->parser.end();

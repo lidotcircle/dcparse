@@ -1,33 +1,33 @@
 #include "c_ast.h"
 #include "c_ast_utils.h"
+#include "c_initializer.h"
 #include "c_parser.h"
 #include "c_reporter.h"
 #include "c_translation_unit_context.h"
-#include "c_initializer.h"
 #include <limits>
 #include <type_traits>
 using namespace cparser;
 using namespace std;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
-using storage_class_t     = ASTNodeVariableType::storage_class_t;
+using storage_class_t = ASTNodeVariableType::storage_class_t;
 
 #define MAX_AB(a, b) ((a) > (b) ? (a) : (b))
-#define MACHINE_WORD_SIZE_IN_BIT (sizeof(void *) * CHAR_BIT)
-#define OREPORT(textinfo, error, range, msg) \
+#define MACHINE_WORD_SIZE_IN_BIT (sizeof(void*) * CHAR_BIT)
+#define OREPORT(textinfo, error, range, msg)                                                       \
     reporter->push_back(make_shared<SemanticError##error>(msg, range, textinfo))
-#define REPORT(error, range, msg) \
-    OREPORT(this->context()->textinfo(), error, range, msg)
+#define REPORT(error, range, msg) OREPORT(this->context()->textinfo(), error, range, msg)
 
 
 void ASTNodeExprIdentifier::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context();
     auto tctx = ctx->tu_context();
     assert(this->m_id);
 
-    auto type =tctx->lookup_variable(this->m_id->id);
+    auto type = tctx->lookup_variable(this->m_id->id);
     if (!type) {
         this->resolve_type(kstype::voidtype(this->context()));
         REPORT(VarNotDefined, *this, "variable '" + this->m_id->id + "' is not defined");
@@ -38,13 +38,15 @@ void ASTNodeExprIdentifier::check_constraints(std::shared_ptr<SemanticReporter> 
 
 void ASTNodeExprString::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     this->resolve_type(kstype::constcharptrtype(this->context()));
 }
 void ASTNodeExprInteger::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto le = this->token()->value;
     size_t s = sizeof(le);
@@ -60,26 +62,25 @@ void ASTNodeExprInteger::check_constraints(std::shared_ptr<SemanticReporter> rep
 }
 void ASTNodeExprFloat::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto val = this->token()->value;
-    if (val <= std::numeric_limits<float>::max() &&
-        val >= std::numeric_limits<float>::min())
-    {
+    if (val <= std::numeric_limits<float>::max() && val >= std::numeric_limits<float>::min()) {
         this->resolve_type(make_shared<ASTNodeVariableTypeFloat>(this->context(), sizeof(float)));
-    }
-    else if (val <= std::numeric_limits<double>::max() &&
-             val >= std::numeric_limits<double>::min())
-    {
+    } else if (val <= std::numeric_limits<double>::max() &&
+               val >= std::numeric_limits<double>::min()) {
         this->resolve_type(make_shared<ASTNodeVariableTypeFloat>(this->context(), sizeof(double)));
     } else {
-        this->resolve_type(make_shared<ASTNodeVariableTypeFloat>(this->context(), sizeof(long double)));
+        this->resolve_type(
+            make_shared<ASTNodeVariableTypeFloat>(this->context(), sizeof(long double)));
     }
 }
 
 void ASTNodeExprIndexing::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     assert(this->m_array && this->m_idx);
     const auto olderrorcounter = reporter->size();
@@ -90,9 +91,7 @@ void ASTNodeExprIndexing::check_constraints(std::shared_ptr<SemanticReporter> re
 
     auto atype = this->m_array->type();
     const auto btype = atype->basic_type();
-    if (btype != variable_basic_type::ARRAY &&
-        btype != variable_basic_type::POINTER)
-    {
+    if (btype != variable_basic_type::ARRAY && btype != variable_basic_type::POINTER) {
         REPORT(InvalidArrayIndex, *this, "invalid array indexing, type is not array or pointer");
     }
 
@@ -119,7 +118,8 @@ void ASTNodeExprIndexing::check_constraints(std::shared_ptr<SemanticReporter> re
 
 void ASTNodeArgList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     for (auto& arg : *this)
         arg->check_constraints(reporter);
@@ -127,7 +127,8 @@ void ASTNodeArgList::check_constraints(std::shared_ptr<SemanticReporter> reporte
 
 void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_func->check_constraints(reporter);
@@ -147,14 +148,15 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
 
     auto params = functype->parameter_declaration_list();
     if (params->size() != this->m_args->size() && !params->variadic()) {
-        REPORT(InvalidFunctionCall, *this->m_func,
-                    "invalid function call, parameter count mismatch, expected " + 
-                    std::to_string(params->size()) + ", got " + std::to_string(this->m_args->size()));
+        REPORT(InvalidFunctionCall,
+               *this->m_func,
+               "invalid function call, parameter count mismatch, expected " +
+                   std::to_string(params->size()) + ", got " +
+                   std::to_string(this->m_args->size()));
         return;
     }
 
-    for (size_t i=0;i<params->size();i++)
-    {
+    for (size_t i = 0; i < params->size(); i++) {
         auto param = (*params)[i];
         auto& arg = (*this->m_args)[i];
 
@@ -163,9 +165,10 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
 
         auto ffff = argtype->implicit_cast_to(paramtype);
         if (!ffff) {
-            REPORT(InvalidFunctionCall, *arg,
-                        "invalid function call, parameter type mismatch, expected " + 
-                        paramtype->to_string() + ", got " + argtype->to_string());
+            REPORT(InvalidFunctionCall,
+                   *arg,
+                   "invalid function call, parameter type mismatch, expected " +
+                       paramtype->to_string() + ", got " + argtype->to_string());
         } else if (ffff->equal_to(argtype)) {
             arg = make_exprcast(arg, ffff);
         }
@@ -182,7 +185,8 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
 
 void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_obj->check_constraints(reporter);
@@ -191,20 +195,20 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
 
     auto objtype = this->m_obj->type();
     if (objtype->basic_type() != variable_basic_type::STRUCT &&
-        objtype->basic_type() != variable_basic_type::UNION)
-    {
+        objtype->basic_type() != variable_basic_type::UNION) {
         REPORT(InvalidMemberAccess, *this, "invalid member access, type is not struct or union");
         return;
     }
 
     shared_ptr<ASTNodeVariableType> restype;
     auto structtype = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(objtype);
-    auto uniontype  = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(objtype);
+    auto uniontype = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(objtype);
     const auto def = structtype ? structtype->get_definition() : uniontype->get_definition();
     bool found = false;
-    for (auto mem: *def) {
+    for (auto mem : *def) {
         auto mid = mem->get_id();
-        if (mid == nullptr) continue;
+        if (mid == nullptr)
+            continue;
 
         if (mid->id == this->m_member->id) {
             restype = mem->get_type()->copy();
@@ -217,7 +221,9 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
     }
 
     if (!found) {
-        REPORT(InvalidMemberAccess, *this, "invalid member access, member '" + this->m_member->id + "' is not defined");
+        REPORT(InvalidMemberAccess,
+               *this,
+               "invalid member access, member '" + this->m_member->id + "' is not defined");
     }
 
     if (olderrorcounter != reporter->size()) {
@@ -229,7 +235,8 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
 
 void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_obj->check_constraints(reporter);
@@ -238,8 +245,7 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
 
     auto objtype = this->m_obj->type();
     auto ptrtype = dynamic_pointer_cast<ASTNodeVariableTypePointer>(objtype);
-    if (ptrtype == nullptr)
-    {
+    if (ptrtype == nullptr) {
         REPORT(InvalidMemberAccess, *this, "invalid pointer member access, type is not pointer");
         return;
     }
@@ -247,20 +253,20 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
     objtype = ptrtype->deref();
     assert(objtype);
     if (objtype->basic_type() != variable_basic_type::STRUCT &&
-        objtype->basic_type() != variable_basic_type::UNION)
-    {
+        objtype->basic_type() != variable_basic_type::UNION) {
         REPORT(InvalidMemberAccess, *this, "invalid member access, type is not struct or union");
         return;
     }
 
     shared_ptr<ASTNodeVariableType> restype;
     auto structtype = dynamic_pointer_cast<ASTNodeVariableTypeStruct>(objtype);
-    auto uniontype  = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(objtype);
+    auto uniontype = dynamic_pointer_cast<ASTNodeVariableTypeUnion>(objtype);
     const auto def = structtype ? structtype->get_definition() : uniontype->get_definition();
     bool found = false;
-    for (auto mem: *def) {
+    for (auto mem : *def) {
         auto mid = mem->get_id();
-        if (mid == nullptr) continue;
+        if (mid == nullptr)
+            continue;
 
         if (mid->id == this->m_member->id) {
             restype = mem->get_type()->copy();
@@ -273,7 +279,9 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
     }
 
     if (!found) {
-        REPORT(InvalidMemberAccess, *this, "invalid member access, member '" + this->m_member->id + "' is not defined");
+        REPORT(InvalidMemberAccess,
+               *this,
+               "invalid member access, member '" + this->m_member->id + "' is not defined");
     }
 
     if (olderrorcounter != reporter->size()) {
@@ -286,64 +294,63 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
 static DesignatorList make_designator_list(std::shared_ptr<ASTNodeDesignation> designation)
 {
     DesignatorList ret;
-    for (auto& d: designation->designators()) {
+    for (auto& d : designation->designators()) {
         if (std::holds_alternative<ASTNodeDesignation::member_designator_t>(d)) {
             auto vx = std::get<ASTNodeDesignation::member_designator_t>(d);
             ret.emplace_back(vx->id);
         } else {
             auto vx = std::get<ASTNodeDesignation::array_designator_t>(d);
             const auto cv = vx->get_integer_constant();
-            if (!cv.has_value()) continue;
+            if (!cv.has_value())
+                continue;
             ret.emplace_back(cv.value());
         }
     }
     return ret;
 }
 
-static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_intializer(
-        std::shared_ptr<ASTNodeVariableType> type,
-        std::shared_ptr<ASTNodeInitializer> init,
-        std::shared_ptr<SemanticReporter> reporter);
+static optional<shared_ptr<ASTNodeExpr>>
+check_initialization_of_object_with_intializer(std::shared_ptr<ASTNodeVariableType> type,
+                                               std::shared_ptr<ASTNodeInitializer> init,
+                                               std::shared_ptr<SemanticReporter> reporter);
 
-static bool initialization_implicit_cast(shared_ptr<ASTNodeExpr> fromexpr, shared_ptr<ASTNodeVariableType> to)
+static bool initialization_implicit_cast(shared_ptr<ASTNodeExpr> fromexpr,
+                                         shared_ptr<ASTNodeVariableType> to)
 {
-    if (ksexpr::is_string_literal(fromexpr) &&
-        to->basic_type() == variable_basic_type::ARRAY)
-    {
-        auto to_arr  = dynamic_pointer_cast<ASTNodeVariableTypeArray>(to);
-        if (kstype::is_char(to_arr->elemtype())) return true;
+    if (ksexpr::is_string_literal(fromexpr) && to->basic_type() == variable_basic_type::ARRAY) {
+        auto to_arr = dynamic_pointer_cast<ASTNodeVariableTypeArray>(to);
+        if (kstype::is_char(to_arr->elemtype()))
+            return true;
     }
 
     auto from = fromexpr->type();
     return from->implicit_cast_to(to) != nullptr;
 }
 
-static void check_initialization_of_object_with_intializer_list(
-        std::shared_ptr<ASTNodeVariableType> type,
-        std::shared_ptr<ASTNodeInitializerList> list,
-        std::shared_ptr<SemanticReporter> reporter)
+static void
+check_initialization_of_object_with_intializer_list(std::shared_ptr<ASTNodeVariableType> type,
+                                                    std::shared_ptr<ASTNodeInitializerList> list,
+                                                    std::shared_ptr<SemanticReporter> reporter)
 {
     auto textinfo = type->context()->textinfo();
-    switch(type->basic_type()) {
-    case variable_basic_type::ARRAY:
-    {
+    switch (type->basic_type()) {
+    case variable_basic_type::ARRAY: {
         auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
-        if (kstype::is_char(arrtype->elemtype()) &&
-            list->size() == 1)
-        {
+        if (kstype::is_char(arrtype->elemtype()) && list->size() == 1) {
             auto init = list->front();
-            if (init->designators().size() == 0 &&
-                init->get_initializer()->is_expr() &&
-                ksexpr::is_string_literal(init->get_initializer()->expr()))
-            {
-                auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(init->get_initializer()->expr());
+            if (init->designators().size() == 0 && init->get_initializer()->is_expr() &&
+                ksexpr::is_string_literal(init->get_initializer()->expr())) {
+                auto strexpr =
+                    dynamic_pointer_cast<ASTNodeExprString>(init->get_initializer()->expr());
                 assert(strexpr);
                 const auto& str = strexpr->token()->value;
                 if (arrtype->array_size()) {
                     auto size = arrtype->array_size()->get_integer_constant();
                     assert(size.has_value());
                     if (size.value() <= str.size()) {
-                        OREPORT(textinfo, InitializerStringTooLong, *init,
+                        OREPORT(textinfo,
+                                InitializerStringTooLong,
+                                *init,
                                 "initializer-string for char array is too long");
                     }
                 } else {
@@ -356,17 +363,18 @@ static void check_initialization_of_object_with_intializer_list(
         }
     }
     case variable_basic_type::STRUCT:
-    case variable_basic_type::UNION:
-    {
+    case variable_basic_type::UNION: {
         auto init_tree = create_initializer_tree(type);
         auto iter = init_tree->first();
         assert(init_tree);
-        for (auto designation: *list) {
+        for (auto designation : *list) {
             auto dlist = make_designator_list(designation);
             if (!dlist.empty()) {
                 auto new_iter = init_tree->access(dlist);
                 if (!new_iter.has_value()) {
-                    OREPORT(textinfo, InvalidDesignation, *designation,
+                    OREPORT(textinfo,
+                            InvalidDesignation,
+                            *designation,
                             "can't find member with this designation");
                     break;
                 } else {
@@ -376,8 +384,8 @@ static void check_initialization_of_object_with_intializer_list(
 
             auto init_type = iter.type();
             if (init_type == nullptr) {
-                OREPORT(textinfo, InvalidDesignation, *designation,
-                        "no member with this designation");
+                OREPORT(
+                    textinfo, InvalidDesignation, *designation, "no member with this designation");
                 break;
             }
 
@@ -385,30 +393,32 @@ static void check_initialization_of_object_with_intializer_list(
             if (init_value->is_expr()) {
                 auto init_expr = init_value->expr();
                 bool nofalse = true;
-                while (nofalse && !initialization_implicit_cast(init_expr, init_type))
-                {
+                while (nofalse && !initialization_implicit_cast(init_expr, init_type)) {
                     if (!iter.down()) {
-                        OREPORT(textinfo, InvalidDesignation, *designation,
+                        OREPORT(textinfo,
+                                InvalidDesignation,
+                                *designation,
                                 "can't cast initializer to member type");
                         nofalse = false;
                         break;
                     }
                     init_type = iter.type();
                 }
-                if (!nofalse) break;
+                if (!nofalse)
+                    break;
             }
 
-            auto new_expr = check_initialization_of_object_with_intializer(init_type, init_value, reporter);
+            auto new_expr =
+                check_initialization_of_object_with_intializer(init_type, init_value, reporter);
             if (new_expr.has_value()) {
                 // TODO substitue initialation expression with new value if it presents
             }
             iter.next();
         }
 
-        if (type->basic_type() == variable_basic_type::ARRAY)
-        {
+        if (type->basic_type() == variable_basic_type::ARRAY) {
             auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
-            auto arrinittree =dynamic_pointer_cast<AggregateUnionObjectMemberTreeArray>(init_tree);
+            auto arrinittree = dynamic_pointer_cast<AggregateUnionObjectMemberTreeArray>(init_tree);
             assert(arrtype && arrinittree);
             const auto unknown_size = arrinittree->get_unknown_array_size();
             if (unknown_size.has_value()) {
@@ -423,10 +433,10 @@ static void check_initialization_of_object_with_intializer_list(
     case variable_basic_type::ENUM:
     case variable_basic_type::FLOAT:
     case variable_basic_type::INT:
-    case variable_basic_type::POINTER:
-    {
+    case variable_basic_type::POINTER: {
         if (list->empty() || list->size() > 1)
-            OREPORT(textinfo, InvalidInitializer, *list, "invalid initializer, expected single value");
+            OREPORT(
+                textinfo, InvalidInitializer, *list, "invalid initializer, expected single value");
 
         if (list->empty())
             break;
@@ -435,13 +445,17 @@ static void check_initialization_of_object_with_intializer_list(
         auto init__ = init->get_initializer();
 
         if (init->designators().size() > 0) {
-            OREPORT(textinfo, InvalidInitializer, *init, "invalid initializer, unexpected designator");
+            OREPORT(
+                textinfo, InvalidInitializer, *init, "invalid initializer, unexpected designator");
             break;
         }
 
         if (init__->is_list()) {
-            OREPORT(textinfo, InvalidInitializer, *init,
-                    "invalid initializer, scalar value initialization should enclosed at most one level of braces");
+            OREPORT(textinfo,
+                    InvalidInitializer,
+                    *init,
+                    "invalid initializer, scalar value initialization should enclosed at most one "
+                    "level of braces");
             break;
         }
 
@@ -463,27 +477,27 @@ static void check_initialization_of_object_with_intializer_list(
     }
 }
 
-static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_intializer(
-        std::shared_ptr<ASTNodeVariableType> type,
-        std::shared_ptr<ASTNodeInitializer> init,
-        std::shared_ptr<SemanticReporter> reporter)
+static optional<shared_ptr<ASTNodeExpr>>
+check_initialization_of_object_with_intializer(std::shared_ptr<ASTNodeVariableType> type,
+                                               std::shared_ptr<ASTNodeInitializer> init,
+                                               std::shared_ptr<SemanticReporter> reporter)
 {
     auto textinfo = type->context()->textinfo();
     auto ctx = type->context();
     if (init->is_expr()) {
-        if (type->basic_type() == variable_basic_type::ARRAY)
-        {
+        if (type->basic_type() == variable_basic_type::ARRAY) {
             auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
             assert(arrtype);
             auto initexpr = init->expr();
             assert(!arrtype->elemtype()->is_incomplete_type());
             auto strexpr = dynamic_pointer_cast<ASTNodeExprString>(initexpr);
             if (!kstype::is_char(arrtype->elemtype())) {
-                OREPORT(textinfo, InvalidInitializer, *init,
+                OREPORT(textinfo,
+                        InvalidInitializer,
+                        *init,
                         "these value can't be initialized with an expression");
             } else if (!strexpr) {
-                OREPORT(textinfo, InvalidInitializer, *init,
-                        "bad initializer for char array");
+                OREPORT(textinfo, InvalidInitializer, *init, "bad initializer for char array");
             } else if (arrtype->is_incomplete_type()) {
                 const auto& str = strexpr->token()->value;
                 auto strsize = make_shared<TokenConstantInteger>(str.size() + 1);
@@ -495,7 +509,9 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_int
                 auto size = arrtype->array_size()->get_integer_constant();
                 assert(size.has_value());
                 if (size.value() <= str.size()) {
-                    OREPORT(textinfo, InitializerStringTooLong, *init,
+                    OREPORT(textinfo,
+                            InitializerStringTooLong,
+                            *init,
                             "initializer-string for char array is too long");
                 }
             }
@@ -504,11 +520,12 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_int
             static int fakeid_counter = 0;
             auto fakeid = make_shared<TokenID>("#fake_" + to_string(fakeid_counter++));
             auto fakeidast = make_shared<ASTNodeExprIdentifier>(ctx, fakeid);
-            auto tctx  = ctx->tu_context();
+            auto tctx = ctx->tu_context();
             auto copytype = type->copy();
             copytype->reset_qualifies();
             tctx->declare_variable(fakeid->id, copytype);
-            auto assign_expr = make_shared<ASTNodeExprBinaryOp>(ctx, OT::ASSIGNMENT, fakeidast, init->expr());
+            auto assign_expr =
+                make_shared<ASTNodeExprBinaryOp>(ctx, OT::ASSIGNMENT, fakeidast, init->expr());
             assign_expr->check_constraints(reporter);
             if (assign_expr->right() != init->expr())
                 return assign_expr->right();
@@ -524,19 +541,23 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object_with_int
     return nullopt;
 }
 
-static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object(
-        std::shared_ptr<ASTNodeVariableType> type,
-        std::shared_ptr<ASTNodeInitializer> init,
-        std::shared_ptr<SemanticReporter> reporter)
+static optional<shared_ptr<ASTNodeExpr>>
+check_initialization_of_object(std::shared_ptr<ASTNodeVariableType> type,
+                               std::shared_ptr<ASTNodeInitializer> init,
+                               std::shared_ptr<SemanticReporter> reporter)
 {
     auto textinfo = type->context()->textinfo();
     if (type->storage_class() == storage_class_t::SC_Static && init->is_constexpr()) {
-        OREPORT(textinfo, InvalidInitializer, *init,
+        OREPORT(textinfo,
+                InvalidInitializer,
+                *init,
                 "invalid initializer, static storage value should be initialzed by a const value");
     }
 
     if (type->is_function_type()) {
-        OREPORT(textinfo, InvalidInitializer, *init,
+        OREPORT(textinfo,
+                InvalidInitializer,
+                *init,
                 "invalid initializer, function type cannot be initialized");
         return nullopt;
     }
@@ -554,10 +575,13 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object(
         if (!arrtype->array_size()->get_integer_constant().has_value())
             bad = true;
     }
-    
+
     if (bad) {
-        OREPORT(textinfo, InvalidInitializer, *init,
-                "invalid initializer, incomplete type object or variable size object cannot be initialized");
+        OREPORT(textinfo,
+                InvalidInitializer,
+                *init,
+                "invalid initializer, incomplete type object or variable size object cannot be "
+                "initialized");
 
         return nullopt;
     }
@@ -567,7 +591,8 @@ static optional<shared_ptr<ASTNodeExpr>> check_initialization_of_object(
 
 void ASTNodeExprCompoundLiteral::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_type->check_constraints(reporter);
@@ -581,7 +606,8 @@ void ASTNodeExprCompoundLiteral::check_constraints(std::shared_ptr<SemanticRepor
 
 void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_expr->check_constraints(reporter);
@@ -594,8 +620,7 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
     case OT::POSFIX_DEC:
     case OT::POSFIX_INC:
     case OT::PREFIX_DEC:
-    case OT::PREFIX_INC:
-    {
+    case OT::PREFIX_INC: {
         if (!this->m_expr->is_lvalue()) {
             REPORT(InvalidValueCategory, *this, "invalid unary operator, operand is not lvalue");
             break;
@@ -612,20 +637,21 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
         case variable_basic_type::POINTER:
             exprtype = et->copy();
             break;
-        case variable_basic_type::ARRAY:
-        {
+        case variable_basic_type::ARRAY: {
             auto m = dynamic_pointer_cast<ASTNodeVariableTypeArray>(et);
             assert(m);
             exprtype = ptrto(m->elemtype());
             exprtype->const_ref() = et->const_ref();
         } break;
         default:
-            REPORT(InvalidOperand, *this, "invalid unary operator, operand is not integer or pointer or array");
+            REPORT(InvalidOperand,
+                   *this,
+                   "invalid unary operator, operand is not integer or pointer or array");
             break;
         }
 
-        if (exprtype && (this->m_operator == OT::POSFIX_DEC || this->m_operator == OT::PREFIX_DEC))
-        {
+        if (exprtype &&
+            (this->m_operator == OT::POSFIX_DEC || this->m_operator == OT::PREFIX_DEC)) {
             exprtype->reset_qualifies();
             exprtype->reset_storage_class();
         }
@@ -645,20 +671,19 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
             auto m = dynamic_pointer_cast<ASTNodeVariableTypeArray>(this->m_expr->type());
             exprtype = m->elemtype();
         } else {
-            REPORT(InvalidOperand, *this, "invalid unary operator, operand is not pointer or array");
+            REPORT(
+                InvalidOperand, *this, "invalid unary operator, operand is not pointer or array");
         }
         break;
     case OT::LOGICAL_NOT:
         if (this->m_expr->type()->is_scalar_type() ||
-            this->m_expr->type()->basic_type() == variable_basic_type::ENUM)
-        {
+            this->m_expr->type()->basic_type() == variable_basic_type::ENUM) {
             exprtype = make_shared<ASTNodeVariableTypeInt>(this->context(), 1, false);
         } else {
             REPORT(InvalidOperand, *this, "invalid unary operator, can't convert to bool");
         }
         break;
-    case OT::BITWISE_NOT:
-    {
+    case OT::BITWISE_NOT: {
         auto int_ = int_compatible(this->m_expr->type());
         if (!int_) {
             REPORT(InvalidOperand, *this, "invalid unary operator, operand is not integer");
@@ -674,11 +699,10 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
         exprtype = make_shared<ASTNodeVariableTypeInt>(this->context(), sizeof(size_t), true);
         break;
     case OT::MINUS:
-    case OT::PLUS:
-    {
-        if (!this->m_expr->type()->is_arithmatic_type())
-        {
-            REPORT(InvalidOperand, *this, "invalid unary operator, operand is not integer or float");
+    case OT::PLUS: {
+        if (!this->m_expr->type()->is_arithmatic_type()) {
+            REPORT(
+                InvalidOperand, *this, "invalid unary operator, operand is not integer or float");
         } else {
             exprtype = this->m_expr->type();
         }
@@ -697,7 +721,8 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
 
 void ASTNodeExprSizeof::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     this->m_type->check_constraints(reporter);
     this->resolve_type(make_shared<ASTNodeVariableTypeInt>(this->context(), sizeof(size_t), true));
@@ -705,7 +730,8 @@ void ASTNodeExprSizeof::check_constraints(std::shared_ptr<SemanticReporter> repo
 
 void ASTNodeExprCast::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_type->check_constraints(reporter);
@@ -715,8 +741,7 @@ void ASTNodeExprCast::check_constraints(std::shared_ptr<SemanticReporter> report
 
     auto exprtype = this->m_expr->type();
     auto casttype = exprtype->explicit_cast_to(this->m_type);
-    if (!casttype)
-    {
+    if (!casttype) {
         REPORT(InvalidCastFailed, *this, "cast failed");
     } else {
         this->resolve_type(casttype);
@@ -725,7 +750,8 @@ void ASTNodeExprCast::check_constraints(std::shared_ptr<SemanticReporter> report
 
 void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_left->check_constraints(reporter);
@@ -739,24 +765,28 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
     auto old_ltype = ltype;
     auto rtype = this->m_right->type();
     const auto op = this->m_operator;
-    const auto is_assignment = 
-        op == OT::ASSIGNMENT || op == OT::ASSIGNMENT_MULTIPLY || op == OT::ASSIGNMENT_DIVISION ||
-        op == OT::ASSIGNMENT_PLUS || op == OT::ASSIGNMENT_MINUS || op == OT::ASSIGNMENT_REMAINDER ||
-        op == OT::ASSIGNMENT_BITWISE_AND || op == OT::BITWISE_XOR || op == OT::ASSIGNMENT_BITWISE_OR ||
-        op == OT::ASSIGNMENT_LEFT_SHIFT || op == OT::ASSIGNMENT_RIGHT_SHIFT;
-    if (is_assignment && (!this->m_left->is_lvalue() || ltype->const_ref()))
-    {
-        REPORT(InvalidOperand, *this, "assignment operator require a modifiable lvalue as left operand");
+    const auto is_assignment = op == OT::ASSIGNMENT || op == OT::ASSIGNMENT_MULTIPLY ||
+                               op == OT::ASSIGNMENT_DIVISION || op == OT::ASSIGNMENT_PLUS ||
+                               op == OT::ASSIGNMENT_MINUS || op == OT::ASSIGNMENT_REMAINDER ||
+                               op == OT::ASSIGNMENT_BITWISE_AND || op == OT::BITWISE_XOR ||
+                               op == OT::ASSIGNMENT_BITWISE_OR || op == OT::ASSIGNMENT_LEFT_SHIFT ||
+                               op == OT::ASSIGNMENT_RIGHT_SHIFT;
+    if (is_assignment && (!this->m_left->is_lvalue() || ltype->const_ref())) {
+        REPORT(InvalidOperand,
+               *this,
+               "assignment operator require a modifiable lvalue as left operand");
     } else {
-    switch (op) {
+        switch (op) {
         case OT::MULTIPLY:
         case OT::DIVISION:
         case OT::ASSIGNMENT_MULTIPLY:
-        case OT::ASSIGNMENT_DIVISION:
-        {
+        case OT::ASSIGNMENT_DIVISION: {
             auto composite = composite_or_promote(ltype, rtype);
             if (!composite || !composite->is_arithmatic_type()) {
-                REPORT(InvalidOperand, *this, "invalid operand for multiply and division, can't convert to arithmetic type");
+                REPORT(
+                    InvalidOperand,
+                    *this,
+                    "invalid operand for multiply and division, can't convert to arithmetic type");
             }
             if (!ltype->equal_to(composite))
                 this->m_left = make_exprcast(this->m_left, composite);
@@ -765,11 +795,12 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
             exprtype = composite->copy();
         } break;
         case OT::REMAINDER:
-        case OT::ASSIGNMENT_REMAINDER:
-        {
+        case OT::ASSIGNMENT_REMAINDER: {
             auto composite = composite_or_promote(ltype, rtype);
             if (!composite || composite->basic_type() == variable_basic_type::INT) {
-                REPORT(InvalidOperand, *this, "invalid operand for remainder, can't convert to integer type");
+                REPORT(InvalidOperand,
+                       *this,
+                       "invalid operand for remainder, can't convert to integer type");
             }
             if (!ltype->equal_to(composite))
                 this->m_left = make_exprcast(this->m_left, composite);
@@ -777,8 +808,7 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                 this->m_right = make_exprcast(this->m_right, composite);
             exprtype = composite->copy();
         } break;
-        case OT::PLUS:
-        {
+        case OT::PLUS: {
             auto lux = ptr_compatible(ltype);
             auto rux = ptr_compatible(rtype);
             if (lux && !lux->equal_to(ltype)) {
@@ -790,19 +820,25 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                 this->m_right = make_exprcast(this->m_right, rux);
             }
 
-            if (ltype->basic_type() == variable_basic_type::POINTER && !lux->deref()->is_incomplete_type()) {
+            if (ltype->basic_type() == variable_basic_type::POINTER &&
+                !lux->deref()->is_incomplete_type()) {
                 auto intcomp = int_compatible(rtype);
                 if (!intcomp) {
-                    REPORT(InvalidOperand, *this, "invalid operand for pointer addition, can't convert to integer type");
+                    REPORT(InvalidOperand,
+                           *this,
+                           "invalid operand for pointer addition, can't convert to integer type");
                 } else {
                     if (!intcomp->equal_to(rtype))
                         this->m_right = make_exprcast(this->m_right, intcomp);
                     exprtype = ltype->copy();
                 }
-            } else if (rtype->basic_type() == variable_basic_type::POINTER && !rux->deref()->is_incomplete_type()) {
+            } else if (rtype->basic_type() == variable_basic_type::POINTER &&
+                       !rux->deref()->is_incomplete_type()) {
                 auto intcomp = int_compatible(ltype);
                 if (!intcomp) {
-                    REPORT(InvalidOperand, *this, "invalid operand for pointer addition, can't convert to integer type");
+                    REPORT(InvalidOperand,
+                           *this,
+                           "invalid operand for pointer addition, can't convert to integer type");
                 } else {
                     if (!intcomp->equal_to(ltype))
                         this->m_left = make_exprcast(this->m_left, intcomp);
@@ -811,7 +847,9 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
             } else {
                 auto composite = composite_or_promote(ltype, rtype);
                 if (!composite || composite->is_arithmatic_type()) {
-                    REPORT(InvalidOperand, *this, "invalid operand for addition, can't convert to arithmetic type");
+                    REPORT(InvalidOperand,
+                           *this,
+                           "invalid operand for addition, can't convert to arithmetic type");
                 } else {
                     if (!composite->equal_to(ltype))
                         this->m_left = make_exprcast(this->m_left, composite);
@@ -821,16 +859,15 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                 }
             }
         } break;
-        case OT::MINUS:
-        {
+        case OT::MINUS: {
             auto lux = ptr_compatible(ltype);
             if (lux && !lux->equal_to(ltype)) {
                 ltype = lux;
                 this->m_left = make_exprcast(this->m_left, lux);
             }
 
-            if (ltype->basic_type() == variable_basic_type::POINTER && !lux->deref()->is_incomplete_type())
-            {
+            if (ltype->basic_type() == variable_basic_type::POINTER &&
+                !lux->deref()->is_incomplete_type()) {
                 auto ptrcomp = lux->compatible_with(rtype);
                 auto intcomp = int_compatible(rtype);
                 if (ptrcomp) {
@@ -844,13 +881,16 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                         this->m_right = make_exprcast(this->m_right, intcomp);
                     exprtype = ltype->copy();
                 } else {
-                    REPORT(InvalidOperand, *this,
-                           "invalid operand for pointer subtraction, can't convert to integer type or compatible pointer");
+                    REPORT(InvalidOperand,
+                           *this,
+                           "invalid operand for pointer subtraction, can't convert to integer type "
+                           "or compatible pointer");
                 }
             } else {
                 auto composite = composite_or_promote(ltype, rtype);
                 if (!composite || composite->is_arithmatic_type()) {
-                    REPORT(InvalidOperand, *this,
+                    REPORT(InvalidOperand,
+                           *this,
                            "invalid operand for subtraction, can't convert to arithmetic type");
                 } else {
                     if (!composite->equal_to(ltype))
@@ -870,11 +910,12 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
         case OT::ASSIGNMENT_RIGHT_SHIFT:
         case OT::ASSIGNMENT_BITWISE_AND:
         case OT::ASSIGNMENT_BITWISE_OR:
-        case OT::ASSIGNMENT_BITWISE_XOR:
-        {
+        case OT::ASSIGNMENT_BITWISE_XOR: {
             auto composite = composite_or_promote(ltype, rtype);
             if (!composite || composite->basic_type() != variable_basic_type::INT) {
-                REPORT(InvalidOperand, *this, "invalid operand for shift, can't convert to integer type");
+                REPORT(InvalidOperand,
+                       *this,
+                       "invalid operand for shift, can't convert to integer type");
             }
             if (!composite->equal_to(ltype))
                 this->m_left = make_exprcast(this->m_left, composite);
@@ -886,12 +927,14 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
         case OT::GREATER_THAN:
         case OT::LESS_THAN:
         case OT::GREATER_THAN_EQUAL:
-        case OT::LESS_THAN_EQUAL:
-        {
+        case OT::LESS_THAN_EQUAL: {
             auto composite = composite_or_promote(ltype, rtype);
-            if (!composite || (composite->basic_type() != variable_basic_type::INT && composite->basic_type() != variable_basic_type::POINTER)) {
-                REPORT(InvalidOperand, *this,
-                       "invalid operand for comparison, can't convert to integer type or compatible pointer");
+            if (!composite || (composite->basic_type() != variable_basic_type::INT &&
+                               composite->basic_type() != variable_basic_type::POINTER)) {
+                REPORT(InvalidOperand,
+                       *this,
+                       "invalid operand for comparison, can't convert to integer type or "
+                       "compatible pointer");
             }
             if (!composite->equal_to(ltype))
                 this->m_left = make_exprcast(this->m_left, composite);
@@ -901,10 +944,10 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
             exprtype = composite->copy();
         } break;
         case OT::EQUAL:
-        case OT::NOT_EQUAL:
-        {
+        case OT::NOT_EQUAL: {
             auto composite = composite_or_promote(ltype, rtype);
-            if (composite && (composite->basic_type() == variable_basic_type::INT || composite->basic_type() == variable_basic_type::POINTER)) {
+            if (composite && (composite->basic_type() == variable_basic_type::INT ||
+                              composite->basic_type() == variable_basic_type::POINTER)) {
                 if (!composite->equal_to(ltype))
                     this->m_left = make_exprcast(this->m_left, composite);
                 if (!composite->equal_to(rtype))
@@ -919,26 +962,30 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                     }
                     exprtype = kstype::booltype(this->context());
                 } else {
-                    REPORT(InvalidOperand, *this,
-                           "invalid operand for comparison, can't convert to integer type or compatible pointer");
+                    REPORT(InvalidOperand,
+                           *this,
+                           "invalid operand for comparison, can't convert to integer type or "
+                           "compatible pointer");
                 }
             }
         } break;
         case OT::LOGICAL_AND:
         case OT::LOGICAL_OR:
             if ((ltype->is_scalar_type() || ltype->basic_type() == variable_basic_type::ENUM) &&
-                (rtype->is_scalar_type() || rtype->basic_type() == variable_basic_type::ENUM))
-            {
+                (rtype->is_scalar_type() || rtype->basic_type() == variable_basic_type::ENUM)) {
                 exprtype = kstype::booltype(this->context());
             } else {
-                REPORT(InvalidOperand, *this, "invalid operand for logical operation, can't convert to scalar type");
+                REPORT(InvalidOperand,
+                       *this,
+                       "invalid operand for logical operation, can't convert to scalar type");
             }
             break;
-        case OT::ASSIGNMENT:
-        {
+        case OT::ASSIGNMENT: {
             auto composite = rtype->implicit_cast_to(ltype);
             if (!composite) {
-                REPORT(InvalidOperand, *this, "invalid operand for assignment, can't convert to compatible type");
+                REPORT(InvalidOperand,
+                       *this,
+                       "invalid operand for assignment, can't convert to compatible type");
             } else {
                 if (!composite->equal_to(rtype))
                     this->m_right = make_exprcast(this->m_right, composite);
@@ -946,8 +993,7 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
             }
         } break;
         case OT::ASSIGNMENT_PLUS:
-        case OT::ASSIGNMENT_MINUS:
-        {
+        case OT::ASSIGNMENT_MINUS: {
             auto lptr = ptr_compatible(ltype);
             auto intcomp = int_compatible(rtype);
             if (lptr && intcomp) {
@@ -957,14 +1003,16 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
 
             auto casted = rtype->implicit_cast_to(ltype);
             if (!casted || !casted->is_arithmatic_type()) {
-                REPORT(InvalidOperand, *this,
-                       "invalid operand for assignment, can't convert to arithmatic compatible type");
+                REPORT(
+                    InvalidOperand,
+                    *this,
+                    "invalid operand for assignment, can't convert to arithmatic compatible type");
                 break;
             }
         } break;
         default:
             assert(false && "unreachable");
-    }
+        }
     }
 
     if (is_assignment)
@@ -981,7 +1029,8 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
 
 void ASTNodeExprConditional::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_cond->check_constraints(reporter);
@@ -991,9 +1040,9 @@ void ASTNodeExprConditional::check_constraints(std::shared_ptr<SemanticReporter>
         return;
 
     if (!this->m_cond->type()->is_scalar_type() ||
-        this->m_cond->type()->basic_type() != variable_basic_type::ENUM)
-    {
-        REPORT(InvalidOperand, *this,
+        this->m_cond->type()->basic_type() != variable_basic_type::ENUM) {
+        REPORT(InvalidOperand,
+               *this,
                "invalid operand for conditional expression, can't convert to bool type");
     }
 
@@ -1014,13 +1063,11 @@ void ASTNodeExprConditional::check_constraints(std::shared_ptr<SemanticReporter>
         if (!t2->equal_to(t))
             this->m_false = make_exprcast(this->m_false, t);
         exprtype = t;
-    } else if ((bt1 == variable_basic_type::STRUCT || 
-                bt1 == variable_basic_type::UNION || 
-                bt1 == variable_basic_type::VOID) && t1->equal_to(t2)) 
-    {
+    } else if ((bt1 == variable_basic_type::STRUCT || bt1 == variable_basic_type::UNION ||
+                bt1 == variable_basic_type::VOID) &&
+               t1->equal_to(t2)) {
         exprtype = t1;
-    } else if (bt1 == variable_basic_type::POINTER && bt2 ==variable_basic_type::POINTER)
-    {
+    } else if (bt1 == variable_basic_type::POINTER && bt2 == variable_basic_type::POINTER) {
         auto ptrt1 = dynamic_pointer_cast<ASTNodeVariableTypePointer>(t1);
         auto ptrt2 = dynamic_pointer_cast<ASTNodeVariableTypePointer>(t2);
         assert(ptrt1 && ptrt2);
@@ -1033,8 +1080,7 @@ void ASTNodeExprConditional::check_constraints(std::shared_ptr<SemanticReporter>
         }
     }
 
-    if (!exprtype) 
-    {
+    if (!exprtype) {
         REPORT(InvalidOperand, *this, "incompatible operands for conditional expression");
         this->resolve_type(kstype::voidtype(this->context()));
     } else {
@@ -1045,10 +1091,11 @@ void ASTNodeExprConditional::check_constraints(std::shared_ptr<SemanticReporter>
 
 void ASTNodeExprList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     assert(this->size() > 0);
-    for (auto expr: *this)
+    for (auto expr : *this)
         expr->check_constraints(reporter);
 
     this->resolve_type(this->back()->type());
@@ -1056,14 +1103,16 @@ void ASTNodeExprList::check_constraints(std::shared_ptr<SemanticReporter> report
 
 void ASTNodeVariableTypeDummy::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     throw std::runtime_error("ASTNodeVariableTypeDummy::check_constraints");
 }
 
 void ASTNodeVariableTypeStruct::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     if (this->m_definition) {
@@ -1080,7 +1129,8 @@ void ASTNodeVariableTypeStruct::check_constraints(std::shared_ptr<SemanticReport
 
 void ASTNodeVariableTypeUnion::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     if (this->m_definition) {
@@ -1097,7 +1147,8 @@ void ASTNodeVariableTypeUnion::check_constraints(std::shared_ptr<SemanticReporte
 
 void ASTNodeVariableTypeEnum::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     if (this->m_definition) {
@@ -1114,7 +1165,8 @@ void ASTNodeVariableTypeEnum::check_constraints(std::shared_ptr<SemanticReporter
 
 void ASTNodeVariableTypeTypedef::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     ctx->declare_typedef(this->m_name->id, this->m_type);
@@ -1122,22 +1174,26 @@ void ASTNodeVariableTypeTypedef::check_constraints(std::shared_ptr<SemanticRepor
 
 void ASTNodeVariableTypeVoid::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 }
 
 void ASTNodeVariableTypeInt::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 }
 
 void ASTNodeVariableTypeFloat::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 }
 
 void ASTNodeStaticAssertDeclaration::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_expr->check_constraints(reporter);
@@ -1156,7 +1212,8 @@ void ASTNodeStaticAssertDeclaration::check_constraints(std::shared_ptr<SemanticR
 
 void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->m_type->check_constraints(reporter);
@@ -1167,7 +1224,8 @@ void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> 
 
     if (this->m_initializer) {
         auto initializer = this->get_initializer();
-        auto newval = check_initialization_of_object_with_intializer(this->m_type, initializer, reporter);
+        auto newval =
+            check_initialization_of_object_with_intializer(this->m_type, initializer, reporter);
         if (newval.has_value()) {
             assert(newval.value());
             this->m_initializer = make_shared<ASTNodeInitializer>(this->context(), newval.value());
@@ -1182,7 +1240,8 @@ void ASTNodeInitDeclarator::check_constraints(std::shared_ptr<SemanticReporter> 
 
 void ASTNodeStructUnionDeclaration::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     this->m_decl->check_constraints(reporter);
     if (this->m_bit_width) {
@@ -1205,29 +1264,32 @@ void ASTNodeStructUnionDeclaration::check_constraints(std::shared_ptr<SemanticRe
 
 void ASTNodeInitDeclaratorList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
-    for (auto decl: *this)
+    for (auto decl : *this)
         decl->check_constraints(reporter);
 }
 
 void ASTNodeDeclarationList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
-    for (auto decl: *this)
+    for (auto decl : *this)
         decl->check_constraints(reporter);
 }
 
-void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
+void ASTNodeStructUnionDeclarationList::check_constraints(
+    std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     if (!this->_is_struct) {
         size_t align = 1, size = 0;
         set<string> member_names;
-        for (auto decl: *this)
-        {
+        for (auto decl : *this) {
             if (decl->get_id()) {
                 if (member_names.find(decl->get_id()->id) != member_names.end()) {
                     REPORT(DuplicateMember, *decl, "duplicate member name");
@@ -1260,7 +1322,7 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
     size_t align = 1;
     typename std::remove_reference_t<decltype(*this)>::container_t member_decls;
     typename decltype(member_decls)::value_type flexible_array;
-    for (size_t i=0;i<this->size();i++) {
+    for (size_t i = 0; i < this->size(); i++) {
         auto decl = (*this)[i];
         decl->get_type()->check_constraints(reporter);
 
@@ -1277,18 +1339,16 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
             auto thetype = decl->get_type();
             bool is_flexible_array_member_at_end = i + 1 == this->size();
             if (is_flexible_array_member_at_end &&
-                thetype->basic_type() == variable_basic_type::ARRAY)
-            {
+                thetype->basic_type() == variable_basic_type::ARRAY) {
                 auto arrtype = dynamic_pointer_cast<ASTNodeVariableTypeArray>(thetype);
                 assert(arrtype);
-                is_flexible_array_member_at_end = !arrtype->elemtype()->is_incomplete_type() && arrtype->array_size() == nullptr;
+                is_flexible_array_member_at_end =
+                    !arrtype->elemtype()->is_incomplete_type() && arrtype->array_size() == nullptr;
             }
 
-            if (!is_flexible_array_member_at_end)
-            {
+            if (!is_flexible_array_member_at_end) {
                 REPORT(IncompleteType, *decl, "incomplete type declaration in struct");
-            } else
-            {
+            } else {
                 flexible_array = decl;
             }
         } else {
@@ -1298,14 +1358,14 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
     }
     size_t struct_size = 0, offset = 0;
     size_t nbitused = 0, tbitwidth = 0, tbytewidth = 0, tbytealign = 1;
-    bool   bitfield_is_unsigned;
+    bool bitfield_is_unsigned;
     const auto advance_size_offset = [&](size_t val_size, size_t val_align) {
         if (offset % val_align != 0)
             offset += val_align - (offset % val_align);
         struct_size = offset + val_size;
     };
 
-    for (auto decl: member_decls) {
+    for (auto decl : member_decls) {
         if (decl->bit_width()) {
             auto inttype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(decl->get_type());
             if (!inttype) {
@@ -1322,11 +1382,10 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
                 continue;
             }
 
-            auto bit_width = decl->bit_width().value();;
-            if (nbitused + bit_width > tbitwidth ||
-                inttype->byte_length() != tbytewidth ||
-                bitfield_is_unsigned != inttype->is_unsigned())
-            {
+            auto bit_width = decl->bit_width().value();
+            ;
+            if (nbitused + bit_width > tbitwidth || inttype->byte_length() != tbytewidth ||
+                bitfield_is_unsigned != inttype->is_unsigned()) {
                 if (tbitwidth > 0) {
                     advance_size_offset(tbytewidth, tbytealign);
                     offset += tbytewidth;
@@ -1377,12 +1436,14 @@ void ASTNodeStructUnionDeclarationList::check_constraints(std::shared_ptr<Semant
 
 void ASTNodeEnumerationConstant::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 }
 
 void ASTNodeEnumerator::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     if (this->m_value) {
         auto constant = this->m_value->get_integer_constant();
@@ -1396,11 +1457,12 @@ void ASTNodeEnumerator::check_constraints(std::shared_ptr<SemanticReporter> repo
 
 void ASTNodeEnumeratorList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     set<string> member_names;
     long long val = 0;
-    for (auto decl: *this) {
+    for (auto decl : *this) {
         decl->check_constraints(reporter);
         const auto ival = decl->ivalue();
         if (ival.has_value()) {
@@ -1421,30 +1483,33 @@ void ASTNodeEnumeratorList::check_constraints(std::shared_ptr<SemanticReporter> 
 
 void ASTNodeVariableTypePointer::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
     this->m_type->check_constraints(reporter);
 }
 
 void ASTNodeVariableTypeArray::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
     this->m_type->check_constraints(reporter);
 }
 
 void ASTNodeParameterDeclaration::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
     this->m_type->check_constraints(reporter);
 }
 
 void ASTNodeParameterDeclarationList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
-    for (auto decl: *this)
+    if (!this->do_check())
+        return;
+    for (auto decl : *this)
         decl->check_constraints(reporter);
 
-    if (this->size() == 1 && this->front()->get_type()->basic_type() == variable_basic_type::VOID)
-    {
+    if (this->size() == 1 && this->front()->get_type()->basic_type() == variable_basic_type::VOID) {
         if (this->variadic()) {
             REPORT(IncompatibleTypes, *this, "variadic parameter after void");
         } else {
@@ -1454,8 +1519,7 @@ void ASTNodeParameterDeclarationList::check_constraints(std::shared_ptr<Semantic
     }
 
     set<string> param_names;
-    for (auto decl: *this)
-    {
+    for (auto decl : *this) {
         if (decl->get_id()) {
             if (param_names.find(decl->get_id()->id) != param_names.end()) {
                 REPORT(DuplicateMember, *decl, "duplicate parameter name");
@@ -1464,14 +1528,17 @@ void ASTNodeParameterDeclarationList::check_constraints(std::shared_ptr<Semantic
             }
         }
         if (decl->get_type()->basic_type() == variable_basic_type::VOID) {
-            REPORT(InvalidFunctionParameter, *decl, "'void' must be the first and only parameter if specified");
+            REPORT(InvalidFunctionParameter,
+                   *decl,
+                   "'void' must be the first and only parameter if specified");
         }
     }
 }
 
 void ASTNodeVariableTypeFunction::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
     this->m_return_type->check_constraints(reporter);
     this->m_parameter_declaration_list->check_constraints(reporter);
 
@@ -1483,7 +1550,8 @@ void ASTNodeVariableTypeFunction::check_constraints(std::shared_ptr<SemanticRepo
 
 void ASTNodeInitializer::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     if (this->is_expr()) {
         this->expr()->check_constraints(reporter);
@@ -1494,9 +1562,10 @@ void ASTNodeInitializer::check_constraints(std::shared_ptr<SemanticReporter> rep
 
 void ASTNodeDesignation::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
-    for (auto d: this->designators()) {
+    for (auto d : this->designators()) {
         if (std::holds_alternative<array_designator_t>(d)) {
             auto& ad = std::get<array_designator_t>(d);
             auto val = ad->get_integer_constant();
@@ -1511,15 +1580,17 @@ void ASTNodeDesignation::check_constraints(std::shared_ptr<SemanticReporter> rep
 
 void ASTNodeInitializerList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
-    for (auto init: *this)
+    for (auto init : *this)
         init->check_constraints(reporter);
 }
 
 void ASTNodeStatLabel::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1531,7 +1602,8 @@ void ASTNodeStatLabel::check_constraints(std::shared_ptr<SemanticReporter> repor
 
 void ASTNodeStatCase::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1549,7 +1621,8 @@ void ASTNodeStatCase::check_constraints(std::shared_ptr<SemanticReporter> report
 
 void ASTNodeStatDefault::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1564,15 +1637,17 @@ void ASTNodeStatDefault::check_constraints(std::shared_ptr<SemanticReporter> rep
 
 void ASTNodeBlockItemList::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
-    for (auto item: *this)
+    for (auto item : *this)
         item->check_constraints(reporter);
 }
 
 void ASTNodeStatCompound::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1584,14 +1659,16 @@ void ASTNodeStatCompound::check_constraints(std::shared_ptr<SemanticReporter> re
 
 void ASTNodeStatExpr::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     this->_expr->check_constraints(reporter);
 }
 
 void ASTNodeStatIF::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->_cond->check_constraints(reporter);
@@ -1601,15 +1678,18 @@ void ASTNodeStatIF::check_constraints(std::shared_ptr<SemanticReporter> reporter
 
     if (check_cond_type) {
         if (!this->_cond->type()->implicit_cast_to(kstype::booltype(this->context()))) {
-            REPORT(IncompatibleTypes, *this,
-                   "condition expression in if statement must be a type that can be implicitly cast to 'bool'");
+            REPORT(IncompatibleTypes,
+                   *this,
+                   "condition expression in if statement must be a type that can be implicitly "
+                   "cast to 'bool'");
         }
     }
 }
 
 void ASTNodeStatSwitch::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1621,7 +1701,8 @@ void ASTNodeStatSwitch::check_constraints(std::shared_ptr<SemanticReporter> repo
 
 void ASTNodeStatDoWhile::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     const auto olderrorcounter = reporter->size();
     this->_expr->check_constraints(reporter);
@@ -1630,15 +1711,18 @@ void ASTNodeStatDoWhile::check_constraints(std::shared_ptr<SemanticReporter> rep
 
     if (check_cond_type) {
         if (!this->_expr->type()->implicit_cast_to(kstype::booltype(this->context()))) {
-            REPORT(IncompatibleTypes, *this,
-                   "condition expression in do-while statement must be a type that can be implicitly cast to 'bool'");
+            REPORT(IncompatibleTypes,
+                   *this,
+                   "condition expression in do-while statement must be a type that can be "
+                   "implicitly cast to 'bool'");
         }
     }
 }
 
 void ASTNodeStatFor::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     this->_init->check_constraints(reporter);
     const auto olderrorcounter = reporter->size();
@@ -1649,15 +1733,18 @@ void ASTNodeStatFor::check_constraints(std::shared_ptr<SemanticReporter> reporte
 
     if (check_cond_type) {
         if (!this->_cond->type()->implicit_cast_to(kstype::booltype(this->context()))) {
-            REPORT(IncompatibleTypes, *this, 
-                   "condition expression in for statement must be a type that can be implicitly cast to 'bool'");
+            REPORT(IncompatibleTypes,
+                   *this,
+                   "condition expression in for statement must be a type that can be implicitly "
+                   "cast to 'bool'");
         }
     }
 }
 
 void ASTNodeStatForDecl::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1673,15 +1760,18 @@ void ASTNodeStatForDecl::check_constraints(std::shared_ptr<SemanticReporter> rep
 
     if (check_cond_type) {
         if (!this->_cond->type()->implicit_cast_to(kstype::booltype(this->context()))) {
-            REPORT(IncompatibleTypes, *this, 
-                   "condition expression in for statement must be a type that can be implicitly cast to 'bool'");
+            REPORT(IncompatibleTypes,
+                   *this,
+                   "condition expression in for statement must be a type that can be implicitly "
+                   "cast to 'bool'");
         }
     }
 }
 
 void ASTNodeStatGoto::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1693,7 +1783,8 @@ void ASTNodeStatGoto::check_constraints(std::shared_ptr<SemanticReporter> report
 
 void ASTNodeStatContinue::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     if (!ctx->continueable()) {
@@ -1703,7 +1794,8 @@ void ASTNodeStatContinue::check_constraints(std::shared_ptr<SemanticReporter> re
 
 void ASTNodeStatBreak::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     if (!ctx->breakable()) {
@@ -1713,7 +1805,8 @@ void ASTNodeStatBreak::check_constraints(std::shared_ptr<SemanticReporter> repor
 
 void ASTNodeStatReturn::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
@@ -1721,17 +1814,21 @@ void ASTNodeStatReturn::check_constraints(std::shared_ptr<SemanticReporter> repo
     if (this->_expr) {
         this->_expr->check_constraints(reporter);
         if (!this->_expr->type()->implicit_cast_to(ctx->return_type())) {
-            REPORT(IncompatibleTypes, *this, 
-                   "return expression must be a type that can be implicitly cast to the return type of the function");
+            REPORT(IncompatibleTypes,
+                   *this,
+                   "return expression must be a type that can be implicitly cast to the return "
+                   "type of the function");
         }
-    } else if (ctx->return_type() && ctx->return_type()->basic_type() != variable_basic_type::VOID) {
+    } else if (ctx->return_type() &&
+               ctx->return_type()->basic_type() != variable_basic_type::VOID) {
         REPORT(MissingReturnValue, *this, "missing return value");
     }
 }
 
 void ASTNodeFunctionDefinition::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context()->tu_context();
     assert(!ctx->in_function_definition());
@@ -1745,7 +1842,8 @@ void ASTNodeFunctionDefinition::check_constraints(std::shared_ptr<SemanticReport
 
 void ASTNodeTranslationUnit::check_constraints(std::shared_ptr<SemanticReporter> reporter)
 {
-    if (!this->do_check()) return;
+    if (!this->do_check())
+        return;
 
     auto ctx = this->context();
     auto tctx = make_shared<CTranslationUnitContext>(reporter, ctx);

@@ -1,6 +1,6 @@
+#include "c_ast_utils.h"
 #include "c_ast.h"
 #include "c_parser.h"
-#include "c_ast_utils.h"
 using namespace std;
 using namespace cparser;
 using variable_basic_type = ASTNodeVariableType::variable_basic_type;
@@ -12,24 +12,27 @@ optional<IntegerInfo> get_integer_info(shared_ptr<ASTNodeVariableType> type)
 {
     auto enumtype = dynamic_pointer_cast<ASTNodeVariableTypeEnum>(type);
     if (enumtype)
-        return IntegerInfo{ .width = ENUM_COMPATIBLE_INT_BYTE_WIDTH, .is_signed =  ENUM_COMPATIBLE_INT_IS_UNSIGNED};
+        return IntegerInfo{.width = ENUM_COMPATIBLE_INT_BYTE_WIDTH,
+                           .is_signed = ENUM_COMPATIBLE_INT_IS_UNSIGNED};
 
     auto itype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
-    if (!itype) return nullopt;
+    if (!itype)
+        return nullopt;
 
-    for (size_t i=0;i<1000;i++) {
+    for (size_t i = 0; i < 1000; i++) {
         int a[i];
     }
 
-    return IntegerInfo{ .width = itype->byte_length(), .is_signed = !itype->is_unsigned() };
+    return IntegerInfo{.width = itype->byte_length(), .is_signed = !itype->is_unsigned()};
 }
 
 optional<FloatInfo> get_float_info(shared_ptr<ASTNodeVariableTypeFloat> type)
 {
     auto ftype = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(type);
-    if (!ftype) return nullopt;
+    if (!ftype)
+        return nullopt;
 
-    return FloatInfo{ .width = ftype->byte_length() };
+    return FloatInfo{.width = ftype->byte_length()};
 }
 
 shared_ptr<ASTNodeVariableTypeFunction> cast2function(shared_ptr<ASTNodeVariableType> func)
@@ -49,10 +52,12 @@ shared_ptr<ASTNodeVariableTypeFunction> cast2function(shared_ptr<ASTNodeVariable
     return nullptr;
 }
 
-shared_ptr<ASTNodeExpr> make_exprcast(shared_ptr<ASTNodeExpr> expr, shared_ptr<ASTNodeVariableType> type)
+shared_ptr<ASTNodeExpr> make_exprcast(shared_ptr<ASTNodeExpr> expr,
+                                      shared_ptr<ASTNodeVariableType> type)
 {
     auto exprtype = expr->type();
-    if (exprtype->equal_to(type)) return expr;
+    if (exprtype->equal_to(type))
+        return expr;
 
     auto ast = make_shared<ASTNodeExprCast>(expr->lcontext(), type, expr);
     ast->contain(expr);
@@ -72,10 +77,12 @@ shared_ptr<ASTNodeVariableTypeArray> arrayto(shared_ptr<ASTNodeVariableType> typ
 shared_ptr<ASTNodeVariableTypeInt> int_compatible(shared_ptr<ASTNodeVariableType> type)
 {
     auto itype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
-    if (itype) return itype;
+    if (itype)
+        return itype;
 
     if (type->basic_type() == variable_basic_type::ENUM) {
-        auto ret =  make_shared<ASTNodeVariableTypeInt>(type->lcontext(), ENUM_COMPATIBLE_INT_BYTE_WIDTH, ENUM_COMPATIBLE_INT_IS_UNSIGNED);
+        auto ret = make_shared<ASTNodeVariableTypeInt>(
+            type->lcontext(), ENUM_COMPATIBLE_INT_BYTE_WIDTH, ENUM_COMPATIBLE_INT_IS_UNSIGNED);
         ret->const_ref() = type->const_ref();
         ret->volatile_ref() = type->volatile_ref();
         ret->restrict_ref() = type->restrict_ref();
@@ -89,7 +96,8 @@ shared_ptr<ASTNodeVariableTypeInt> int_compatible(shared_ptr<ASTNodeVariableType
 shared_ptr<ASTNodeVariableTypePointer> ptr_compatible(shared_ptr<ASTNodeVariableType> type)
 {
     auto ptr = dynamic_pointer_cast<ASTNodeVariableTypePointer>(type);
-    if (ptr) return ptr;
+    if (ptr)
+        return ptr;
 
     if (type->basic_type() == variable_basic_type::ARRAY) {
         auto array = dynamic_pointer_cast<ASTNodeVariableTypeArray>(type);
@@ -105,15 +113,17 @@ shared_ptr<ASTNodeVariableTypePointer> ptr_compatible(shared_ptr<ASTNodeVariable
     return nullptr;
 }
 
-shared_ptr<ASTNodeVariableType> composite_or_promote(shared_ptr<ASTNodeVariableType> t1, shared_ptr<ASTNodeVariableType> t2)
+shared_ptr<ASTNodeVariableType> composite_or_promote(shared_ptr<ASTNodeVariableType> t1,
+                                                     shared_ptr<ASTNodeVariableType> t2)
 {
     auto composite = t1->compatible_with(t2);
-    if (composite) return composite;
+    if (composite)
+        return composite;
 
     auto int1 = int_compatible(t1);
     auto int2 = int_compatible(t2);
-    auto f1   = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(t1);
-    auto f2   = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(t2);
+    auto f1 = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(t1);
+    auto f2 = dynamic_pointer_cast<ASTNodeVariableTypeFloat>(t2);
 
     if (int1) {
         if (int2) {
@@ -181,7 +191,8 @@ std::shared_ptr<ASTNodeVariableTypeInt> chartype(std::shared_ptr<CParserContext>
 
 bool is_char(shared_ptr<ASTNodeVariableType> type)
 {
-    if (type->basic_type() != variable_basic_type::INT) return false;
+    if (type->basic_type() != variable_basic_type::INT)
+        return false;
     auto itype = dynamic_pointer_cast<ASTNodeVariableTypeInt>(type);
     assert(itype);
     return itype->byte_length() == sizeof(char) && !itype->is_unsigned();
@@ -199,4 +210,3 @@ bool is_string_literal(std::shared_ptr<ASTNodeExpr> expr)
 }
 
 } // namespace cparser::ksexpr
-

@@ -1,12 +1,13 @@
-#include <gtest/gtest.h>
-#include <vector>
-#include <tuple>
 #include "regex/regex.hpp"
+#include <gtest/gtest.h>
+#include <tuple>
+#include <vector>
 using namespace std;
 
 
-TEST(regex, regex_basic_node_generator) {
-    vector<pair<string,string>> test_cases = {
+TEST(regex, regex_basic_node_generator)
+{
+    vector<pair<string, string>> test_cases = {
         {"a", "a"},
         {"a*", "a*"},
         {"a|b|c", "a|b|c"},
@@ -35,8 +36,9 @@ TEST(regex, regex_basic_node_generator) {
     }
 }
 
-TEST(regex, regex_extend_node_generator) {
-    vector<pair<string,string>> test_cases = {
+TEST(regex, regex_extend_node_generator)
+{
+    vector<pair<string, string>> test_cases = {
         {"a", "a"},
         {"a*", "a*"},
         {"aa*", "aa*"},
@@ -76,7 +78,8 @@ TEST(regex, regex_extend_node_generator) {
     };
 
     for (auto& test_case : test_cases) {
-        auto regex = Regex2BasicConvertor<char>::convert(vector<char>(test_case.first.begin(),test_case.first.end()));
+        auto regex = Regex2BasicConvertor<char>::convert(
+            vector<char>(test_case.first.begin(), test_case.first.end()));
         auto node = RegexNodeTreeGenerator<char>::parse(regex);
         ASSERT_EQ(node->to_string(), test_case.second);
     }

@@ -3,14 +3,15 @@
 
 #include "token.h"
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
 
 
 template<typename T>
-class LexerRule {
-public:
+class LexerRule
+{
+  public:
     using CharType = T;
     LexerRule() = default;
 

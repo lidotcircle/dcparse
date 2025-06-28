@@ -1,26 +1,29 @@
-#include <gtest/gtest.h>
-#include <vector>
-#include <tuple>
 #include "regex/regex.hpp"
+#include <gtest/gtest.h>
+#include <tuple>
+#include <vector>
 using namespace std;
 
-TEST(regex, escaping_test) {
-    vector<pair<string,string>> test_cases = {
-        { "abc", "abc" },
-        { "\\abc", "\\abc" },
-        { "a\\bc", "a\\bc" },
-        { "\\\\abc", "\\\\abc" },
+TEST(regex, escaping_test)
+{
+    vector<pair<string, string>> test_cases = {
+        {"abc", "abc"},
+        {"\\abc", "\\abc"},
+        {"a\\bc", "a\\bc"},
+        {"\\\\abc", "\\\\abc"},
     };
 
     for (auto& test_case : test_cases) {
-        auto ff = RegexPatternEscaper<char>::convert(test_case.first.begin(), test_case.first.end());
+        auto ff =
+            RegexPatternEscaper<char>::convert(test_case.first.begin(), test_case.first.end());
         auto rs = pattern_to_string(ff);
         EXPECT_EQ(rs, test_case.second);
     }
 }
 
-TEST(regex, regex_convert) {
-    vector<pair<string,string>> test_cases = {
+TEST(regex, regex_convert)
+{
+    vector<pair<string, string>> test_cases = {
         {"a", "a"},
         {"a*", "a*"},
         {"aa*", "aa*"},
@@ -64,7 +67,8 @@ TEST(regex, regex_convert) {
     };
 
     for (auto& test_case : test_cases) {
-        auto regex = Regex2BasicConvertor<char>::convert(vector<char>(test_case.first.begin(),test_case.first.end()));
+        auto regex = Regex2BasicConvertor<char>::convert(
+            vector<char>(test_case.first.begin(), test_case.first.end()));
         ASSERT_EQ(string(regex.begin(), regex.end()), test_case.second);
     }
 }

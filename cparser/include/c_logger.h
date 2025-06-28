@@ -13,8 +13,9 @@
 namespace cparser {
 class CLogger
 {
-public:
-    enum LogLevel {
+  public:
+    enum LogLevel
+    {
         LOG_LEVEL_DEBUG = 0,
         LOG_LEVEL_INFO,
         LOG_LEVEL_WARN,
@@ -22,23 +23,23 @@ public:
         LOG_LEVEL_FATAL
     };
 
-private:
+  private:
     LogLevel m_logLevel;
 
-protected:
+  protected:
     virtual void print_string(const char* str, size_t len);
 
-public:
+  public:
     CLogger(LogLevel logLevel = LOG_LEVEL_DEBUG);
     void set_log_level(LogLevel level);
     LogLevel get_log_level() const;
 
     virtual void debug(const char* fmt, ...) printf_check(2, 3);
-    virtual void info (const char* fmt, ...) printf_check(2, 3);
-    virtual void warn (const char* fmt, ...) printf_check(2, 3);
+    virtual void info(const char* fmt, ...) printf_check(2, 3);
+    virtual void warn(const char* fmt, ...) printf_check(2, 3);
     virtual void error(const char* fmt, ...) printf_check(2, 3);
     virtual void fatal(const char* fmt, ...) printf_check(2, 3);
 };
-}
+} // namespace cparser
 
 #endif // _C_PARSER_C_LOGGER_H_

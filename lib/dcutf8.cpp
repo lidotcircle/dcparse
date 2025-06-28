@@ -30,9 +30,9 @@ string UTF8Encoder::encode(int val)
 }
 
 constexpr int utf8_bound[4][2] = {
-    {0x00,    0x7f},
-    {0x80,    0x7ff},
-    {0x800,   0xffff},
+    {0x00, 0x7f},
+    {0x80, 0x7ff},
+    {0x800, 0xffff},
     {0x10000, 0x10ffff},
 };
 
@@ -59,11 +59,11 @@ UTF8CodePoint UTF8Decoder::decode(char cc)
         throw runtime_error("Invalid UTF-8 sequence");
     }
 
-    if (len >= str.size()) 
+    if (len >= str.size())
         return UTF8CodePoint();
 
     for (int j = 0; j < len; ++j) {
-        c = str[1+j];
+        c = str[1 + j];
         if ((c & 0b11000000) != 0b10000000)
             throw runtime_error("Invalid UTF-8 sequence");
 

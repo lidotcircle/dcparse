@@ -1,41 +1,56 @@
 #ifndef _LEXER_LEXER_HPP_
 #define _LEXER_LEXER_HPP_
 
-#include <vector>
+#include "lexer_error.h"
+#include "lexer_rule.hpp"
+#include "regex/regex_char.hpp"
+#include "text_info.h"
+#include <algorithm>
+#include <assert.h>
+#include <functional>
 #include <optional>
 #include <string>
-#include <assert.h>
-#include <algorithm>
-#include <functional>
-#include "text_info.h"
-#include "lexer_rule.hpp"
-#include "lexer_error.h"
-#include "regex/regex_char.hpp"
+#include <vector>
 
 
 template<typename T>
-class Lexer {
-public:
+class Lexer
+{
+  public:
     using CharType = T;
     using traits = character_traits<CharType>;
     using encoder_t = std::function<std::string(CharType)>;
 
-private:
-    class KLexerPositionInfo: public TextInfo
+  private:
+    class KLexerPositionInfo : public TextInfo
     {
-    private:
+      private:
         std::string _buffer;
         std::string _filename;
         std::vector<size_t> _linfo;
         using PInfo = TextInfo::PInfo;
 
-    public:
-        KLexerPositionInfo(std::string fn): _filename(fn) , _linfo({ 0 }) {}
-        size_t push_str(const std::string& str) { _buffer += str; return this->len(); }
-        void newline() { this->_linfo.push_back(this->_buffer.size()); }
+      public:
+        KLexerPositionInfo(std::string fn) : _filename(fn), _linfo({0})
+        {}
+        size_t push_str(const std::string& str)
+        {
+            _buffer += str;
+            return this->len();
+        }
+        void newline()
+        {
+            this->_linfo.push_back(this->_buffer.size());
+        }
 
-        virtual const std::string& filename() const override { return _filename; }
-        virtual size_t len() const override { return _buffer.size(); }
+        virtual const std::string& filename() const override
+        {
+            return _filename;
+        }
+        virtual size_t len() const override
+        {
+            return _buffer.size();
+        }
         virtual PInfo query(size_t pos) const override
         {
             if (pos >= _buffer.size())
@@ -56,7 +71,8 @@ private:
             col = pos - *up + 1;
             return PInfo{.line = line, .column = col};
         }
-        virtual std::pair<size_t,size_t> line_range(size_t line) const override {
+        virtual std::pair<size_t, size_t> line_range(size_t line) const override
+        {
             if (line > this->_linfo.size())
                 throw LexerError("query line out of range");
 
@@ -66,7 +82,8 @@ private:
                 end = this->_linfo[line];
             return std::make_pair(begin, end);
         }
-        virtual std::string query_string(size_t from, size_t to) const override {
+        virtual std::string query_string(size_t from, size_t to) const override
+        {
             if (from > to)
                 throw LexerError("query string out of range");
             if (to > this->_buffer.size())
@@ -84,7 +101,8 @@ private:
         size_t feed_len, match_len;
 
         RuleInfo(std::unique_ptr<LexerRule<CharType>> rule)
-            : rule(std::move(rule)), feed_len(0), match_len(0) {}
+            : rule(std::move(rule)), feed_len(0), match_len(0)
+        {}
 
         void reset(size_t pos, std::optional<std::shared_ptr<LexerToken>> last)
         {
@@ -97,12 +115,13 @@ private:
     std::vector<std::vector<std::vector<RuleInfo>>> m_rules;
     std::optional<size_t> m_match_major_priority;
 
-    struct CharInfo {
+    struct CharInfo
+    {
         CharType char_val;
         size_t pos, len_in_bytes;
 
-        CharInfo(CharType c, size_t pos, size_t len)
-            : char_val(c), pos(pos), len_in_bytes(len) {}
+        CharInfo(CharType c, size_t pos, size_t len) : char_val(c), pos(pos), len_in_bytes(len)
+        {}
     };
     std::vector<CharInfo> m_cache;
     size_t m_pos;
@@ -123,17 +142,15 @@ private:
         assert(cache_pos > 0 && cache_pos <= this->m_cache.size());
         std::vector<std::shared_ptr<LexerToken>> tokens;
 
-        for (CharInfo ci = this->m_cache[cache_pos - 1];
-             cache_pos <= this->m_cache.size();
-               cache_pos++, 
-               ci=(cache_pos <= this->m_cache.size()) ? this->m_cache[cache_pos-1] : ci)
-        {
+        for (CharInfo ci = this->m_cache[cache_pos - 1]; cache_pos <= this->m_cache.size();
+             cache_pos++,
+                      ci = (cache_pos <= this->m_cache.size()) ? this->m_cache[cache_pos - 1]
+                                                               : ci) {
             auto [token, len] = this->feed_char_internal(ci);
             assert(len <= cache_pos);
             assert(token.has_value() || len == 0);
 
-            if (token.has_value())
-            {
+            if (token.has_value()) {
                 assert(len > 0);
                 auto val = token.value();
                 if (val != nullptr)
@@ -143,8 +160,7 @@ private:
                 if (this->m_cache.size() > len)
                     reset_pos = this->m_cache[len].pos;
                 this->reset_rules(reset_pos, val);
-                this->m_cache.erase(this->m_cache.begin(),
-                                    this->m_cache.begin() + len);
+                this->m_cache.erase(this->m_cache.begin(), this->m_cache.begin() + len);
                 cache_pos = 0;
             }
         }
@@ -152,24 +168,23 @@ private:
         return tokens;
     }
 
-    std::pair<std::optional<std::shared_ptr<LexerToken>>,size_t>
+    std::pair<std::optional<std::shared_ptr<LexerToken>>, size_t>
     feed_char_internal(const CharInfo& c)
     {
         bool prevs_is_dead = true;
-        for (size_t i=0;i<this->m_rules.size();i++) {
-            if (this->m_match_major_priority.has_value() && 
-                this->m_match_major_priority.value() < i)
-            {
+        for (size_t i = 0; i < this->m_rules.size(); i++) {
+            if (this->m_match_major_priority.has_value() &&
+                this->m_match_major_priority.value() < i) {
                 continue;
             }
             auto& r1 = this->m_rules[i];
             bool current_is_dead = true;
-            std::vector<std::tuple<size_t,size_t,size_t>> finished_rules;
+            std::vector<std::tuple<size_t, size_t, size_t>> finished_rules;
 
-            for (size_t j=0;j<r1.size();j++) {
+            for (size_t j = 0; j < r1.size(); j++) {
                 auto& r2 = r1[j];
 
-                for (size_t k=0;k<r2.size();k++) {
+                for (size_t k = 0; k < r2.size(); k++) {
                     auto& ri = r2[k];
                     auto& r = *ri.rule;
                     if (r.dead()) {
@@ -208,37 +223,35 @@ private:
             return this->get_token_by_candidates(i, finished_rules);
         }
 
-        if (prevs_is_dead)
-        {
+        if (prevs_is_dead) {
             assert(!this->m_match_major_priority.has_value());
-            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " + this->m_textinfo->row_col_str(c.pos));
+            throw std::runtime_error("no rule match '" + char_to_string(c.char_val) + "' at " +
+                                     this->m_textinfo->row_col_str(c.pos));
         }
 
         return std::make_pair(std::nullopt, 0);
     }
 
-    std::pair<std::optional<std::shared_ptr<LexerToken>>,size_t>
-    feed_end_internal()
+    std::pair<std::optional<std::shared_ptr<LexerToken>>, size_t> feed_end_internal()
     {
         if (this->m_cache.empty())
-            return std::make_pair(std::nullopt,0);
+            return std::make_pair(std::nullopt, 0);
 
-        for (size_t i=0;i<this->m_rules.size();i++) {
-            if (this->m_match_major_priority.has_value() && 
-                this->m_match_major_priority.value() > i)
-            {
+        for (size_t i = 0; i < this->m_rules.size(); i++) {
+            if (this->m_match_major_priority.has_value() &&
+                this->m_match_major_priority.value() > i) {
                 continue;
             }
-            auto& r1= this->m_rules[i];
-            std::vector<std::tuple<size_t,size_t,size_t>> matchs;
+            auto& r1 = this->m_rules[i];
+            std::vector<std::tuple<size_t, size_t, size_t>> matchs;
 
-            for (size_t j=0;j<r1.size();j++) {
+            for (size_t j = 0; j < r1.size(); j++) {
                 auto& r2 = r1[j];
 
-                for (size_t k=0;k<r2.size();k++) {
+                for (size_t k = 0; k < r2.size(); k++) {
                     auto& r = r2[k];
                     if (r.match_len > 0) {
-                        matchs.push_back(std::make_tuple(r.match_len,j,k));
+                        matchs.push_back(std::make_tuple(r.match_len, j, k));
                     }
                 }
             }
@@ -249,32 +262,28 @@ private:
             return this->get_token_by_candidates(i, matchs);
         }
 
-        throw LexerError(
-                "unexpected end of file, unprocessed tokens: " +
-                std::to_string(this->m_cache.size()));
+        throw LexerError("unexpected end of file, unprocessed tokens: " +
+                         std::to_string(this->m_cache.size()));
     }
 
-    std::pair<std::optional<std::shared_ptr<LexerToken>>,size_t>
-    get_token_by_candidates(size_t major_index, std::vector<std::tuple<size_t,size_t,size_t>>& candidates)
+    std::pair<std::optional<std::shared_ptr<LexerToken>>, size_t>
+    get_token_by_candidates(size_t major_index,
+                            std::vector<std::tuple<size_t, size_t, size_t>>& candidates)
     {
         assert(candidates.size() > 0);
         std::sort(candidates.rbegin(), candidates.rend());
         auto f1 = candidates.front();
-        for (auto& a: candidates) {
+        for (auto& a : candidates) {
             if (std::get<0>(a) != std::get<0>(f1))
                 break;
 
-            if (std::get<1>(a) == std::get<1>(f1) &&
-                std::get<1>(a) == std::get<1>(f1))
-            {
+            if (std::get<1>(a) == std::get<1>(f1) && std::get<1>(a) == std::get<1>(f1)) {
                 continue;
             }
 
-            if (std::get<1>(a) == std::get<1>(f1))
-            {
+            if (std::get<1>(a) == std::get<1>(f1)) {
                 throw LexerError("conflict rule");
-            } else if (std::get<1>(a) < std::get<1>(f1))
-            {
+            } else if (std::get<1>(a) < std::get<1>(f1)) {
                 f1 = a;
             }
         }
@@ -297,9 +306,9 @@ private:
         if (last.has_value() && last.value() != nullptr)
             this->m_notnull_last_token = last;
 
-        for (auto& r1: this->m_rules) {
-            for (auto& r2: r1) {
-                for (auto& ri: r2) {
+        for (auto& r1 : this->m_rules) {
+            for (auto& r2 : r1) {
+                for (auto& ri : r2) {
                     ri.reset(pos, this->m_notnull_last_token);
                 }
             }
@@ -313,7 +322,7 @@ private:
         if (this->m_encoder) {
             str = this->m_encoder(c);
         } else {
-            str.push_back((char)c);
+            str.push_back((char) c);
         }
         this->m_pos = this->m_textinfo->push_str(str);
 
@@ -328,15 +337,13 @@ private:
     }
 
 
-public:
-    Lexer(encoder_t encoder = nullptr)
-        : m_encoder(encoder)
+  public:
+    Lexer(encoder_t encoder = nullptr) : m_encoder(encoder)
     {
         this->setup_rules_set();
         this->reset();
     }
-    Lexer(const std::string& fn, encoder_t encoder = nullptr)
-        : m_encoder(encoder)
+    Lexer(const std::string& fn, encoder_t encoder = nullptr) : m_encoder(encoder)
     {
         this->setup_rules_set();
         this->reset(fn);
@@ -374,7 +381,8 @@ public:
         back.resize(back.size() + 1);
     }
 
-    void add_rule(std::unique_ptr<LexerRule<CharType>> rule) {
+    void add_rule(std::unique_ptr<LexerRule<CharType>> rule)
+    {
         assert(!this->m_rules.empty());
         auto& back = this->m_rules.back();
         assert(!back.empty());
@@ -383,7 +391,8 @@ public:
         ruleset.push_back(RuleInfo(std::move(rule)));
     }
 
-    Lexer& operator()(std::unique_ptr<LexerRule<CharType>> rule) {
+    Lexer& operator()(std::unique_ptr<LexerRule<CharType>> rule)
+    {
         this->add_rule(std::move(rule));
         return *this;
     }
@@ -405,7 +414,7 @@ public:
     {
         std::vector<std::shared_ptr<LexerToken>> ret;
 
-        for (;begin != end;begin++) {
+        for (; begin != end; begin++) {
             auto r = this->feed_char(*begin);
             ret.insert(ret.end(), r.begin(), r.end());
         }
@@ -438,12 +447,11 @@ public:
                 if (this->m_cache.size() > len)
                     reset_pos = this->m_cache[len].pos;
                 this->reset_rules(reset_pos, val);
-                this->m_cache.erase(this->m_cache.begin(),
-                                    this->m_cache.begin() + len);
-                
+                this->m_cache.erase(this->m_cache.begin(), this->m_cache.begin() + len);
+
                 if (!this->m_cache.empty()) {
                     auto nx = this->push_cache_to_end(1);
-                    for (auto t: nx)
+                    for (auto t : nx)
                         tokens.push_back(t);
                 }
             }
@@ -452,7 +460,10 @@ public:
         return tokens;
     }
 
-    std::shared_ptr<TextInfo> position_info() const { return this->m_textinfo; }
+    std::shared_ptr<TextInfo> position_info() const
+    {
+        return this->m_textinfo;
+    }
 };
 
 #endif // _LEXER_LEXER_HPP_

@@ -3,15 +3,15 @@
 
 #include "lexer.hpp"
 #include "lexer_error.h"
-#include <string>
-#include <memory>
-#include <vector>
 #include <assert.h>
+#include <memory>
+#include <string>
+#include <vector>
 
 
 class ISimpleLexer
 {
-public:
+  public:
     using token_t = std::shared_ptr<LexerToken>;
 
     virtual bool end() const = 0;
@@ -22,12 +22,13 @@ public:
 
 
 template<typename T>
-class SimpleLexer: public ISimpleLexer {
-public:
+class SimpleLexer : public ISimpleLexer
+{
+  public:
     using CharType = T;
     using token_t = std::shared_ptr<LexerToken>;
 
-private:
+  private:
     std::unique_ptr<Lexer<CharType>> lexer;
     std::vector<token_t> token_buffer;
     size_t cur_pos;
@@ -36,8 +37,7 @@ private:
 
     void clean_token_buffer()
     {
-        while (cur_pos >= 0 && token_buffer.size() > 10)
-        {
+        while (cur_pos >= 0 && token_buffer.size() > 10) {
             token_buffer.erase(token_buffer.begin());
             cur_pos--;
         }
@@ -51,7 +51,7 @@ private:
         if (cur_pos < token_buffer.size() || buf_pos == buffer.size())
             return;
 
-        while(buf_pos<buffer.size()) {
+        while (buf_pos < buffer.size()) {
             auto c = buffer[buf_pos];
             buf_pos++;
 
@@ -72,14 +72,15 @@ private:
         }
     }
 
-public:
-    SimpleLexer(std::unique_ptr<Lexer<CharType>> lexer, std::vector<CharType> buf):
-        lexer(std::move(lexer)), buffer(std::move(buf)), buf_pos(0), cur_pos(0) 
+  public:
+    SimpleLexer(std::unique_ptr<Lexer<CharType>> lexer, std::vector<CharType> buf)
+        : lexer(std::move(lexer)), buffer(std::move(buf)), buf_pos(0), cur_pos(0)
     {
         assert(buffer.size() > 0);
     }
 
-    bool end() const override {
+    bool end() const override
+    {
         auto _this = const_cast<SimpleLexer*>(this);
         _this->fill_one();
 
@@ -87,14 +88,16 @@ public:
         return cur_pos == this->token_buffer.size();
     }
 
-    token_t next() override {
+    token_t next() override
+    {
         if (this->end())
             throw LexerError("No more tokens");
 
         return token_buffer[cur_pos++];
     }
 
-    void back() override {
+    void back() override
+    {
         if (this->cur_pos == 0)
             throw LexerError("lexer can't go backward");
 

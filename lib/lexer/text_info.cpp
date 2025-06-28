@@ -9,9 +9,13 @@ using TextRange = TextRangeEntity::TextRange;
 #define MIN_AB(a, b) ((a) < (b) ? (a) : (b))
 
 
-TextRangeEntity::TextRangeEntity() {}
+TextRangeEntity::TextRangeEntity()
+{}
 
-TextRangeEntity::TextRangeEntity(TextRange range): m_range(range) { assert(range.second >= range.first); }
+TextRangeEntity::TextRangeEntity(TextRange range) : m_range(range)
+{
+    assert(range.second >= range.first);
+}
 
 void TextRangeEntity::contain_(const TextRangeEntity& other)
 {
@@ -28,36 +32,40 @@ void TextRangeEntity::contain_(const TextRangeEntity& other)
     const auto p3 = other.m_range.value().first;
     const auto p4 = other.m_range.value().second;
 
-    this->m_range = TextRange(
-        MIN_AB(p1, p3),
-        MAX_AB(p2, p4)
-    );
+    this->m_range = TextRange(MIN_AB(p1, p3), MAX_AB(p2, p4));
 }
 
-optional<TextRange> TextRangeEntity::range() const { return this->m_range; }
+optional<TextRange> TextRangeEntity::range() const
+{
+    return this->m_range;
+}
 
-optional<size_t> TextRangeEntity::beg() const {
+optional<size_t> TextRangeEntity::beg() const
+{
     if (this->m_range.has_value())
         return this->m_range.value().first;
     else
         return nullopt;
 }
 
-optional<size_t> TextRangeEntity::end() const {
+optional<size_t> TextRangeEntity::end() const
+{
     if (this->m_range.has_value())
         return this->m_range.value().second;
     else
         return nullopt;
 }
 
-optional<size_t> TextRangeEntity::length() const {
+optional<size_t> TextRangeEntity::length() const
+{
     if (!this->m_range.has_value())
         return nullopt;
 
     return m_range.value().second - m_range.value().first;
 }
 
-void TextRangeEntity::benowhere() {
+void TextRangeEntity::benowhere()
+{
     this->m_range = nullopt;
 }
 
@@ -74,8 +82,8 @@ string TextInfo::row_col_str(size_t p1, size_t p2) const
 {
     auto px = this->query(p1);
     auto py = this->query(p2);
-    auto s = "line " + to_string(px.line) + ":" + to_string(px.column) + "-" +
-                       to_string(py.line) + ":" + to_string(py.column);
+    auto s = "line " + to_string(px.line) + ":" + to_string(px.column) + "-" + to_string(py.line) +
+             ":" + to_string(py.column);
     if (this->filename().size() > 0)
         s += this->filename() + "[" + s + "]";
     return s;
@@ -100,7 +108,7 @@ vector<LineRange> TextInfo::lines(size_t beg_pos, size_t end_pos) const
     auto einfo = this->query(end_pos);
     vector<LineRange> ret;
 
-    for (auto bl=binfo.line;bl<=einfo.line;bl++) {
+    for (auto bl = binfo.line; bl <= einfo.line; bl++) {
         auto l = this->query_line(bl);
         size_t b = 0, e = l.size();
         if (bl == binfo.line)
@@ -108,7 +116,7 @@ vector<LineRange> TextInfo::lines(size_t beg_pos, size_t end_pos) const
         if (bl == einfo.line)
             e = einfo.column;
 
-        ret.push_back(LineRange{ .line = l, .beg = b, .end = e });
+        ret.push_back(LineRange{.line = l, .beg = b, .end = e});
     }
 
     return ret;

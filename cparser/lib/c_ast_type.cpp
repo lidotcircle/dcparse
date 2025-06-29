@@ -1,5 +1,4 @@
 #include "c_ast.h"
-#include <map>
 using namespace std;
 using namespace cparser;
 using storage_class_t = ASTNodeVariableType::storage_class_t;
@@ -804,7 +803,7 @@ ASTNodeVariableTypePointer::compatible_with(shared_ptr<ASTNodeVariableType> type
         }
 
         auto composite_type = this->m_type->compatible_with(tarr->elemtype());
-        if (composite_type)
+        if (!composite_type)
             return nullptr;
 
         auto ret = std::make_shared<ASTNodeVariableTypePointer>(this->lcontext(), composite_type);

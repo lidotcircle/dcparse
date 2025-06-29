@@ -169,7 +169,7 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
                    *arg,
                    "invalid function call, parameter type mismatch, expected " +
                        paramtype->to_string() + ", got " + argtype->to_string());
-        } else if (ffff->equal_to(argtype)) {
+        } else if (!ffff->equal_to(argtype)) {
             arg = make_exprcast(arg, ffff);
         }
     }
@@ -179,7 +179,17 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
     } else {
         auto func_proto = this->m_func->type();
         assert(func_proto);
-        this->resolve_type(functype->return_type()->copy());
+        auto return_type = functype->return_type();
+        if (return_type) {
+            auto return_type_copy = return_type->copy();
+            if (return_type_copy) {
+                this->resolve_type(return_type_copy);
+            } else {
+                this->resolve_type(kstype::voidtype(this->context()));
+            }
+        } else {
+            this->resolve_type(kstype::voidtype(this->context()));
+        }
     }
 }
 
@@ -226,7 +236,7 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
                "invalid member access, member '" + this->m_member->id + "' is not defined");
     }
 
-    if (olderrorcounter != reporter->size()) {
+    if (olderrorcounter != reporter->size() || !found) {
         this->resolve_type(kstype::voidtype(this->context()));
     } else {
         this->resolve_type(restype);
@@ -284,7 +294,7 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
                "invalid member access, member '" + this->m_member->id + "' is not defined");
     }
 
-    if (olderrorcounter != reporter->size()) {
+    if (olderrorcounter != reporter->size() || !found) {
         this->resolve_type(kstype::voidtype(this->context()));
     } else {
         this->resolve_type(restype);
@@ -647,6 +657,7 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
             REPORT(InvalidOperand,
                    *this,
                    "invalid unary operator, operand is not integer or pointer or array");
+            exprtype = kstype::voidtype(this->context());
             break;
         }
 
@@ -659,9 +670,10 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
     case OT::REFERENCE:
         if (!this->m_expr->is_lvalue()) {
             REPORT(InvalidValueCategory, *this, "invalid unary operator, operand is not lvalue");
-            break;
+            exprtype = kstype::voidtype(this->context());
+        } else {
+            exprtype = ptrto(this->m_expr->type());
         }
-        exprtype = ptrto(this->m_expr->type());
         break;
     case OT::DEREFERENCE:
         if (this->m_expr->type()->basic_type() == variable_basic_type::POINTER) {
@@ -673,6 +685,7 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
         } else {
             REPORT(
                 InvalidOperand, *this, "invalid unary operator, operand is not pointer or array");
+            exprtype = kstype::voidtype(this->context());
         }
         break;
     case OT::LOGICAL_NOT:
@@ -681,12 +694,14 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
             exprtype = make_shared<ASTNodeVariableTypeInt>(this->context(), 1, false);
         } else {
             REPORT(InvalidOperand, *this, "invalid unary operator, can't convert to bool");
+            exprtype = kstype::voidtype(this->context());
         }
         break;
     case OT::BITWISE_NOT: {
         auto int_ = int_compatible(this->m_expr->type());
         if (!int_) {
             REPORT(InvalidOperand, *this, "invalid unary operator, operand is not integer");
+            exprtype = kstype::voidtype(this->context());
         } else {
             if (int_ != this->m_expr->type())
                 this->m_expr = make_exprcast(this->m_expr, int_);
@@ -703,6 +718,7 @@ void ASTNodeExprUnaryOp::check_constraints(std::shared_ptr<SemanticReporter> rep
         if (!this->m_expr->type()->is_arithmatic_type()) {
             REPORT(
                 InvalidOperand, *this, "invalid unary operator, operand is not integer or float");
+            exprtype = kstype::voidtype(this->context());
         } else {
             exprtype = this->m_expr->type();
         }
@@ -743,6 +759,7 @@ void ASTNodeExprCast::check_constraints(std::shared_ptr<SemanticReporter> report
     auto casttype = exprtype->explicit_cast_to(this->m_type);
     if (!casttype) {
         REPORT(InvalidCastFailed, *this, "cast failed");
+        this->resolve_type(kstype::voidtype(this->context()));
     } else {
         this->resolve_type(casttype);
     }
@@ -787,26 +804,28 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                     InvalidOperand,
                     *this,
                     "invalid operand for multiply and division, can't convert to arithmetic type");
+            } else {
+                if (!ltype->equal_to(composite))
+                    this->m_left = make_exprcast(this->m_left, composite);
+                if (!rtype->equal_to(composite))
+                    this->m_right = make_exprcast(this->m_right, composite);
+                exprtype = composite->copy();
             }
-            if (!ltype->equal_to(composite))
-                this->m_left = make_exprcast(this->m_left, composite);
-            if (!rtype->equal_to(composite))
-                this->m_right = make_exprcast(this->m_right, composite);
-            exprtype = composite->copy();
         } break;
         case OT::REMAINDER:
         case OT::ASSIGNMENT_REMAINDER: {
             auto composite = composite_or_promote(ltype, rtype);
-            if (!composite || composite->basic_type() == variable_basic_type::INT) {
+            if (!composite || composite->basic_type() != variable_basic_type::INT) {
                 REPORT(InvalidOperand,
                        *this,
                        "invalid operand for remainder, can't convert to integer type");
+            } else {
+                if (!ltype->equal_to(composite))
+                    this->m_left = make_exprcast(this->m_left, composite);
+                if (!rtype->equal_to(composite))
+                    this->m_right = make_exprcast(this->m_right, composite);
+                exprtype = composite->copy();
             }
-            if (!ltype->equal_to(composite))
-                this->m_left = make_exprcast(this->m_left, composite);
-            if (!rtype->equal_to(composite))
-                this->m_right = make_exprcast(this->m_right, composite);
-            exprtype = composite->copy();
         } break;
         case OT::PLUS: {
             auto lux = ptr_compatible(ltype);
@@ -846,7 +865,7 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                 }
             } else {
                 auto composite = composite_or_promote(ltype, rtype);
-                if (!composite || composite->is_arithmatic_type()) {
+                if (!composite || !composite->is_arithmatic_type()) {
                     REPORT(InvalidOperand,
                            *this,
                            "invalid operand for addition, can't convert to arithmetic type");
@@ -888,7 +907,7 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                 }
             } else {
                 auto composite = composite_or_promote(ltype, rtype);
-                if (!composite || composite->is_arithmatic_type()) {
+                if (!composite || !composite->is_arithmatic_type()) {
                     REPORT(InvalidOperand,
                            *this,
                            "invalid operand for subtraction, can't convert to arithmetic type");
@@ -916,13 +935,14 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                 REPORT(InvalidOperand,
                        *this,
                        "invalid operand for shift, can't convert to integer type");
-            }
-            if (!composite->equal_to(ltype))
-                this->m_left = make_exprcast(this->m_left, composite);
-            if (!composite->equal_to(rtype))
-                this->m_right = make_exprcast(this->m_right, composite);
+            } else {
+                if (!composite->equal_to(ltype))
+                    this->m_left = make_exprcast(this->m_left, composite);
+                if (!composite->equal_to(rtype))
+                    this->m_right = make_exprcast(this->m_right, composite);
 
-            exprtype = composite->copy();
+                exprtype = composite->copy();
+            }
         } break;
         case OT::GREATER_THAN:
         case OT::LESS_THAN:
@@ -935,13 +955,14 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                        *this,
                        "invalid operand for comparison, can't convert to integer type or "
                        "compatible pointer");
-            }
-            if (!composite->equal_to(ltype))
-                this->m_left = make_exprcast(this->m_left, composite);
-            if (!composite->equal_to(rtype))
-                this->m_right = make_exprcast(this->m_right, composite);
+            } else {
+                if (!composite->equal_to(ltype))
+                    this->m_left = make_exprcast(this->m_left, composite);
+                if (!composite->equal_to(rtype))
+                    this->m_right = make_exprcast(this->m_right, composite);
 
-            exprtype = composite->copy();
+                exprtype = kstype::booltype(this->context());
+            }
         } break;
         case OT::EQUAL:
         case OT::NOT_EQUAL: {
@@ -1007,7 +1028,10 @@ void ASTNodeExprBinaryOp::check_constraints(std::shared_ptr<SemanticReporter> re
                     InvalidOperand,
                     *this,
                     "invalid operand for assignment, can't convert to arithmatic compatible type");
-                break;
+            } else {
+                if (!casted->equal_to(rtype))
+                    this->m_right = make_exprcast(this->m_right, casted);
+                exprtype = ltype->copy();
             }
         } break;
         default:
@@ -1039,7 +1063,7 @@ void ASTNodeExprConditional::check_constraints(std::shared_ptr<SemanticReporter>
     if (olderrorcounter != reporter->size())
         return;
 
-    if (!this->m_cond->type()->is_scalar_type() ||
+    if (!this->m_cond->type()->is_scalar_type() &&
         this->m_cond->type()->basic_type() != variable_basic_type::ENUM) {
         REPORT(InvalidOperand,
                *this,
@@ -1673,8 +1697,12 @@ void ASTNodeStatIF::check_constraints(std::shared_ptr<SemanticReporter> reporter
     const auto olderrorcounter = reporter->size();
     this->_cond->check_constraints(reporter);
     const auto check_cond_type = olderrorcounter != reporter->size();
-    this->_falsestat->check_constraints(reporter);
-    this->_truestat->check_constraints(reporter);
+    if (this->_falsestat) {
+        this->_falsestat->check_constraints(reporter);
+    }
+    if (this->_truestat) {
+        this->_truestat->check_constraints(reporter);
+    }
 
     if (check_cond_type) {
         if (!this->_cond->type()->implicit_cast_to(kstype::booltype(this->context()))) {

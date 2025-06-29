@@ -174,9 +174,9 @@ shared_ptr<ASTNodeVariableTypeInt> booltype(shared_ptr<CParserContext> ctx)
 shared_ptr<ASTNodeVariableTypePointer> constcharptrtype(shared_ptr<CParserContext> ctx)
 {
     shared_ptr<DCParser::DCParserContext> pctx = ctx;
-    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), true);
+    auto char_type = make_shared<ASTNodeVariableTypeInt>(pctx, sizeof(char), false);
+    char_type->const_ref() = true;
     auto ans = ptrto(char_type);
-    ans->const_ref() = true;
     return ans;
 }
 

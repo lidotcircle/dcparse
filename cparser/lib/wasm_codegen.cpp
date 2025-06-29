@@ -1,6 +1,4 @@
 #include "wasm_codegen.h"
-#include "c_ast_utils.h"
-#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
@@ -764,6 +762,11 @@ void WasmCodeGenerator::generateCompoundStatement(std::shared_ptr<ASTNodeStatCom
             generateStatement(statement);
         } else if (auto declaration = std::dynamic_pointer_cast<ASTNodeDeclaration>(blockItem)) {
             generateDeclaration(declaration);
+        } else if (auto declarationList =
+                       std::dynamic_pointer_cast<ASTNodeDeclarationList>(blockItem)) {
+            for (size_t j = 0; j < declarationList->size(); ++j) {
+                generateDeclaration((*declarationList)[j]);
+            }
         }
     }
 }

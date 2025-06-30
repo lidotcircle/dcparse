@@ -1,7 +1,7 @@
 
 file(GLOB_RECURSE cparser_SOURCES CONFIGURE_DEPENDS ./lib/**.cpp)
 add_library(cparser STATIC ${cparser_SOURCES})
-set_property(TARGET cparser PROPERTY CXX_STANDARD 17)
+set_property(TARGET cparser PROPERTY CXX_STANDARD 20)
 target_include_directories(cparser PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
 target_link_libraries(cparser PUBLIC dcparse)
 
@@ -16,7 +16,7 @@ foreach (test_file IN LISTS TEST_FILES)
     get_filename_component(filenamewe ${test_file} NAME_WE)
     string(CONCAT execname "test_" ${filenamewe})
     add_executable(${execname} ${test_file})
-    set_property(TARGET ${execname} PROPERTY CXX_STANDARD 17)
+    set_property(TARGET ${execname} PROPERTY CXX_STANDARD 20)
     target_link_libraries(${execname} gtest_main)
     target_link_libraries(${execname} cparser)
     gtest_discover_tests(${execname})

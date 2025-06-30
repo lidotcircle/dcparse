@@ -115,7 +115,7 @@ class ASTNodeExpr : public ASTNode
     inline void resolve_type(std::shared_ptr<ASTNodeVariableType> type)
     {
         assert(this->m_type == nullptr);
-        assert(type != nullptr);
+        assert(type);
         this->m_type = type;
     }
     inline std::shared_ptr<ASTNodeVariableType> type() const
@@ -265,7 +265,6 @@ class ASTNodeArgList : public ASTNode, private std::vector<std::shared_ptr<ASTNo
     using container_t::end;
     using container_t::size;
     using container_t::operator[];
-    using container_t::push_back;
 
     template<typename T>
     void push_back(T v)

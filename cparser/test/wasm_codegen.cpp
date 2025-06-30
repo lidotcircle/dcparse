@@ -228,6 +228,8 @@ TEST_F(WasmCodeGenTest, IfStatement)
     std::string wasm = generateWasmModule(code);
     EXPECT_FALSE(wasm.empty());
 
+    std::cout << "Generated WASM for IfStatement test:\n" << wasm << std::endl;
+
     // Should contain conditional branching
     EXPECT_NE(wasm.find("if"), std::string::npos);
     EXPECT_NE(wasm.find("else"), std::string::npos);

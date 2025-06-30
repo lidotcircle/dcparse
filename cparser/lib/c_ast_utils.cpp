@@ -162,7 +162,9 @@ namespace cparser::kstype {
 shared_ptr<ASTNodeVariableTypeVoid> voidtype(shared_ptr<CParserContext> ctx)
 {
     shared_ptr<DCParser::DCParserContext> pctx = ctx;
-    return make_shared<ASTNodeVariableTypeVoid>(pctx);
+    auto result = make_shared<ASTNodeVariableTypeVoid>(pctx);
+    assert(result != nullptr);  // Debug: ensure we never return null
+    return result;
 }
 
 shared_ptr<ASTNodeVariableTypeInt> booltype(shared_ptr<CParserContext> ctx)

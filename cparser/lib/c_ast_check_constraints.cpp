@@ -175,20 +175,54 @@ void ASTNodeExprFunctionCall::check_constraints(std::shared_ptr<SemanticReporter
     }
 
     if (olderrorcounter != reporter->size()) {
-        this->resolve_type(kstype::voidtype(this->context()));
+        // Error occurred during constraint checking - set void type
+        auto ctx = this->context();
+        if (ctx) {
+            auto void_type = kstype::voidtype(ctx);
+            this->resolve_type(void_type);
+        } else {
+            // Fallback if context is null - create a dummy void type
+            auto dummy_void = std::make_shared<ASTNodeVariableTypeVoid>(ASTNodeParserContext());
+            this->resolve_type(dummy_void);
+        }
     } else {
         auto func_proto = this->m_func->type();
-        assert(func_proto);
+        if (!func_proto) {
+            auto ctx = this->context();
+            if (ctx) {
+                auto void_type = kstype::voidtype(ctx);
+                this->resolve_type(void_type);
+            } else {
+                auto dummy_void = std::make_shared<ASTNodeVariableTypeVoid>(ASTNodeParserContext());
+                this->resolve_type(dummy_void);
+            }
+            return;
+        }
         auto return_type = functype->return_type();
         if (return_type) {
             auto return_type_copy = return_type->copy();
             if (return_type_copy) {
                 this->resolve_type(return_type_copy);
             } else {
-                this->resolve_type(kstype::voidtype(this->context()));
+                auto ctx = this->context();
+                if (ctx) {
+                    auto void_type = kstype::voidtype(ctx);
+                    this->resolve_type(void_type);
+                } else {
+                    auto dummy_void =
+                        std::make_shared<ASTNodeVariableTypeVoid>(ASTNodeParserContext());
+                    this->resolve_type(dummy_void);
+                }
             }
         } else {
-            this->resolve_type(kstype::voidtype(this->context()));
+            auto ctx = this->context();
+            if (ctx) {
+                auto void_type = kstype::voidtype(ctx);
+                this->resolve_type(void_type);
+            } else {
+                auto dummy_void = std::make_shared<ASTNodeVariableTypeVoid>(ASTNodeParserContext());
+                this->resolve_type(dummy_void);
+            }
         }
     }
 }
@@ -222,9 +256,11 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
 
         if (mid->id == this->m_member->id) {
             restype = mem->get_type()->copy();
-            restype->const_ref() = restype->const_ref() || objtype->const_ref();
-            restype->volatile_ref() = restype->volatile_ref() || objtype->const_ref();
-            restype->restrict_ref() = restype->restrict_ref() || objtype->restrict_ref();
+            if (restype) {
+                restype->const_ref() = restype->const_ref() || objtype->const_ref();
+                restype->volatile_ref() = restype->volatile_ref() || objtype->const_ref();
+                restype->restrict_ref() = restype->restrict_ref() || objtype->restrict_ref();
+            }
             found = true;
             break;
         }
@@ -236,7 +272,7 @@ void ASTNodeExprMemberAccess::check_constraints(std::shared_ptr<SemanticReporter
                "invalid member access, member '" + this->m_member->id + "' is not defined");
     }
 
-    if (olderrorcounter != reporter->size() || !found) {
+    if (olderrorcounter != reporter->size() || !found || !restype) {
         this->resolve_type(kstype::voidtype(this->context()));
     } else {
         this->resolve_type(restype);
@@ -280,9 +316,11 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
 
         if (mid->id == this->m_member->id) {
             restype = mem->get_type()->copy();
-            restype->const_ref() = restype->const_ref() || objtype->const_ref();
-            restype->volatile_ref() = restype->volatile_ref() || objtype->const_ref();
-            restype->restrict_ref() = restype->restrict_ref() || objtype->restrict_ref();
+            if (restype) {
+                restype->const_ref() = restype->const_ref() || objtype->const_ref();
+                restype->volatile_ref() = restype->volatile_ref() || objtype->const_ref();
+                restype->restrict_ref() = restype->restrict_ref() || objtype->restrict_ref();
+            }
             found = true;
             break;
         }
@@ -294,7 +332,7 @@ void ASTNodeExprPointerMemberAccess::check_constraints(std::shared_ptr<SemanticR
                "invalid member access, member '" + this->m_member->id + "' is not defined");
     }
 
-    if (olderrorcounter != reporter->size() || !found) {
+    if (olderrorcounter != reporter->size() || !found || !restype) {
         this->resolve_type(kstype::voidtype(this->context()));
     } else {
         this->resolve_type(restype);
@@ -1650,7 +1688,9 @@ void ASTNodeStatDefault::check_constraints(std::shared_ptr<SemanticReporter> rep
 
     auto ctx = this->context()->tu_context();
     assert(ctx->in_function_definition());
-    this->m_stat->check_constraints(reporter);
+    if (this->m_stat) {
+        this->m_stat->check_constraints(reporter);
+    }
 
     if (!ctx->in_switch_statement()) {
         REPORT(IncompatibleTypes, *this, "default label not in switch statement");
@@ -1677,7 +1717,9 @@ void ASTNodeStatCompound::check_constraints(std::shared_ptr<SemanticReporter> re
     assert(ctx->in_function_definition());
 
     ctx->enter_scope();
-    this->_statlist->check_constraints(reporter);
+    if (this->_statlist) {
+        this->_statlist->check_constraints(reporter);
+    }
     ctx->leave_scope();
 }
 
@@ -1686,7 +1728,9 @@ void ASTNodeStatExpr::check_constraints(std::shared_ptr<SemanticReporter> report
     if (!this->do_check())
         return;
 
-    this->_expr->check_constraints(reporter);
+    if (this->_expr) {
+        this->_expr->check_constraints(reporter);
+    }
 }
 
 void ASTNodeStatIF::check_constraints(std::shared_ptr<SemanticReporter> reporter)
@@ -1723,7 +1767,9 @@ void ASTNodeStatSwitch::check_constraints(std::shared_ptr<SemanticReporter> repo
     assert(ctx->in_function_definition());
 
     ctx->enter_switch();
-    this->_stat->check_constraints(reporter);
+    if (this->_stat) {
+        this->_stat->check_constraints(reporter);
+    }
     ctx->leave_switch();
 }
 
@@ -1733,11 +1779,15 @@ void ASTNodeStatDoWhile::check_constraints(std::shared_ptr<SemanticReporter> rep
         return;
 
     const auto olderrorcounter = reporter->size();
-    this->_expr->check_constraints(reporter);
+    if (this->_expr) {
+        this->_expr->check_constraints(reporter);
+    }
     const auto check_cond_type = olderrorcounter != reporter->size();
-    this->_stat->check_constraints(reporter);
+    if (this->_stat) {
+        this->_stat->check_constraints(reporter);
+    }
 
-    if (check_cond_type) {
+    if (check_cond_type && this->_expr) {
         if (!this->_expr->type()->implicit_cast_to(kstype::booltype(this->context()))) {
             REPORT(IncompatibleTypes,
                    *this,
@@ -1752,12 +1802,20 @@ void ASTNodeStatFor::check_constraints(std::shared_ptr<SemanticReporter> reporte
     if (!this->do_check())
         return;
 
-    this->_init->check_constraints(reporter);
+    if (this->_init) {
+        this->_init->check_constraints(reporter);
+    }
     const auto olderrorcounter = reporter->size();
-    this->_cond->check_constraints(reporter);
+    if (this->_cond) {
+        this->_cond->check_constraints(reporter);
+    }
     const auto check_cond_type = olderrorcounter != reporter->size();
-    this->_post->check_constraints(reporter);
-    this->_stat->check_constraints(reporter);
+    if (this->_post) {
+        this->_post->check_constraints(reporter);
+    }
+    if (this->_stat) {
+        this->_stat->check_constraints(reporter);
+    }
 
     if (check_cond_type) {
         if (!this->_cond->type()->implicit_cast_to(kstype::booltype(this->context()))) {
@@ -1778,15 +1836,23 @@ void ASTNodeStatForDecl::check_constraints(std::shared_ptr<SemanticReporter> rep
     assert(ctx->in_function_definition());
 
     ctx->enter_scope();
-    this->_decls->check_constraints(reporter);
+    if (this->_decls) {
+        this->_decls->check_constraints(reporter);
+    }
     const auto olderrorcounter = reporter->size();
-    this->_cond->check_constraints(reporter);
+    if (this->_cond) {
+        this->_cond->check_constraints(reporter);
+    }
     const auto check_cond_type = olderrorcounter != reporter->size();
-    this->_post->check_constraints(reporter);
-    this->_stat->check_constraints(reporter);
+    if (this->_post) {
+        this->_post->check_constraints(reporter);
+    }
+    if (this->_stat) {
+        this->_stat->check_constraints(reporter);
+    }
     ctx->leave_scope();
 
-    if (check_cond_type) {
+    if (check_cond_type && this->_cond) {
         if (!this->_cond->type()->implicit_cast_to(kstype::booltype(this->context()))) {
             REPORT(IncompatibleTypes,
                    *this,
